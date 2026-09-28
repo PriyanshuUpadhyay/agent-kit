@@ -1,6 +1,6 @@
 ---
 name: flow
-description: Run one feature through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under ~/.flow and the domain skills that the repo profile names for each step. Use when the user says "flow continue <repo>/<folder>" or "flow start", or names a ~/.flow step file.
+description: Run one feature through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under ~/.flow and, for each step, the skills that the domain catalog gives the repo's domains. Use when the user says "flow continue <repo>/<folder>" or "flow start", or names a ~/.flow step file.
 ---
 
 # Flow
@@ -13,9 +13,10 @@ The user says "flow continue <repo>/<folder>". The folder is `~/.flow/<repo>/<YY
 `<repo>` is the name that the user types. If the user does not type it, it is the name of the
 folder above the git common dir (`git rev-parse --git-common-dir`), not the worktree folder name.
 
-1. If `~/.flow/<repo>/profile.md` does not exist, stop. Read the repo's build files, such as
-   `Package.swift`, `package.json`, or `wrangler.toml`, and suggest the domains. Draft at most
-   three skill paths per step from the skill packs that the user keeps. Show the draft, and write
+1. If `~/.flow/<repo>/profile.md` does not exist, stop. Suggest each domain of the catalog
+   `~/.flow/domains.md` whose `Signals:` line matches a file in the repo. Draft the profile with
+   `Domains:`, `Repo rules:` (files in the repo that hold its own rules), `Checks:` (the commands
+   that close runs), and `Needs:` (the tools that a step uses). Show the draft, and write
    `~/.flow/<repo>/profile.md` only after the user confirms it. Tell the user that the new profile
    is not in version control yet.
 2. If the folder does not exist, make it and make the seven step files below, each with
@@ -23,8 +24,10 @@ folder above the git common dir (`git rev-parse --git-common-dir`), not the work
 3. Read `01-frame.md`. If `Worktree:` or `Branch:` is not the current worktree and branch, stop and
    tell the user. If two open folders exist for one branch, stop and tell the user.
 4. Take the step that the user gave you. With one pane only, take the first ready step.
-5. Read the skill paths for that step in the profile. Read only those. When a tool that the
-   profile names is missing, set the status to `unavailable <tool>` and tell the user.
+5. In the catalog, read the paths for that step in the `any` section and in the section of each
+   profile domain that the change touches. Also read the profile's repo rules. Read only those.
+   When a tool that the profile names is missing, set the status to `unavailable <tool>` and tell
+   the user.
 6. Write only your step's file. Line 1 is the status.
 
 ## Status line
@@ -60,8 +63,9 @@ that the user asks for.
 
 ## Owners
 
-The flow owns the step list, the order, the status, and the profiles. `pair` or `deliver` owns
-the plan, the chunks, and the commits; the flow never starts `deliver` by itself.
+The flow owns the step list, the order, the status, the profiles, and the domain catalog.
+`pair` or `deliver` owns the plan, the chunks, and the commits; the flow never starts `deliver`
+by itself.
 `review-pr` owns the review and its verdict; the flow never fixes a finding itself.
 `prove-it-works` owns the choice of check and the evidence. `sequence-verifiable-units` owns the
 unit order. `decisions` owns the ADRs. The flow never pushes.
