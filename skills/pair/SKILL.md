@@ -51,6 +51,10 @@ Read the code the task touches. Write 3-7 behaviors, each one testable sentence 
 order. Show the list inline in the chat and wait for the user's approval or edits; the copy in the
 task file is a record, not the reply. No design essay, no option survey.
 
+When the user names a `flow` folder, take the behaviors from the done-when of its `01-frame.md`
+and the contracts in its `03-contracts.md`, and hold its build step. The flow's review step
+follows the last behavior, so pair itself still has no closing pass.
+
 Every behavior ends with `Standards: <row ids>` or `Standards: none`. Select them using
 `~/.claude/skills/engineering-standards/SKILL.md`. The agent checks this selection against the
 behavior and repository; the user does not have to catch a wrong `none` or write the standards.
