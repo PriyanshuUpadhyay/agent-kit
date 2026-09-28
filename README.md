@@ -66,6 +66,9 @@ that needs them, instead of linking them all into every session.
 | [NSHipster/sosumi.ai](https://github.com/NSHipster/sosumi.ai) | `79337f5` | `public/SKILL.md` | Apple docs and HIG as Markdown |
 | [vercel-labs/web-interface-guidelines](https://github.com/vercel-labs/web-interface-guidelines) | `e3d624b` | `command.md`, not `install.sh` | web UX rules |
 | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | `9d715cc` | `plugin/skills/impeccable/`, not `hooks/` | web design checks; `scripts/impeccable detect <file>` runs 61 rules |
+| [microsoft/rust-guidelines](https://github.com/microsoft/rust-guidelines) | `19723b3` | `src/guidelines/` | Rust rules; the `libs/` rules are for library APIs |
+| [leonardomso/rust-skills](https://github.com/leonardomso/rust-skills) | `fd2a861` | `SKILL.md` and `rules/` | Rust 1.96, edition 2024 |
+| [zaxified/zig-skills](https://github.com/zaxified/zig-skills) | `be65603` | `skills/zig/` | Zig 0.16.0 |
 
 Tools, not skill files: `xcrun mcpbridge` (Xcode), the sosumi MCP (`https://sosumi.ai/mcp`), Mobbin
 through Composio (`composio link mobbin_mcp`, paid Mobbin plan), `npx @google/design.md lint`, and
