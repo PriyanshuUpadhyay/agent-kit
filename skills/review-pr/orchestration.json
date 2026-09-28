@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "workflow_kind": "review-pr",
+  "required_operations": [
+    "resolve_roles",
+    "validate_host_capabilities",
+    "create_owned_visible_leaves",
+    "dispatch",
+    "accept_durable_results",
+    "report_degradation",
+    "close_owned_leaves"
+  ],
+  "roles": [
+    "review.deep",
+    "review.challenger"
+  ],
+  "seat_template": {
+    "isolation": "independent review context per seat",
+    "visibility": "host-visible owned leaf",
+    "permission": "repository inspection; no repository edits, applied findings, or commits; scratch-result writes only",
+    "artifact": "attributed structured verdict artifact",
+    "deadline": "bounded by the chair"
+  },
+  "refusals": [
+    {
+      "condition": "runtime-adapter-unavailable",
+      "detectable": "pre-dispatch",
+      "side_effects_may_have_occurred": false,
+      "disposition": "refuse"
+    },
+    {
+      "condition": "host-capability-unavailable",
+      "detectable": "pre-dispatch",
+      "side_effects_may_have_occurred": false,
+      "disposition": "refuse"
+    },
+    {
+      "condition": "role-unresolved",
+      "detectable": "pre-dispatch",
+      "side_effects_may_have_occurred": false,
+      "disposition": "degrade-and-report"
+    },
+    {
+      "condition": "route-capability-mismatch",
+      "detectable": "pre-dispatch",
+      "side_effects_may_have_occurred": false,
+      "disposition": "refuse"
+    },
+    {
+      "condition": "reviewer-independence-unsatisfied",
+      "detectable": "pre-dispatch",
+      "side_effects_may_have_occurred": false,
+      "disposition": "degrade-and-report"
+    },
+    {
+      "condition": "completion-artifact-invalid",
+      "detectable": "post-dispatch",
+      "side_effects_may_have_occurred": true,
+      "disposition": "refuse"
+    },
+    {
+      "condition": "teardown-target-unowned",
+      "detectable": "post-dispatch",
+      "side_effects_may_have_occurred": true,
+      "disposition": "quarantine-and-escalate"
+    }
+  ],
+  "result_routing": {
+    "unit_verdicts": "coverage gate",
+    "ripple_verdicts": "challenger and final report",
+    "challenger_adjustments": "original identity namespace",
+    "security_verdict": "final report"
+  },
+  "trace_cases": [
+    {
+      "id": "happy-path",
+      "units": [
+        "unit-a",
+        "unit-b"
+      ],
+      "reviewer_outcomes": {
+        "unit-a": "PASS",
+        "unit-b": "FAIL"
+      },
+      "challenger_verdicts": {
+        "unit-a": "UPHOLD",
+        "unit-b": "CONFIRM"
+      }
+    },
+    {
+      "id": "partial-pool",
+      "units": [
+        "unit-a",
+        "unit-b"
+      ],
+      "reviewer_outcomes": {
+        "unit-a": "PASS",
+        "unit-b": "MISSING"
+      },
+      "challenger_verdicts": {
+        "unit-a": "UPHOLD",
+        "unit-b": "REJECT"
+      }
+    }
+  ],
+  "role_policy": {
+    "disposition": "report-only"
+  }
+}
