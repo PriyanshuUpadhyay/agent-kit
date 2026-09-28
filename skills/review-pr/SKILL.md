@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: Judge a PR or local changes for correctness, behavior ownership, redundant boundaries, LLM and schema contracts, code quality, and security, with per-function coverage and evidence-gated findings, ending in APPROVE, REQUEST CHANGES, or NEEDS DISCUSSION. Use for PR review and redundancy audits. It judges a change and does not explain one; pr-walkthrough explains first.
+description: Judge a PR, local changes, or a commit range for correctness, behavior ownership, redundant boundaries, LLM and schema contracts, code quality, and security, with per-function coverage and evidence-gated findings, ending in APPROVE, REQUEST CHANGES, or NEEDS DISCUSSION. Use for PR review and redundancy audits. It judges a change and does not explain one; pr-walkthrough explains first.
 ---
 
 ## Ownership boundary
@@ -16,8 +16,8 @@ out in place; never run `git checkout`, `git switch`, `git stash`, `git reset`, 
 removed in Phase 4. Every git command that writes anything carries `git -C "$HEAD_DIR"`; only
 `gh pr diff` and `gh pr view` read the user's checkout, and then only to resolve the target.
 
-Review the resolved target with provable per-function coverage — a PR, or the literal `local` for
-uncommitted working-tree changes. A script guarantees every changed function is
+Review the resolved target with provable per-function coverage — a PR, the literal `local` for
+uncommitted working-tree changes, or a commit range `<base>..<head>`. A script guarantees every changed function is
 reviewed (no skimming); you supply the reasoning; a verifier keeps findings honest.
 Judge the change on its own merits — do NOT excuse new bugs because the surrounding code is messy.
 
@@ -68,7 +68,8 @@ write only the assigned scratch verdict, and do not edit code, apply findings, c
 agent.
 
 ## When to use / when NOT
-- USE for: judging a PR or local uncommitted diff for correctness, behavior ownership,
+- USE for: judging a PR, a local uncommitted diff, or a commit range, such as the commits of a
+  finished `pair` or `deliver` run, for correctness, behavior ownership,
   redundant validation or machinery, LLM/schema contracts, security, and code quality, with
   provable per-function coverage. This workflow produces verdicts and a recommendation.
 - NOT for: understanding what a PR *does* before judging it — that is `pr-walkthrough`, which
@@ -78,7 +79,9 @@ agent.
 
 ## Target resolution (fail closed, before any command)
 Normalize the user's request into one review target first. `PR_TARGET` is a PR number, a PR URL,
-`owner/repo#number`, a branch name, or the literal `local` for uncommitted working-tree changes.
+`owner/repo#number`, a branch name, the literal `local` for uncommitted working-tree changes, or a
+commit range `<base>..<head>` in the repository of the current directory. A branch name cannot
+hold `..`, so the range form is unambiguous.
 Take it from the arguments supplied with the invocation; when the invocation supplies none, take it
 from the user's request text.
 ```bash
@@ -91,6 +94,10 @@ case "$PR_TARGET" in
     case "$PR_REPO" in */*) ;; *) echo "invalid owner/repo#number target"; exit 1;; esac
     case "$PR_NUMBER_INPUT" in ''|*[!0-9]*) echo "invalid PR number"; exit 1;; esac
     PR_ARGS=(--repo "$PR_REPO" "$PR_NUMBER_INPUT")
+    ;;
+  *..*)
+    RANGE_BASE=$(git rev-parse --verify --quiet "${PR_TARGET%%..*}^{commit}") || { echo "range base is not a commit"; exit 1; }
+    RANGE_HEAD=$(git rev-parse --verify --quiet "${PR_TARGET#*..}^{commit}") || { echo "range head is not a commit"; exit 1; }
     ;;
   *) PR_ARGS=("$PR_TARGET") ;;
 esac
