@@ -62,8 +62,8 @@ unit records, relevant diff hunks, full-function or caller locations, absolute s
 the output schema required by that phase. For Phase 2c, append the behavior-ownership reference as
 task-specific audit instructions to the unit-reviewer persona. Append the runner contract's relay
 requirement last.
-The persona defines how the seat reasons and proves its result; `roles.json` alone selects how
-the seat runs. End every composed seat prompt with the report-only boundary: inspect the repository,
+The persona defines how the seat reasons and proves its result; the runtime adapter's role
+routing alone selects how the seat runs. End every composed seat prompt with the report-only boundary: inspect the repository,
 write only the assigned scratch verdict, and do not edit code, apply findings, commit, or spawn an
 agent.
 
