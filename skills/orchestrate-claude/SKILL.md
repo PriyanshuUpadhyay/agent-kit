@@ -56,7 +56,7 @@ wider sandbox.
 1. Require an injected `[agent-host: ...]` contract before creating workers.
    If none exists, continue serially only when the workflow permits it;
    otherwise report the missing orchestration capability and stop.
-2. Load the host reference the contract names (for Swarm,
+2. Load the host reference the contract names (for Herdr,
    `references/host-swarm.md`). The host owns pane creation, transport,
    liveness, artifact collection, and teardown.
 3. Resolve every requested workflow role with
@@ -76,7 +76,7 @@ wider sandbox.
    spawn and once within the first two minutes (uptake, then `pane process-info`),
    then end the turn. A seat that is not `working` after that check is inspected
    and re-prompted in the same turn (the host reference "Uptake rule"). Run
-   `swarm sweep --every 30` as a harness background task, never in a detached shell.
+   the sweep as the `swarm-orchestrator` skill says.
 
 Native background subagents are allowed unless the host contract or the
 workflow requires a visible pane. Never use a headless CLI. Every Workflow

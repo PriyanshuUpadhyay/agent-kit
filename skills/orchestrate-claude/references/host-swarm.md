@@ -1,9 +1,8 @@
 # Orchestrate from Claude — Swarm host reference
 
-This reference is active when the injected host contract names swarm.
+This reference is active under the `[agent-host: herdr]` host contract.
 Set `SWARM_ADAPTER=herdr` under Herdr (`HERDR_ENV=1`).
 Set `SWARM_ADAPTER=tmux` inside tmux.
-For Herdr-specific behavior, see `host-herdr.md`.
 
 ## Session
 
@@ -61,11 +60,7 @@ The seat writes only its attributed result to scratch and sends that result with
 
 The sweep command re-rings an ask at most once, 60 seconds after the first ring, and only while
 the child has not read its inbox.
-Run `swarm sweep --every 30` as a harness background task, and never run it in a detached shell.
-
-```sh
-swarm sweep --every 30
-```
+The `swarm-orchestrator` skill owns how to run the sweep.
 
 If a child pane dies, the orchestrator receives a summary message from that child.
 
