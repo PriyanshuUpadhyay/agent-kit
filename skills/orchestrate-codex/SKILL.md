@@ -46,12 +46,10 @@ requirements and fails closed when the active host cannot satisfy them.
 5. Accept only results validated by the host's durable completion channel.
    Close only workers created by this run.
 
-This section binds an ORCHESTRATOR session. Under a visible host, Codex
-collaboration workers are not an execution path for it: they run in-process and
-are not visible panes. Never replace a failed visible seat with `spawn_agent`, a
-headless CLI, or a background process. Outside a host, use Codex collaboration
-only when the user has explicitly granted that scoped fallback and the workflow
-does not require visibility.
+This section binds an ORCHESTRATOR session. Codex collaboration workers
+(`spawn_agent`) run in-process as background workers. Use them unless the host
+contract or the workflow requires a visible pane. Never use a headless CLI or a
+detached process.
 
 A WORKER session follows its host worker contract instead: it is a leaf, never
 creates panes or descendants, and never notifies the user. It reports one

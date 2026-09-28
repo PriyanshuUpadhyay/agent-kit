@@ -46,11 +46,10 @@ requirements and fails closed when the active host cannot satisfy them.
 5. Accept only results validated by the host's durable completion channel.
    Close only workers created by this run.
 
-Under a visible host, never use AGY's hidden subagents, a positional prompt at
-process launch, or a headless CLI. Deliver the first task only after the host
-has detected an input-ready AGY session. Outside a host, use native AGY agents
-only when the user has explicitly granted that scoped fallback and the
-workflow does not require visibility. Workers never orchestrate descendants
+Native AGY subagents are allowed unless the host contract or the workflow
+requires a visible pane. Never use a positional prompt at process launch or a
+headless CLI. Deliver the first task only after the host has detected an
+input-ready AGY session. Workers never orchestrate descendants
 or notify the user.
 
 ## Task files

@@ -78,10 +78,10 @@ wider sandbox.
    and re-prompted in the same turn (the host reference "Uptake rule"). Run
    `swarm sweep --every 30` as a harness background task, never in a detached shell.
 
-Under a visible host, never replace a failed pane with Claude's in-process
-workers or a headless CLI. Outside a host, use native workers only when the
-user has explicitly granted that scoped fallback and the workflow does not
-require visibility. Workers are leaves: they never spawn descendants or visible panes and never
+Native background subagents are allowed unless the host contract or the
+workflow requires a visible pane. Never use a headless CLI. Every Workflow
+`agent()` call pins `model: "sonnet"` or `model: "haiku"`, never Opus or Fable,
+because a workflow fans out to many agents. Workers are leaves: they never spawn descendants or visible panes and never
 notify the user. They report one consolidated result to the orchestrator.
 
 ## Task files
