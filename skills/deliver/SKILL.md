@@ -15,7 +15,8 @@ only the user can give.
 1. State the exit condition as a checkable predicate before the first change: tests green, the
    repro fixed, the feature exercised on the real surface. Show it in one line and start. Do not
    wait for approval of the predicate. When the user names a `flow` folder, the predicate is the
-   done-when of its `01-frame.md`, and you hold its build step.
+   done-when of its `01-frame.md`, and you hold its build step. Before the first change, read the
+   build skills that the `flow` skill selects for the repo.
 2. Each iteration makes the smallest change the evidence justifies, verifies it against the
    predicate, commits when it advanced, and discards a change that did not help. A change that
    "might help" is reverted, not left to ride. Order the work per the

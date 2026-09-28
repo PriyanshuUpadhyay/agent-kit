@@ -52,8 +52,9 @@ order. Show the list inline in the chat and wait for the user's approval or edit
 task file is a record, not the reply. No design essay, no option survey.
 
 When the user names a `flow` folder, take the behaviors from the done-when of its `01-frame.md`
-and the contracts in its `03-contracts.md`, and hold its build step. The flow's review step
-follows the last behavior, so pair itself still has no closing pass.
+and the contracts in its `03-contracts.md`, and hold its build step. Before the first chunk, read
+the build skills that the `flow` skill selects for the repo. The flow's review step follows the
+last behavior, so pair itself still has no closing pass.
 
 Every behavior ends with `Standards: <row ids>` or `Standards: none`. Select them using
 `~/.claude/skills/engineering-standards/SKILL.md`. The agent checks this selection against the
