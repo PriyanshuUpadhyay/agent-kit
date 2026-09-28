@@ -1,12 +1,12 @@
 ---
 name: research
-description: Research one question and write a short evidence-backed report to a file. Use when the user says research, look into, find out, compare, find me, writeups, articles, good reads, or asks what others do. Calls the `web-search` skill for a wide forum search. A Fable chair sends the web part to a `search.web` seat.
+description: Research one question and write a short evidence-backed report, shown in full in the reply and kept as a file. Use when the user says research, look into, find out, compare, find me, writeups, articles, good reads, or asks what others do. Calls the `web-search` skill for a wide forum search. A Fable chair sends the web part to a `search.web` seat.
 ---
 
 # Research
 
-Answer one question from evidence and write the answer to a file. The reply is the path plus a few
-bullets, never the whole report.
+Answer one question from evidence. Keep the report as a file, and put the whole report in the
+reply.
 
 ## 1. Pin the question
 
@@ -58,11 +58,11 @@ does not resolve, and drop the claim that rests on it alone.
 
 Example. The question is "does anyone run two coding agents on one repository". You read two prior
 reports, then fetch six pages. One returns 404. The report keeps five links, marks the sixth
-"(link dead)", and the reply gives the path plus three bullets.
+"(link dead)", and the reply shows the whole report.
 
 ## 5. Reply
 
-Give the report path, one concrete example from the findings, and at most five bullets.
+Put the whole report in the reply, from its `#` title down, then give the file path in one line.
 
 ## Guards
 
