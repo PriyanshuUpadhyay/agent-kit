@@ -19,8 +19,9 @@ only the user can give.
    predicate, commits when it advanced, and discards a change that did not help. A change that
    "might help" is reverted, not left to ride. Order the work per the
    `sequence-verifiable-units` skill, and judge each check per the `prove-it-works` skill.
-3. A mid-run discovery is yours. Fix a broken helper, a flaky check, or a related defect in its
-   own commit, then return to the predicate. Do not park reversible work for the user.
+3. A mid-run discovery is yours when it blocks the predicate. Fix it, such as a broken helper or a
+   flaky check, in its own commit, then return to the predicate. Do not park reversible work for
+   the user. Report any other defect in the final result and leave it unfixed.
 4. Keep one task file `<YYYY-MM-DD>-<slug>.md` in the task-file folder that the active runtime
    adapter names, with the predicate, the iterations run, one evidence line per iteration, and the
    next step. Read it first after a `/clear`, a `/compact`, or a resume, and make the first reply a

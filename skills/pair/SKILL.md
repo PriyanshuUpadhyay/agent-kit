@@ -114,7 +114,8 @@ The `approve` of a behavior's last chunk is the commit order. Earlier chunks of 
 uncommitted in the working tree, so one behavior is one commit. The agent writes the message: a subject of one line in the
 imperative, under 60 characters, that names the file or unit and the change; a body is optional
 and goes in only when the chunk cut a corner or rejected an option, in two sentences at most.
-Never ask "yes to commit" and never ask the user for a message or a `why`.
+Never ask "yes to commit" and never ask the user for a commit message. The `decisions` skill still
+confirms its buffered decisions before the commit.
 
 ## Behavior done
 
@@ -124,7 +125,7 @@ When every chunk of the current behavior is applied and its check passes, show, 
 2. one failure example;
 3. the test command and its result.
 
-Then propose the first chunk of the next behavior. No `why`, no commit question; the behavior commits
+Then propose the first chunk of the next behavior. No commit question; the behavior commits
 are the record. After the last behavior, set `Status: done` in the task file and stop. There is no closing pass:
 no cleanup gate, no readability review, no extra tooling to set up or tear down.
 
@@ -140,7 +141,7 @@ no cleanup gate, no readability review, no extra tooling to set up or tear down.
 - A delete, rename, or conflict resolution is its own chunk, shown as `git diff --stat` plus
   the file list.
 - `approve` applies and checks the chunk in one turn, and commits when the behavior is complete.
-  No second question, no `why`.
+  No commit question.
 - The agent applies its own chunk with `patch`. No chunk writer, no worker, under any host.
 - The task ends at the last behavior. No cleanup gate, no readability review, no teardown step.
 - The commit subject is one imperative line; a body is optional and short.

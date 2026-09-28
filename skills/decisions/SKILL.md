@@ -31,7 +31,8 @@ procedure: `references/capture-loop.md`.
   service boundaries, build/deploy tooling).
 
 ## When to flush the buffer (batch-ask), in priority order
-1. Before a `git commit` this assistant is about to run, if the buffer is non-empty.
+1. Before a `git commit` this assistant is about to run, if the buffer is non-empty. Under
+   `deliver`, flush once at task end instead; a direction-changing choice still stops the run.
 2. Immediately after a **reversal** is confirmed (don't let it sit).
 3. When the buffer reaches **~3 items**.
 4. Before starting long-running work (so the "why" isn't lost to compaction).
