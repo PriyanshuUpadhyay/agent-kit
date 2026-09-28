@@ -9,6 +9,7 @@ Workflow skills for coding agents (Claude Code, Codex, Antigravity). Each skill 
 |---|---|
 | `pair` | Write code with the user, one approved diff at a time |
 | `deliver` | Drive one named task to a checkable exit condition, stop before a push or merge |
+| `flow` | Run one feature through frame, design, contracts, impact, build and close, one status file per step (on trial) |
 | `research` | Answer one question from evidence in a short report |
 | `web-search` | Three visible seats search different parts of the web, the chair merges |
 | `council` | A visible debate between Claude, GPT and Gemini voices that ends in a verdict |
