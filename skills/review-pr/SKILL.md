@@ -57,6 +57,11 @@ or module that meets none of its conditions gets a FAIL finding. Its `file_line`
 `quoted_code` are the new definition, its `trigger` is the current caller count from repository
 search, and its `why_not_prevented` names why each condition fails.
 
+When the domain catalog that the `flow` skill names exists, also append to the unit-reviewer
+prompt, as task-specific data, the `review` paths of each catalog domain whose `Signals:` line
+matches a changed file in `diff.patch`, and the repo rules of the reviewed repo's flow profile.
+They supply rules only; this workflow keeps coverage and the final verdict.
+
 Compose each worker prompt from exactly one persona plus task-specific data. Append the assigned
 unit records, relevant diff hunks, full-function or caller locations, absolute scratch path, and
 the output schema required by that phase. For Phase 2c, append the behavior-ownership reference as
@@ -275,6 +280,8 @@ persistence, migration, serialization, parsing, external_api, or fs_net risk tag
 skip the seat and carry `.security.evidence` verbatim into the report. Then compile:
 - Coverage line: "N units, all reviewed".
 - Seats line: which risk-triggered seats ran, and the quoted trigger evidence for each skipped one.
+- Domain rules line: each catalog or repo rule file that the unit reviewers got, or "no domain
+  rules".
 - Surviving findings grouped by severity, each with its evidence (file:line, quoted code, trigger).
 - Surviving ripple findings and QUESTIONs, keyed by changed symbol, from
   `$RPDIR/ripple-verdicts.json`.
