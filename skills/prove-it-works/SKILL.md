@@ -18,6 +18,16 @@ Run the smallest relevant check after each behavior change, while its cause is s
 The agent runs these checks and fixes failures within the authorized scope; it does not assign
 the user a manual trial as a condition for completing the work.
 
+Choose the check by the layer that the change touches.
+
+| Layer | Check |
+|---|---|
+| Logic or a bug | A red/green test, which fails before the change and passes after it |
+| UI | A screenshot loop plus runnable checks, such as an overflow test, a contrast check, or a lag limit |
+| Unclear idea | A throwaway prototype |
+
+For UI, the runnable checks decide done. Report taste as awaiting the user's review, and never as passed.
+
 When changing model routes, rule loading, or standards selection, run existing loader checks and
 retain a case from the failure being fixed. Selection tests prove selection only. A claim about
 model compliance also needs an agent run against the expected behavior, under the active host
