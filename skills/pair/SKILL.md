@@ -74,8 +74,8 @@ edit types only the changed lines. For a new file, write it in the scratchpad an
 what comes in. Keep the diff to the hunks of the chunk.
 
 A chunk touches only what its behavior sentence names. No new helper, field, export, flag, or
-todo goes in unless the sentence names it. A new symbol lands in the same chunk as its first
-caller, so the check passes at every commit. An edited function stays where it is, so the diff
+todo goes in unless the sentence names it. A new symbol lands with its first caller, as the
+`sequence-verifiable-units` skill says. An edited function stays where it is, so the diff
 shows an edit, not a delete plus an add; a move is its own chunk.
 
 Code stays inline by default. Before a chunk adds or splits out a function, file, or module, apply
