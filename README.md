@@ -64,12 +64,13 @@ that needs them, instead of linking them all into every session.
 | [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | `ce26fc2` | `skills/` without `output-skill` | web visuals |
 | [NSHipster/sosumi.ai](https://github.com/NSHipster/sosumi.ai) | `79337f5` | `public/SKILL.md` | Apple docs and HIG as Markdown |
 | [vercel-labs/web-interface-guidelines](https://github.com/vercel-labs/web-interface-guidelines) | `e3d624b` | `command.md`, not `install.sh` | web UX rules |
+| [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | `9d715cc` | `plugin/skills/impeccable/`, not `hooks/` | web design checks; `scripts/impeccable detect <file>` runs 61 rules |
 
 Tools, not skill files: `xcrun mcpbridge` (Xcode), the sosumi MCP (`https://sosumi.ai/mcp`), Mobbin
 through Composio (`composio link mobbin_mcp`, paid Mobbin plan), `npx @google/design.md lint`, and
 [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing).
-[Impeccable](https://github.com/pbakaus/impeccable) is under review, because its hooks run on every
-edit and its launcher downloads a binary.
+Impeccable's hooks are left out, because they run on every edit in every session. Its launcher
+downloads a binary on first use.
 
 ## Public-safety gate
 
