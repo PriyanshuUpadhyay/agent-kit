@@ -14,7 +14,8 @@ only the user can give.
 
 1. State the exit condition as a checkable predicate before the first change: tests green, the
    repro fixed, the feature exercised on the real surface. Show it in one line and start. Do not
-   wait for approval of the predicate.
+   wait for approval of the predicate. When the user names a `flow` folder, the predicate is the
+   done-when of its `01-frame.md`, and you hold its build step.
 2. Each iteration makes the smallest change the evidence justifies, verifies it against the
    predicate, commits when it advanced, and discards a change that did not help. A change that
    "might help" is reverted, not left to ride. Order the work per the
@@ -26,7 +27,12 @@ only the user can give.
    adapter names, with the predicate, the iterations run, one evidence line per iteration, and the
    next step. Read it first after a `/clear`, a `/compact`, or a resume, and make the first reply a
    status block.
-5. Stop only when the predicate is met, or when blocked on user input. A plateau is not a stop,
+5. When the predicate holds, run `review-pr` on `<base>..HEAD`, where `<base>` is the commit
+   before this run's first commit. Fix each confirmed FAIL in one more iteration, then review the
+   new range. In a flow, you also hold the review step, and the last verdict goes in
+   `06-review.md`, because it covers the build range.
+6. Stop only when the predicate is met and the review has no confirmed FAIL, or when blocked on
+   user input. A plateau is not a stop,
    so change the approach. A genuine dead end is reported with the evidence, not spun on. Never
    relax the predicate to declare victory.
 
@@ -35,4 +41,4 @@ seat, every worker is a visible foreground pane, and the chair verifies each ret
 Notifications are chair-owned.
 
 **Reply:** the exit condition, the iterations run, what landed with its hashes, what was
-discarded, and the final predicate state with its proof.
+discarded, the final predicate state with its proof, and the review verdict with any open QUESTION.
