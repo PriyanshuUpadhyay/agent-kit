@@ -47,6 +47,30 @@ Codex reads `~/.agents/skills` and Antigravity reads `~/.gemini/config/skills`.
   those folders on first use.
 - `council` calls `~/.claude/scripts/ensure-council-access.py`, which is not part of this kit yet.
 
+## Borrowed skills
+
+These are the expert packs used next to this kit. They are not in this repo. To copy the setup,
+take each pack at the commit shown, keep its license, and read its skills by path from the step
+that needs them, instead of linking them all into every session.
+
+| Pack | Commit | Take | Domain |
+|---|---|---|---|
+| [cloudflare/skills](https://github.com/cloudflare/skills) | `626547c` | `skills/` | Workers, Durable Objects |
+| [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) | `b24e68a` | `skills/swiftui-expert-skill/` | SwiftUI and AppKit |
+| [emilkowalski/skills](https://github.com/emilkowalski/skills) | `d16ebe6` | `skills/` | motion, Apple design, Swift |
+| [phuryn/pm-skills](https://github.com/phuryn/pm-skills) | `8607e3b` | the `pm-*/` folders | product framing |
+| [codeswithroh/tastemaker](https://github.com/codeswithroh/tastemaker) | `6bada3c` | `skills/tastemaker/` | web visuals |
+| [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | `09170ee` | `cli/assets/skills/` | design systems; `design` sends prompts to Gemini and MuAPI |
+| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | `ce26fc2` | `skills/` without `output-skill` | web visuals |
+| [NSHipster/sosumi.ai](https://github.com/NSHipster/sosumi.ai) | `79337f5` | `public/SKILL.md` | Apple docs and HIG as Markdown |
+| [vercel-labs/web-interface-guidelines](https://github.com/vercel-labs/web-interface-guidelines) | `e3d624b` | `command.md`, not `install.sh` | web UX rules |
+
+Tools, not skill files: `xcrun mcpbridge` (Xcode), the sosumi MCP (`https://sosumi.ai/mcp`), Mobbin
+through Composio (`composio link mobbin_mcp`, paid Mobbin plan), `npx @google/design.md lint`, and
+[swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing).
+[Impeccable](https://github.com/pbakaus/impeccable) is under review, because its hooks run on every
+edit and its launcher downloads a binary.
+
 ## Public-safety gate
 
 `scripts/public-safety.sh` runs [gitleaks](https://github.com/gitleaks/gitleaks) with
