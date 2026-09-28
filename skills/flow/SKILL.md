@@ -1,6 +1,6 @@
 ---
 name: flow
-description: Run one feature through six steps (frame, design, contracts, impact, build, close), with one status file per step under ~/.flow and the domain skills that the repo profile names for each step. Use when the user says "flow continue <repo>/<folder>" or "flow start", or names a ~/.flow step file.
+description: Run one feature through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under ~/.flow and the domain skills that the repo profile names for each step. Use when the user says "flow continue <repo>/<folder>" or "flow start", or names a ~/.flow step file.
 ---
 
 # Flow
@@ -18,7 +18,7 @@ folder above the git common dir (`git rev-parse --git-common-dir`), not the work
    three skill paths per step from the skill packs that the user keeps. Show the draft, and write
    `~/.flow/<repo>/profile.md` only after the user confirms it. Tell the user that the new profile
    is not in version control yet.
-2. If the folder does not exist, make it and make the six step files below, each with
+2. If the folder does not exist, make it and make the seven step files below, each with
    `Status: open`.
 3. Read `01-frame.md`. If `Worktree:` or `Branch:` is not the current worktree and branch, stop and
    tell the user. If two open folders exist for one branch, stop and tell the user.
@@ -47,8 +47,13 @@ folder above the git common dir (`git rev-parse --git-common-dir`), not the work
 | `02-design.md` | frame | UX flow and screens, or `skipped: no UI` |
 | `03-contracts.md` | frame | APIs, data model, integrations, and the result of the `decisions` skill's check for the topic |
 | `04-impact.md` | contracts | the existing features that change, or "independent" |
-| `05-build.md` | impact, and design unless skipped | only the task-file path of the `pair` or `deliver` run that the user started |
-| `06-close.md` | build | the done-when of `01-frame.md`, each with its evidence |
+| `05-build.md` | impact, and design unless skipped | the task-file path of the `pair` or `deliver` run that the user started, and `Base:`, the commit before its first commit |
+| `06-review.md` | build | the `review-pr` verdict on `<Base>..<build revision>`, and each finding with its fix or the reason it stays |
+| `07-close.md` | review with APPROVE | the done-when of `01-frame.md`, each with its evidence |
+
+A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run for the
+findings. That run moves the build revision, so the review is stale and runs again on the new
+range.
 
 At close, move the folder to `~/.flow/<repo>/_closed/<folder>/`. Release is a separate action
 that the user asks for.
@@ -57,6 +62,7 @@ that the user asks for.
 
 The flow owns the step list, the order, the status, and the profiles. `pair` or `deliver` owns
 the plan, the chunks, and the commits; the flow never starts `deliver` by itself.
+`review-pr` owns the review and its verdict; the flow never fixes a finding itself.
 `prove-it-works` owns the choice of check and the evidence. `sequence-verifiable-units` owns the
 unit order. `decisions` owns the ADRs. The flow never pushes.
 
