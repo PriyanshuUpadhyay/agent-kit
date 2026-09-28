@@ -197,6 +197,38 @@ class PersonaContracts(unittest.TestCase):
                 self.assertIn("untracked.py", diff)
                 self.assertIn("+new file", diff)
 
+    def test_range_mode_reviews_the_head_commit_not_the_checkout(self):
+        skill = SKILL.read_text()
+        start = skill.index('git diff "$RANGE_BASE" "$RANGE_HEAD"')
+        block = skill[start:].split("```", 1)[0]
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            git = lambda *args: subprocess.run(
+                ["git", *args], cwd=root, check=True, capture_output=True, text=True
+            ).stdout.strip()
+            git("init", "-q")
+            git("config", "user.name", "Review Test")
+            git("config", "user.email", "review@example.invalid")
+            (root / "tracked.py").write_text("before\n")
+            git("add", "tracked.py")
+            git("commit", "-qm", "base")
+            base = git("rev-parse", "HEAD")
+            (root / "tracked.py").write_text("after\n")
+            git("commit", "-qam", "head")
+            head = git("rev-parse", "HEAD")
+            (root / "tracked.py").write_text("uncommitted\n")
+            with tempfile.TemporaryDirectory() as scratch_temp:
+                scratch = Path(scratch_temp)
+                env = dict(os.environ, RPDIR=str(scratch), RANGE_BASE=base, RANGE_HEAD=head)
+                subprocess.run(["bash", "-c", block], cwd=root, env=env, check=True)
+                diff = (scratch / "diff.patch").read_text()
+                self.assertIn("+after", diff)
+                self.assertNotIn("uncommitted", diff)
+                self.assertEqual((scratch / "head" / "tracked.py").read_text(), "after\n")
+            self.assertEqual((root / "tracked.py").read_text(), "uncommitted\n")
+            self.assertEqual(git("rev-parse", "HEAD"), head)
+
     def test_behavior_ownership_audit_is_referenced_and_evidence_gated(self):
         skill = SKILL.read_text()
         audit_path = SKILL_DIR / "references" / "behavior-ownership-audit.md"

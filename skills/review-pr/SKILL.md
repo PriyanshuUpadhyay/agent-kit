@@ -151,13 +151,29 @@ while IFS= read -r -d '' path; do
 done < "$RPDIR/untracked.zlist"
 rm -f "$RPDIR/untracked.zlist" "$RPDIR/untracked.patch"
 #   ...or `git diff --staged`        (staged only)
-#   ...or `git diff <base>...HEAD`   (a local branch/commit range, e.g. main...HEAD)
 HEAD_DIR=$(git rev-parse --show-toplevel)   # the live tree already IS the post-change state
 ```
 There is no PR title/body in local mode — skip `meta.json` and note "local changes" in the
 compiled output. Everything downstream (enumerate → gate → seats) is diff-agnostic and runs
 unchanged. In every later phase, re-derive `$RPDIR` and `$HEAD_DIR` with the same lines above
 before using them.
+**Range mode** — when target resolution set `RANGE_BASE` and `RANGE_HEAD`, use the block below
+instead. `git diff` only reads the user's repository. The post-change tree is a new repository
+under `$RPDIR`, fetched at the head commit, so an uncommitted edit in the user's checkout never
+reaches the review.
+```bash
+test -n "$RPDIR" || { echo "no run-scoped scratch directory"; exit 1; }
+case "$RPDIR" in */review-pr/*) ;; *) echo "unsafe scratch directory"; exit 1;; esac
+rm -rf "$RPDIR" && mkdir -p "$RPDIR"
+git diff "$RANGE_BASE" "$RANGE_HEAD" > "$RPDIR/diff.patch"
+HEAD_DIR="$RPDIR/head"        # run-scoped repository at the head commit
+mkdir "$HEAD_DIR"
+git -C "$HEAD_DIR" init --quiet
+git -C "$HEAD_DIR" fetch --quiet --no-tags "$(git rev-parse --show-toplevel)" "$RANGE_HEAD"
+git -C "$HEAD_DIR" checkout --quiet --detach FETCH_HEAD
+```
+Skip `meta.json` and note the range in the compiled output. In every later phase, set
+`HEAD_DIR="$RPDIR/head"` again; do not run this block twice.
 Treat `diff.patch` as the final review contract. Do not infer PR scope from the latest commit or
 working-tree status; a later revert can cancel an earlier branch change.
 
