@@ -78,7 +78,7 @@ agent.
   redundant validation or machinery, LLM/schema contracts, security, and code quality, with
   provable per-function coverage. This workflow produces verdicts and a recommendation.
 - NOT for: understanding what a PR *does* before judging it. That is `pr-walkthrough`, and its
-  output never enters a seat's input. This workflow judges. Its report maps what changed only after
+  narrative never enters a seat's input. This workflow judges. Its report maps what changed only after
   every verdict is final, and no seat reads that report.
 
 ## Target resolution (fail closed, before any command)
