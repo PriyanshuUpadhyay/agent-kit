@@ -79,8 +79,8 @@ agent.
   redundant validation or machinery, LLM/schema contracts, security, and code quality, with
   provable per-function coverage. This workflow produces verdicts and a recommendation.
 - NOT for: understanding what a PR *does* before judging it. That is `pr-walkthrough`, and its
-  narrative never enters a seat's input. This workflow judges. Its report maps what changed only after
-  every verdict is final, and no seat reads that report.
+  narrative never enters a seat's input. This workflow judges, and Phase 4 maps what changed for the
+  reader.
 
 ## Target resolution (fail closed, before any command)
 Normalize the user's request into one review target first. `PR_TARGET` is a PR number, a PR URL,
@@ -178,8 +178,8 @@ git -C "$HEAD_DIR" init --quiet
 git -C "$HEAD_DIR" fetch --quiet --no-tags "$(git rev-parse --show-toplevel)" "$RANGE_HEAD"
 git -C "$HEAD_DIR" checkout --quiet --detach FETCH_HEAD
 ```
-Skip `meta.json`; `subjects.txt` stands in for the title. Note the range in the compiled output. In
-every later phase, set `HEAD_DIR="$RPDIR/head"` again; do not run this block twice.
+Skip `meta.json` and note the range in the compiled output. In every later phase, set
+`HEAD_DIR="$RPDIR/head"` again; do not run this block twice.
 Treat `diff.patch` as the final review contract. Do not infer PR scope from the latest commit or
 working-tree status; a later revert can cancel an earlier branch change.
 
@@ -284,8 +284,8 @@ Then compile the report for a reader who has only this report. Compile it after 
 final; no seat reads it.
 1. Recommendation. APPROVE / REQUEST CHANGES / NEEDS DISCUSSION, the finding or fact that decides
    it, and the counts of blockers and questions.
-2. Read first. Up to five places, ranked by surviving finding severity and unresolved risk. Fill
-   any place left with the largest PASS unit that no second seat checked.
+2. Read first, ranked by surviving finding severity and unresolved risk. Fill any place left with
+   the largest PASS unit that no second seat checked.
 3. Scope flags. Each Phase 2c inventory-check item (copied secret, debug, local-only, merge marker,
    scope outside the title), with its `file:line` and `finding <unit>` when a verdict confirms it,
    `none found, one audit seat` or `not checked` as the audit recorded it, else `question, one
