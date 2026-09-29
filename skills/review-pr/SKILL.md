@@ -65,8 +65,9 @@ They supply rules only; this workflow keeps coverage and the final verdict.
 Compose each worker prompt from exactly one persona plus task-specific data. Append the assigned
 unit records, relevant diff hunks, full-function or caller locations, absolute scratch path, and
 the output schema required by that phase. For Phase 2c, append the behavior-ownership reference as
-task-specific audit instructions to the unit-reviewer persona. Append the runner contract's relay
-requirement last.
+task-specific audit instructions to the unit-reviewer persona, with the PR title from
+`$RPDIR/meta.json` or the commit subjects from `$RPDIR/subjects.txt`. Append the runner contract's
+relay requirement last.
 The persona defines how the seat reasons and proves its result; the runtime adapter's role
 routing alone selects how the seat runs. End every composed seat prompt with the report-only boundary: inspect the repository,
 write only the assigned scratch verdict, and do not edit code, apply findings, commit, or spawn an
@@ -170,14 +171,15 @@ test -n "$RPDIR" || { echo "no run-scoped scratch directory"; exit 1; }
 case "$RPDIR" in */review-pr/*) ;; *) echo "unsafe scratch directory"; exit 1;; esac
 rm -rf "$RPDIR" && mkdir -p "$RPDIR"
 git diff "$RANGE_BASE" "$RANGE_HEAD" > "$RPDIR/diff.patch"
+git log --format=%s "$RANGE_BASE..$RANGE_HEAD" > "$RPDIR/subjects.txt"
 HEAD_DIR="$RPDIR/head"        # run-scoped repository at the head commit
 mkdir "$HEAD_DIR"
 git -C "$HEAD_DIR" init --quiet
 git -C "$HEAD_DIR" fetch --quiet --no-tags "$(git rev-parse --show-toplevel)" "$RANGE_HEAD"
 git -C "$HEAD_DIR" checkout --quiet --detach FETCH_HEAD
 ```
-Skip `meta.json` and note the range in the compiled output. In every later phase, set
-`HEAD_DIR="$RPDIR/head"` again; do not run this block twice.
+Skip `meta.json`; `subjects.txt` stands in for the title. Note the range in the compiled output. In
+every later phase, set `HEAD_DIR="$RPDIR/head"` again; do not run this block twice.
 Treat `diff.patch` as the final review contract. Do not infer PR scope from the latest commit or
 working-tree status; a later revert can cancel an earlier branch change.
 

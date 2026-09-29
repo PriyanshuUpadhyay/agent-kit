@@ -226,6 +226,7 @@ class PersonaContracts(unittest.TestCase):
                 self.assertIn("+after", diff)
                 self.assertNotIn("uncommitted", diff)
                 self.assertEqual((scratch / "head" / "tracked.py").read_text(), "after\n")
+                self.assertEqual((scratch / "subjects.txt").read_text(), "head\n")
             self.assertEqual((root / "tracked.py").read_text(), "uncommitted\n")
             self.assertEqual(git("rev-parse", "HEAD"), head)
 
