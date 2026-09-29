@@ -181,7 +181,10 @@ def test_enumerate_cli_reads_stdin():
 def test_enumerate_cli_reads_symbols_from_repo_root():
     import shutil
     import tempfile
-    if shutil.which("ctags") is None:
+    version = ""
+    if shutil.which("ctags"):
+        version = _sp.run(["ctags", "--version"], capture_output=True, text=True).stdout
+    if "Universal Ctags" not in version:
         print("skip: universal-ctags not installed")
         return
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enumerate_units.py")
