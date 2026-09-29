@@ -121,8 +121,9 @@ Per-model trail: one line each for GEMINI, GPT, and CLAUDE.
 ```
 
 The reply opens with the first screen in `~/.claude/references/plan-layout.md`. The verdict heading
-is its verdict line, and the required changes and open dissent fill its Read first list. The
-per-model trail goes below `Reference below`.
+is its verdict line. Its table holds the required changes and the open dissent, grouped, and Read
+first names the top ones. The consensus reasoning, the full required changes and dissent, and
+the per-model trail go below `Reference below`.
 
 ## Decision log
 
