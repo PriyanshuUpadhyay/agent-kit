@@ -24,7 +24,8 @@ Workflow skills for coding agents (Claude Code, Codex, Antigravity). Each skill 
 | `reference-driven-creative-coding` | p5.js and Canvas pieces from a story or a visual reference |
 | `orchestrate-claude`, `orchestrate-codex`, `orchestrate-agy` | Runtime adapters that bind the skills' worker needs to each agent CLI |
 
-`references/plan-layout.md` is the plan shape that several skills point to.
+`references/plan-layout.md` is the plan shape and the first screen of a long result that several
+skills point to.
 `contracts/orchestration-requirements.schema.json` describes what a skill may ask of a runtime adapter.
 
 ## Install
