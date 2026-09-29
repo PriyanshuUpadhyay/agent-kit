@@ -288,12 +288,13 @@ final; no seat reads it.
    the largest PASS unit that no second seat checked.
 3. Scope flags. Each check in the `## Inventory check` section of `$RPDIR/ownership-audit.md`, with
    its `file:line` and `finding <unit>` when a verdict confirms it, `none found, one audit seat` or
-   `not checked` as the audit recorded it, else `question, one audit seat`.
+   `not checked` as the audit recorded it, else `question, one audit seat`. Checks with the same
+   status share one row, for example one `none found` row that names every clean check.
 4. PR map, written to `$RPDIR/map.md` from `$RPDIR/ownership-audit.md` and headed "one audit seat".
    One line per behavior in data-flow order: behavior, `new | changed | removed`, owner, one
    single-line `file:line`, and `finding <unit>`, `question <unit>`, or `no finding found`. Then one
    line per inventory group or deleted path that no behavior covers. Here the report shows the map
-   as at most seven groups with counts; its lines follow the open QUESTIONs.
+   as groups with counts; its lines follow the open QUESTIONs.
 5. Findings under the behavior they break, each with its severity. Each opens with `trigger → wrong
    result`, then `file:line`, quoted code, why nothing prevents it, and `challenger-confirmed` or
    `one seat`. Ripple findings stay keyed by symbol. A verified redundancy names its surviving owner.
@@ -302,8 +303,9 @@ final; no seat reads it.
    rule files or "no domain rules", capped caller tails, hunk-level units, and map anchors that the
    citation check cannot verify, such as deleted code.
 
-Items 1 to 4 are the first screen that `<skill-dir>/../../references/plan-layout.md` describes. Use
-tables, not prose paragraphs.
+Items 1 to 4 are the first screen that `<skill-dir>/../../references/plan-layout.md` describes. The
+scope-flag rows and the map groups share its one table, scope flags first. Use tables, not prose
+paragraphs.
 
 Check every map anchor against the diff:
 ```bash
