@@ -84,6 +84,21 @@ def test_parse_diff_strips_mnemonic_prefixes():
         os.unlink(p)
 
 
+def test_failure_names_the_checked_file_and_line():
+    import os, subprocess, tempfile
+    with tempfile.TemporaryDirectory() as d:
+        diff = os.path.join(d, "diff.patch")
+        checked = os.path.join(d, "map.md")
+        with open(diff, "w") as fh:
+            fh.write("diff --git a/x.ts b/x.ts\n--- a/x.ts\n+++ b/x.ts\n@@ -10,2 +12,3 @@\n+a\n+b\n")
+        with open(checked, "w") as fh:
+            fh.write("# map\n| behavior | x.ts:40 |\n")
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "validate_citations.py")
+        out = subprocess.run([sys.executable, script, diff, checked], capture_output=True, text=True)
+        assert out.returncode == 1
+        assert f"({checked}:2)" in out.stdout
+        assert "explanation.md" not in out.stdout
+
 def test_overlaps_range_intersection():
     assert overlaps(4420, 4420, [(4417, 4467)]) is True
     assert overlaps(4442, 4442, [(4417, 4467)]) is True

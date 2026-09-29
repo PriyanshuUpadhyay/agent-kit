@@ -154,7 +154,7 @@ def main():
     if invalid:
         print(f"❌ {len(invalid)}/{total} citation(s) FAILED — fix the line or drop the claim:")
         for token, rng, src_line, why in invalid:
-            print(f"   - {token}:{rng}  (explanation.md:{src_line}) — {why}")
+            print(f"   - {token}:{rng}  ({expl_path}:{src_line}) — {why}")
         return 1
 
     print(f"✅ all {total} citation(s) land in real changed hunks.")
