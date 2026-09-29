@@ -276,18 +276,32 @@ INCOMPLETE — finish those units and re-run; do NOT present results yet. When t
 pane with the security-reviewer persona, diff, changed-file context, and output schema **only when
 `.security.run` in `$RPDIR/triggers.json` is true** — a changed file carries an auth, money,
 persistence, migration, serialization, parsing, external_api, or fs_net risk tag. When it is false,
-skip the seat and carry `.security.evidence` verbatim into the report. Then compile:
-- Coverage line: "N units, all reviewed".
-- Seats line: which risk-triggered seats ran, and the quoted trigger evidence for each skipped one.
-- Domain rules line: each catalog or repo rule file that the unit reviewers got, or "no domain
-  rules".
-- Surviving findings grouped by severity, each with its evidence (file:line, quoted code, trigger).
-- Surviving ripple findings and QUESTIONs, keyed by changed symbol, from
-  `$RPDIR/ripple-verdicts.json`.
-- Ownership line: "N behaviors mapped; M have competing owners", followed by each verified
-  redundancy and its surviving owner.
-- Open QUESTIONs.
-- Recommendation: APPROVE / REQUEST CHANGES / NEEDS DISCUSSION.
+skip the seat and carry `.security.evidence` verbatim into the report.
+
+Then compile the report for a reader who has only this report. Compile it after every verdict is
+final; no seat reads it.
+1. Recommendation. APPROVE / REQUEST CHANGES / NEEDS DISCUSSION, the finding or fact that decides
+   it, and the counts of blockers and questions.
+2. Read first. Up to five places, ranked by surviving finding severity and unresolved risk. Fill
+   any place left with the largest PASS unit that no second seat checked.
+3. Scope flags. Each Phase 2c inventory-check item (copied secret, debug, local-only, merge marker,
+   scope outside the title), with its `file:line` and `finding <unit>` when a verdict confirms it,
+   else `question, one audit seat`.
+4. PR map, written to `$RPDIR/map.md` from `$RPDIR/ownership-audit.md` and headed "one audit seat".
+   One line per behavior in data-flow order: behavior, `new | changed | removed`, owner, one
+   single-line `file:line`, and `finding <unit>`, `question <unit>`, or `no finding found`. Then one
+   line per inventory group or deleted path that no behavior covers. Here the report shows the map
+   as at most seven groups with counts; its lines follow the open QUESTIONs.
+5. Findings under the behavior they break, each with its severity. Each opens with `trigger → wrong
+   result`, then `file:line`, quoted code, why nothing prevents it, and `challenger-confirmed` or
+   `one seat`. Ripple findings stay keyed by symbol. A verified redundancy names its surviving owner.
+6. Open QUESTIONs.
+7. Coverage and limits. "N units, all reviewed", the seats that ran, quoted skip evidence, domain
+   rule files or "no domain rules", capped caller tails, hunk-level units, and map anchors that the
+   citation check cannot verify, such as deleted code.
+
+Items 1 to 4 are the first screen that `<skill-dir>/../../references/plan-layout.md` describes. Use
+tables, not prose paragraphs.
 
 Finally, drop the run-scoped clone. It is self-contained, so removing the directory removes all of
 it. The guard keeps local mode, where `$HEAD_DIR` is the user's own checkout, out of the removal
