@@ -62,7 +62,8 @@ reports, then fetch six pages. One returns 404. The report keeps five links, mar
 
 ## 5. Reply
 
-Put the whole report in the reply, from its `#` title down, then give the file path in one line.
+Open the reply with the first screen in `~/.claude/references/plan-layout.md`. Then put the whole
+report below it, from its `#` title down, and give the file path in one line.
 
 ## Guards
 
