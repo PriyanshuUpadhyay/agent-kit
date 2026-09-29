@@ -120,6 +120,10 @@ Dissent / residual risk: anything still contested.
 Per-model trail: one line each for GEMINI, GPT, and CLAUDE.
 ```
 
+The reply opens with the first screen in `~/.claude/references/plan-layout.md`. The verdict heading
+is its verdict line, and the required changes and open dissent fill its Read first list. The
+per-model trail goes below `Reference below`.
+
 ## Decision log
 
 Before Round 0, search for a prior log for the topic and reuse still-valid resolved constraints.
