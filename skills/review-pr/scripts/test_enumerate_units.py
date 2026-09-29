@@ -177,6 +177,24 @@ def test_enumerate_cli_reads_stdin():
     assert data["units"][0]["file"] == "src/pay.py"
 
 
+
+def test_enumerate_cli_reads_symbols_from_repo_root():
+    import shutil
+    import tempfile
+    if shutil.which("ctags") is None:
+        print("skip: universal-ctags not installed")
+        return
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "enumerate_units.py")
+    with tempfile.TemporaryDirectory() as root:
+        os.makedirs(os.path.join(root, "src"))
+        body = ["# line %d" % n for n in range(1, 10)]
+        body += ["def refund(amount):", "    ctx = 1", "    charge(amount)", "    log(amount)"]
+        with open(os.path.join(root, "src", "pay.py"), "w") as fh:
+            fh.write("\n".join(body) + "\n")
+        out = _sp.run([_sys.executable, script, "enumerate", "-", "--repo-root", root],
+                      input=WL_DIFF, capture_output=True, text=True, cwd=tempfile.gettempdir())
+    assert json.loads(out.stdout)["units"][0]["symbol"] == "refund"
+
 # ---------------------------------------------------------------------------
 # Task 6 — call-site propagation
 # ---------------------------------------------------------------------------

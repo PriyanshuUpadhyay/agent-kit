@@ -185,10 +185,10 @@ working-tree status; a later revert can cancel an earlier branch change.
 
 ## Phase 1 — Enumerate review units (script owns coverage)
 ```bash
-(cd "$HEAD_DIR" && python3 <skill-dir>/scripts/enumerate_units.py enumerate "$RPDIR/diff.patch") > "$RPDIR/worklist.json"
+python3 <skill-dir>/scripts/enumerate_units.py enumerate "$RPDIR/diff.patch" --repo-root "$HEAD_DIR" > "$RPDIR/worklist.json"
 python3 <skill-dir>/scripts/enumerate_units.py triggers "$RPDIR/worklist.json" > "$RPDIR/triggers.json"
 ```
-Enumeration runs *inside* `$HEAD_DIR` so ctags reads post-change files. This is the anti-skim
+`--repo-root "$HEAD_DIR"` makes ctags read the post-change files. This is the anti-skim
 core: every changed line lands in exactly one unit. Do NOT edit the
 worklist. (If `universal-ctags` isn't installed, units fall back to hunk granularity — coverage
 still holds; `brew install universal-ctags` gives function-level units.)

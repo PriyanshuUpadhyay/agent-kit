@@ -7,6 +7,7 @@ refinement for finer granularity in ctags-unknown languages, never load-bearing 
 coverage invariant.
 """
 import json
+import os
 import re
 import subprocess
 
@@ -393,6 +394,7 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_en = sub.add_parser("enumerate", help="diff -> worklist JSON")
     p_en.add_argument("diff", help="path to diff file, or - for stdin")
+    p_en.add_argument("--repo-root", default=".", help="post-change tree that ctags reads")
     p_ca = sub.add_parser("callers", help="worklist -> callers of signature-changed symbols")
     p_ca.add_argument("worklist", help="path to worklist JSON, or - for stdin")
     p_ca.add_argument("--repo-root", default=".")
@@ -407,7 +409,8 @@ def main(argv=None):
                      help="supported redundancy findings from the ownership audit")
     args = parser.parse_args(argv)
     if args.cmd == "enumerate":
-        wl = build_worklist(_read_source(args.diff))
+        wl = build_worklist(_read_source(args.diff),
+                            symbol_lookup=lambda f: ctags_symbols(os.path.join(args.repo_root, f)))
         print(json.dumps(wl, indent=2))
         return 0
     if args.cmd == "callers":
