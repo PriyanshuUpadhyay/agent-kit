@@ -308,9 +308,10 @@ Check every map anchor against the diff:
 ```bash
 python3 <skill-dir>/../pr-walkthrough/scripts/validate_citations.py "$RPDIR/diff.patch" "$RPDIR/map.md"
 ```
-Fix each anchor it flags. An anchor on deleted code cannot pass, so list it under item 7. The check
-passes an empty map, so also confirm that `$RPDIR/map.md` has one line per behavior in
-`$RPDIR/ownership-audit.md`.
+Fix each anchor it flags. The check reads only new-side lines, so it cannot verify the anchor of a
+`removed` behavior, whatever it prints. Check each such anchor by hand against the base side and
+list it under item 7. The check passes an empty map, so also confirm that `$RPDIR/map.md` has one
+line per behavior in `$RPDIR/ownership-audit.md`.
 
 Finally, drop the run-scoped clone. It is self-contained, so removing the directory removes all of
 it. The guard keeps local mode, where `$HEAD_DIR` is the user's own checkout, out of the removal
