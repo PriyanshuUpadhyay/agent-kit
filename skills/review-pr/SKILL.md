@@ -77,10 +77,9 @@ agent.
   finished `pair` or `deliver` run, for correctness, behavior ownership,
   redundant validation or machinery, LLM/schema contracts, security, and code quality, with
   provable per-function coverage. This workflow produces verdicts and a recommendation.
-- NOT for: understanding what a PR *does* before judging it — that is `pr-walkthrough`, which
-  explains and never judges, while this workflow judges and never narrates. Running both is
-  normal: comprehend first, judge second, and keep the two artifacts separate so the narrative
-  cannot anchor the verdicts.
+- NOT for: understanding what a PR *does* before judging it. That is `pr-walkthrough`, and its
+  output never enters a seat's input. This workflow judges. Its report maps what changed only after
+  every verdict is final, and no seat reads that report.
 
 ## Target resolution (fail closed, before any command)
 Normalize the user's request into one review target first. `PR_TARGET` is a PR number, a PR URL,
