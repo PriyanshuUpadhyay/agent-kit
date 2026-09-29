@@ -17,7 +17,9 @@ base-relative change in that path.
 
 Build a path inventory for source, configuration, dependencies, generated bindings, documentation,
 and deleted or moved files. Check the final inventory for test, fixture, scratch, debug, log, copied
-secret, and local-only artifacts.
+secret, merge marker, and local-only artifacts, and for paths outside the PR title or commit
+subjects. Record each check under `## Inventory check` in `$RPDIR/ownership-audit.md`, with its
+`file:line` hits or `none`. Local mode has no title, so record the scope check as `not checked`.
 
 ## 2. Trace behaviors, not helpers
 

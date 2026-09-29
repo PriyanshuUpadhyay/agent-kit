@@ -286,7 +286,8 @@ final; no seat reads it.
    any place left with the largest PASS unit that no second seat checked.
 3. Scope flags. Each Phase 2c inventory-check item (copied secret, debug, local-only, merge marker,
    scope outside the title), with its `file:line` and `finding <unit>` when a verdict confirms it,
-   else `question, one audit seat`.
+   `none found, one audit seat` or `not checked` as the audit recorded it, else `question, one
+   audit seat`.
 4. PR map, written to `$RPDIR/map.md` from `$RPDIR/ownership-audit.md` and headed "one audit seat".
    One line per behavior in data-flow order: behavior, `new | changed | removed`, owner, one
    single-line `file:line`, and `finding <unit>`, `question <unit>`, or `no finding found`. Then one
