@@ -58,6 +58,7 @@ in shape, so they read without color.
 | Symbol | Meaning |
 |---|---|
 | ⛔ | blocker |
+| ⚠️ | finding that does not block |
 | ❓ | open question or decision |
 | ✅ | done, agreed, or no finding found |
 | ➖ | not checked or deferred |
