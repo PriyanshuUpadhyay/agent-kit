@@ -248,6 +248,21 @@ class PersonaContracts(unittest.TestCase):
         ):
             self.assertIn(required, audit)
 
+    def test_report_maps_the_pr_after_verdicts_and_checks_map_anchors(self):
+        skill = SKILL.read_text()
+        flat = " ".join(skill.split())
+        self.assertIn("Compile it after every verdict is final; no seat reads it.", flat)
+        self.assertIn("3. Scope flags.", flat)
+        self.assertIn("4. PR map, written to `$RPDIR/map.md`", flat)
+        self.assertIn(
+            'python3 <skill-dir>/../pr-walkthrough/scripts/validate_citations.py '
+            '"$RPDIR/diff.patch" "$RPDIR/map.md"',
+            skill,
+        )
+        self.assertIn("<skill-dir>/../../references/plan-layout.md", skill)
+        self.assertTrue((SKILL_DIR.parent / "pr-walkthrough" / "scripts" / "validate_citations.py").is_file())
+        self.assertTrue((SKILL_DIR.parents[1] / "references" / "plan-layout.md").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
