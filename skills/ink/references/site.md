@@ -1,7 +1,7 @@
 # Websites
 
 A website is one more form. The contract, the routes, and the seven steps stay the same. This file
-lists what changes in each step.
+lists what changes in the steps that change.
 
 Example. The user screen-records a product site with a yellow page, a 3D handheld console as the
 hero, an ink-splash loader, and a page transition that tears the screen. They ask for "a site like
@@ -25,8 +25,9 @@ grammar.
 - Screen widths replace duration and fps. Default to 1440 px and 390 px, plus any width the user
   names.
 - Record the page's drivers. Load and scroll follow Drivers in
-  [story-and-motion.md](story-and-motion.md). Hover, cursor, and click change a state, not a time,
-  so list each state with the element it changes.
+  [story-and-motion.md](story-and-motion.md), and a click that starts a page transition is a gate
+  there. Hover, cursor, and any other click change a state, not a time, so list each state with
+  the element it changes.
 - A screen recording is the best site reference. Record one full scroll at each width. Extract
   frames at each section's settled state, at each transition midpoint, and across the loader.
 - Research sources for sites: [threeui.com](https://threeui.com) (three.js site templates, some
@@ -49,7 +50,8 @@ grammar.
   format drops it.
 - A `DESIGN.md` pulled from a live site (the
   [design-md-chrome](https://github.com/bergside/design-md-chrome) extension) or taken from a
-  public `DESIGN.md` collection is `stated` evidence. Measure the rendered pages before you trust its values.
+  collection, such as VoltAgent's on GitHub, is `stated` evidence. Measure the rendered pages
+  before you trust its values.
 - When the `design-taste-frontend` skill (Taste Skill) is installed, read it for the layout and
   type rules that keep a page from looking like a template.
 
