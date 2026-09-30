@@ -1,6 +1,6 @@
 ---
 name: pr-walkthrough
-description: Explain what a pull request or diff does so a reviewer understands it before judging it. Plain-language walkthrough ordered by logic, worked examples, and every claim cited to a real diff line. It never judges a change; review-pr does that. Use when someone wants to understand, make sense of, or be walked through a PR or diff they are reviewing, even when they do not say the word explain.
+description: Explain what a pull request or diff does so a reviewer understands it before judging it. Plain-language walkthrough ordered by logic, worked examples, and every claim cited to a real diff line. It never judges a change; review-walk does that. Use when someone wants to understand, make sense of, or be walked through a PR or diff they are reviewing, even when they do not say the word explain.
 ---
 
 # pr-walkthrough — help a reviewer understand a PR from first principles
@@ -14,7 +14,7 @@ a PR out in place; never run `git checkout`, `git switch`, `git stash`, `git res
 `git worktree` against it. Post-change files come from a self-contained clone under `$PRDIR`,
 removed in step 5. Every git command that writes anything carries `git -C "$HEAD_DIR"`.
 
-Your job: turn an opaque diff into a clear mental model so a human can *actually review* the change instead of rubber-stamping or rejecting it out of confusion. You explain **what** it does and **why**, in plain language, grounded in the real diff. You are not the judge — `review-pr` judges the same change and returns verdicts and a recommendation; `council` decides good/bad. Comprehension first, judgment second, artifacts kept apart. Mixing the two destroys the value of both: a comprehension artifact that smuggles in verdicts anchors the reviewer (and, if fed to the council, corrupts judge independence).
+Your job: turn an opaque diff into a clear mental model so a human can *actually review* the change instead of rubber-stamping or rejecting it out of confusion. You explain **what** it does and **why**, in plain language, grounded in the real diff. You are not the judge — `review-walk` judges the same change and returns a verdict and comments; `council` decides good/bad. Comprehension first, judgment second, artifacts kept apart. Mixing the two destroys the value of both: a comprehension artifact that smuggles in verdicts anchors the reviewer (and, if fed to the council, corrupts judge independence).
 
 Two failure modes define this skill, and the whole design exists to prevent them:
 1. **Hallucinated-but-formatted citations.** A polished `[file:42]` that points at nothing has *more* authority than an honest "I'm not sure" — so the reviewer stops spot-checking exactly when they shouldn't. Defense: cite only from the real diff, then verify mechanically (step 4). This is non-negotiable; without it the skill is just another confident summarizer.
@@ -196,5 +196,5 @@ case "$HEAD_DIR" in "$PRDIR"/*) rm -rf "$HEAD_DIR";; esac
 - Explain relationships **among the changed files** and their immediate touchpoints only. Never sprawl into whole-codebase analysis or re-explain unchanged code (that's the Greptile/Cody anti-pattern the user explicitly wants to avoid).
 - When surrounding context is genuinely needed, pull the **minimum** (a signature, a contract) and mark it "context, not part of this change".
 - If the PR is large/ambiguous, ask the reviewer what to focus on first ("the auth path?"), then explore only that.
-- **Stay decoupled from the council/review.** This runs **before** the quality review, as a human-only artifact. Do NOT pipe the walkthrough into `review-pr`/`council` — one narrative anchors the judges and corrupts their independence. The only slice that may optionally cross is a neutral **term/symbol glossary** (definitions, no interpretation), and only when asked, flagged as such.
+- **Stay decoupled from the council/review.** This runs **before** the quality review, as a human-only artifact. Do NOT pipe the walkthrough into `review-walk`/`council` — one narrative anchors the judges and corrupts their independence. The only slice that may optionally cross is a neutral **term/symbol glossary** (definitions, no interpretation), and only when asked, flagged as such.
 - Don't collide with author-side "write me a PR description" — this is reviewer comprehension of an existing PR.

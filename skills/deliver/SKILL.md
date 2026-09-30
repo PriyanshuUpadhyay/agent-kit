@@ -28,11 +28,11 @@ only the user can give.
    adapter names, with the predicate, the iterations run, one evidence line per iteration, and the
    next step. Read it first after a `/clear`, a `/compact`, or a resume, and make the first reply a
    status block.
-5. When the predicate holds, run `review-pr` on `<base>..HEAD`, where `<base>` is the commit
-   before this run's first commit. Fix each confirmed FAIL in one more iteration, then review the
+5. When the predicate holds, run `review-walk` on `<base>..HEAD`, where `<base>` is the commit
+   before this run's first commit. Fix each `fix` comment in one more iteration, then review the
    new range. In a flow, you also hold the review step, and the last verdict goes in
    `06-review.md`, because it covers the build range.
-6. Stop only when the predicate is met and the review has no confirmed FAIL, or when blocked on
+6. Stop only when the predicate is met and the review has no `fix` comment, or when blocked on
    user input. A plateau is not a stop,
    so change the approach. A genuine dead end is reported with the evidence, not spun on. Never
    relax the predicate to declare victory.

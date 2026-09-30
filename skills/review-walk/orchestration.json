@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "workflow_kind": "review-pr",
+  "workflow_kind": "review-walk",
   "required_operations": [
     "resolve_roles",
     "validate_host_capabilities",
@@ -11,14 +11,13 @@
     "close_owned_leaves"
   ],
   "roles": [
-    "review.deep",
-    "review.challenger"
+    "review.deep"
   ],
   "seat_template": {
-    "isolation": "independent review context per seat",
+    "isolation": "one seat per review step (03, 04 or 05); seats do not read each other's step files",
     "visibility": "host-visible owned leaf",
-    "permission": "repository inspection; no repository edits, applied findings, or commits; scratch-result writes only",
-    "artifact": "attributed structured verdict artifact",
+    "permission": "reads the repository and the run folder; writes only its own step file; no repository edits, no GitHub writes, no commits",
+    "artifact": "the step file under <repo>/tmp/review-walk/<run>/, with line 1 set to done or skipped",
     "deadline": "bounded by the chair"
   },
   "refusals": [
@@ -47,12 +46,6 @@
       "disposition": "refuse"
     },
     {
-      "condition": "reviewer-independence-unsatisfied",
-      "detectable": "pre-dispatch",
-      "side_effects_may_have_occurred": false,
-      "disposition": "degrade-and-report"
-    },
-    {
       "condition": "completion-artifact-invalid",
       "detectable": "post-dispatch",
       "side_effects_may_have_occurred": true,
@@ -66,41 +59,32 @@
     }
   ],
   "result_routing": {
-    "unit_verdicts": "coverage gate",
-    "ripple_verdicts": "challenger and final report",
-    "challenger_adjustments": "original identity namespace",
-    "security_verdict": "final report"
+    "step_file": "the chair checks each finding quote against diff.patch, then keeps the step done or reopens it",
+    "comments": "06-comments.md, then the pending review after the user says yes",
+    "verdict": "06-comments.md line 3, read by flow and deliver"
   },
   "trace_cases": [
     {
       "id": "happy-path",
-      "units": [
-        "unit-a",
-        "unit-b"
-      ],
-      "reviewer_outcomes": {
-        "unit-a": "PASS",
-        "unit-b": "FAIL"
-      },
-      "challenger_verdicts": {
-        "unit-a": "UPHOLD",
-        "unit-b": "CONFIRM"
-      }
+      "events": [
+        "start:01-scope",
+        "map:02-map",
+        "dispatch:03-cleanup,04-logic,05-rules",
+        "findings-checked",
+        "draft:06-comments",
+        "user-yes",
+        "post",
+        "walk:07-walk"
+      ]
     },
     {
-      "id": "partial-pool",
-      "units": [
-        "unit-a",
-        "unit-b"
-      ],
-      "reviewer_outcomes": {
-        "unit-a": "PASS",
-        "unit-b": "MISSING"
-      },
-      "challenger_verdicts": {
-        "unit-a": "UPHOLD",
-        "unit-b": "REJECT"
-      }
+      "id": "new-round",
+      "events": [
+        "start:01-scope",
+        "previous-run-viewed-read",
+        "remark-offered",
+        "since-view-only-files-reviewed"
+      ]
     }
   ],
   "role_policy": {

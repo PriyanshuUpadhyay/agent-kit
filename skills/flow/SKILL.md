@@ -51,7 +51,7 @@ folder above the git common dir (`git rev-parse --git-common-dir`), not the work
 | `03-contracts.md` | frame | APIs, data model, integrations, and the result of the `decisions` skill's check for the topic |
 | `04-impact.md` | contracts | the existing features that change, or "independent" |
 | `05-build.md` | impact, and design unless skipped | the task-file path of the `pair` or `deliver` run that the user started, and `Base:`, the commit before its first commit |
-| `06-review.md` | build | the `review-pr` verdict on `<Base>..<build revision>`, and each finding with its fix or the reason it stays |
+| `06-review.md` | build | the `review-walk` run on `<Base>..<build revision>`, its verdict, and each `fix` comment with its fix or the reason it stays |
 | `07-close.md` | review with APPROVE | the done-when of `01-frame.md`, each with its evidence |
 
 A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run for the
@@ -66,7 +66,7 @@ that the user asks for.
 The flow owns the step list, the order, the status, the profiles, and the domain catalog.
 `pair` or `deliver` owns the plan, the chunks, and the commits; the flow never starts `deliver`
 by itself.
-`review-pr` owns the review and its verdict; the flow never fixes a finding itself.
+`review-walk` owns the review and its verdict; the flow never fixes a finding itself.
 `prove-it-works` owns the choice of check and the evidence. `sequence-verifiable-units` owns the
 unit order. `decisions` owns the ADRs. The flow never pushes.
 

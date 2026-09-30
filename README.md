@@ -13,7 +13,7 @@ Workflow skills for coding agents (Claude Code, Codex, Antigravity). Each skill 
 | `research` | Answer one question from evidence in a short report |
 | `web-search` | Three visible seats search different parts of the web, the chair merges |
 | `council` | A visible debate between Claude, GPT and Gemini voices that ends in a verdict |
-| `review-pr` | Judge a diff for correctness, ownership and contracts |
+| `review-walk` | Review a PR or diff in seven steps and draft comments in your voice into a pending review |
 | `pr-walkthrough` | Explain a diff in plain words before review |
 | `decisions` | Record consequential choices as in-repo ADRs |
 | `cleanup-gate` | A full cleanup pass, only on request |
