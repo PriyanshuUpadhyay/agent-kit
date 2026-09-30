@@ -38,8 +38,9 @@ grammar.
 ## 2. Look
 
 - Write `<piece>/DESIGN.md` beside the page code, not under `ink/`, because the code and other
-  design tools read it there. Use the [DESIGN.md format](https://github.com/google-labs-code/design.md): colors, typography, spacing,
-  rounded, and components as YAML tokens, then the prose sections. Check it with
+  design tools read it there. Use the
+  [DESIGN.md format](https://github.com/google-labs-code/design.md): colors, typography,
+  spacing, rounded, and components as YAML tokens, then the prose sections. Check it with
   `npx @google/design.md lint DESIGN.md`, which also tests WCAG contrast of the component color
   pairs. The linter exits 0 and reports low contrast only as a warning, so read its findings. Any
   error and any `contrast-ratio` finding is a `miss`.
