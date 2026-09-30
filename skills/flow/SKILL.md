@@ -10,7 +10,7 @@ Use a flow for a feature that changes many files. Do not use it for a one-line c
 ## Start or continue
 
 The user says "flow continue <folder>" in the repo. The folder is
-`<repo-root>/tmp/flow/<YYYY-MM-DD>-<branch>/`, as `~/.claude/references/run-folder.md` says.
+`<repo-root>/tmp/flow/<YYYY-MM-DD>-<branch>/`, as the kit's `references/run-folder.md` says.
 The profile stays private in `~/.flow/<repo>/profile.md`. `<repo>` is the name of the folder above
 the git common dir (`git rev-parse --git-common-dir`), not the worktree folder name.
 

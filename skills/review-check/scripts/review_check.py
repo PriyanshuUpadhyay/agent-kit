@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic parts of a review-check run. The script owns the units and the verdict; the agent
+"""Deterministic parts of a review-check run. The script owns the units and the verdict; the reviewer
 only writes rows into 02-review.md.
 
   start <local|base..head> [--patch FILE]   make <repo>/tmp/review-check/<run>/ with 01-units.md

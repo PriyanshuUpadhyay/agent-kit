@@ -1,6 +1,6 @@
 ---
 name: review-check
-description: Judge a commit range or uncommitted changes with a script-enforced verdict. A script splits the diff into units (changed functions, hunks, removed code), the agent writes one quoted row per unit, and the script gives APPROVE, REQUEST CHANGES, or NEEDS DISCUSSION only when every unit has a row. Use when flow, deliver, or review-walk needs a review verdict, or for "check this range". Not for a GitHub PR walk with comments in your voice, which review-walk owns.
+description: Judge a commit range or uncommitted changes with a script-enforced verdict. A script splits the diff into units (changed functions, hunks, removed code), the reviewer writes one quoted row per unit, and the script gives APPROVE, REQUEST CHANGES, or NEEDS DISCUSSION only when every unit has a row. Use when flow, deliver, or review-walk needs a review verdict, or for "check this range". Not for a GitHub PR walk with comments in your voice, which review-walk owns.
 ---
 
 # review-check
@@ -14,7 +14,7 @@ missing unit, so the chair reviews it and runs `verdict` again. The result is `R
 ## Contract
 
 - The review is report-only. Never edit, commit, stash, switch, or reset the user's checkout.
-- Only `verdict` writes the verdict. An agent never writes `03-verdict.md` or states a verdict that
+- Only `verdict` writes the verdict. A reviewer never writes `03-verdict.md` or states a verdict that
   the script did not print.
 - Every unit gets at least one row. A missing lens, rules file, or ctags language never skips a
   unit.
@@ -35,7 +35,7 @@ is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` descr
 | File | Who | Holds |
 |---|---|---|
 | `01-units.md` | script | target, rules file or `none`, and every unit with its file, symbol, and range |
-| `02-review.md` | agent | one or more rows for each unit |
+| `02-review.md` | reviewer | one or more rows for each unit |
 | `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units; <fix>, <ask>, <note>; rules: <file>)`, then each gap or kept row |
 
 `head/` holds the new version of each changed file. Read full functions there, not in a checkout
