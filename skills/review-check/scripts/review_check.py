@@ -2,16 +2,23 @@
 """Deterministic parts of a review-check run. The script owns the units and the verdict; the reviewer
 only writes rows into 02-review.md.
 
+Every rule in references/lens*.md and in the repo's rules file has an ID, a `Files:` glob, and an
+optional `Applies:` regex. `start` writes checklist.json: for each unit, the ID of every rule whose
+glob matches the unit's file and whose regex matches the unit's code, plus `REF` when a symbol the
+unit defines or removes has references elsewhere. `verdict` refuses until each ID has a result.
+
   start <local|base..head> [--patch FILE]   make <repo>/tmp/review-check/<run>/ with 01-units.md
   verdict <run>                              gate the rows of 02-review*.md and write 03-verdict.md
 
 `--patch` reviews that patch instead of the whole range, for example review-walk's diff since view.
 `verdict` exits 1 when the gate fails, so a caller cannot read an APPROVE that no one earned.
 """
-import hashlib, json, re, subprocess, sys
+import fnmatch, hashlib, json, re, subprocess, sys
 from pathlib import Path
 
-KINDS = ("pass", "fix", "ask", "note")
+KINDS = ("pass", "fix", "ask", "note", "n/a")
+RULE = re.compile(r"^- `([A-Z][A-Z0-9-]*-\d+)` (.*)$")
+REFS_CAP = 20  # a symbol with more references than this gets the first 20; the seat searches the rest
 FUNC_KINDS = {"function", "method", "subroutine", "func", "procedure"}
 PLAIN = ("--no-ext-diff", "--no-color", "--src-prefix=a/", "--dst-prefix=b/")  # user config may change these
 GENERIC = {"", "n/a", "na", "none", "ok", "okay", "fine", "good", "looks fine", "looks good", "checked",
@@ -37,6 +44,76 @@ def home():
         exclude.parent.mkdir(parents=True, exist_ok=True)
         exclude.write_text("\n".join(lines + ["/tmp/"]) + "\n")
     return root / "tmp" / "review-check"
+
+
+def expand(pattern):
+    """`**/*.{ts,py}` -> ["**/*.ts", "**/*.py"]."""
+    m = re.search(r"\{([^{}]*)\}", pattern)
+    if not m:
+        return [pattern]
+    return [x for alt in m.group(1).split(",") for x in expand(pattern[:m.start()] + alt + pattern[m.end():])]
+
+
+def glob_match(path, globs):
+    for g in (x for pattern in globs for x in expand(pattern)):
+        # fnmatch's * also crosses "/", so "**/" only needs to allow a file at the repo root
+        if fnmatch.fnmatch(path, g) or (g.startswith("**/") and fnmatch.fnmatch(path, g[3:])):
+            return True
+    return False
+
+
+def globs_of(text):
+    return [g.strip() for g in re.split(r",(?![^{]*\})", text)]  # a comma inside {a,b} is not a separator
+
+
+def load_rules(files):
+    """[{id, files, applies, source}] from every rule line; a file's `Files:` header is the default."""
+    rules = []
+    for f in files:
+        default = ["**/*"]
+        for line in f.read_text().splitlines():
+            head = re.match(r"^Files: `([^`]+)`", line)
+            if head:
+                default = globs_of(head.group(1))
+            m = RULE.match(line)
+            if not m:
+                continue
+            globs = re.search(r"Files: `([^`]+)`", m.group(2))
+            applies = re.search(r"Applies: `([^`]+)`", m.group(2))
+            rules.append({"id": m.group(1), "source": f.name,
+                          "files": globs_of(globs.group(1)) if globs else default,
+                          "applies": re.compile(applies.group(1)) if applies else None})
+    return rules
+
+
+# Names other files can reach: exported bindings, top-level functions and types, and class members with
+# a modifier. A plain `const x` inside a function is local, so it gets no REF.
+DEFINES = re.compile(r"(?:\bexport\s+(?:default\s+)?(?:async\s+)?(?:const|let|var|function|class|type|interface|enum)\s+"
+                     r"|^(?:async\s+)?(?:def|function|func|class|struct|enum|protocol|interface|type)\s+"
+                     r"|^\s+(?:def|func)\s+"
+                     r"|^\s*(?:(?:public|private|protected|static|async|override|readonly)\s+)+)([A-Za-z_]\w{2,})")
+
+
+FAMILY = {ext: fam for fam, exts in {
+    "js": "ts tsx js jsx mjs cjs mts cts vue svelte", "py": "py pyi", "go": "go", "swift": "swift m h",
+    "rs": "rs", "jvm": "java kt", "rb": "rb", "sql": "sql"}.items() for ext in exts.split()}
+
+
+def family(path):
+    return FAMILY.get(Path(path).suffix.lstrip("."), Path(path).suffix)
+
+
+def references(symbols, head, own, lang):
+    """{symbol: ["file:line", ...]} for each symbol that another place in the tree names."""
+    out = {}
+    for sym in sorted(symbols):
+        found = git("grep", "-n", "-w", "-I", "-e", sym, *([head] if head else []), check=False).splitlines()
+        hits = [":".join(h.removeprefix(f"{head}:").split(":")[:2]) for h in found]
+        # the same name in another language is another symbol, for example Python `encode` and JS `.encode`
+        hits = [h for h in hits if h not in own and family(h.split(":")[0]) == lang]
+        if hits:
+            out[sym] = hits[:REFS_CAP]
+    return out
 
 
 def revision(path):
@@ -141,17 +218,41 @@ def start(target, *opts):
     (d / "units.json").write_text(json.dumps(units, indent=2) + "\n")
 
     rules = Path.home() / ".review-check" / "rules" / f"{repo_name()}.md"
+    catalog = load_rules(sorted((Path(__file__).resolve().parent.parent / "references").glob("lens*.md"))
+                         + ([rules] if rules.exists() else []))
+    diff = parse_diff(patch)
+    checklist = {}
+    for u in units:
+        info = diff[u["file"]]
+        src = d / "head" / u["file"]
+        body = src.read_text(errors="replace").splitlines()[max(u["range"][0] - 1, 0):u["range"][1]] if src.exists() else []
+        text = "\n".join(body + info["removed"])  # removed code counts, so a rule about what was dropped still fires
+        ids = [r["id"] for r in catalog
+               if glob_match(u["file"], r["files"]) and (r["applies"] is None or r["applies"].search(text))]
+        added = [info["new"][n] for n in u["lines"]]
+        symbols = {m.group(1) for line in added + info["removed"] for m in [DEFINES.search(line)] if m}
+        if not u["symbol"].startswith(("hunk ", "deleted ")):
+            symbols.add(u["symbol"])
+        own = {f"{u['file']}:{n}" for n in range(u["range"][0], u["range"][1] + 1)}
+        refs = references(symbols, head, own, family(u["file"]))
+        if refs:
+            ids.append("REF")
+        checklist[u["id"]] = {"rules": ids, "refs": refs}
+    (d / "checklist.json").write_text(json.dumps(checklist, indent=2) + "\n")
     body = [f"Target: {target}", f"Base: {base}", f"Head: {head or 'working tree'}",
             f"Rules: {rules if rules.exists() else 'none'}", "",
-            f"{len(units)} units in {len({u['file'] for u in units})} files. Every unit needs at least one row.", "",
-            "| Unit | File | Symbol | Range | Added lines |", "|---|---|---|---|---|",
-            *(f"| {u['id']} | `{u['file']}` | `{u['symbol']}` | {u['range'][0]}-{u['range'][1]} | {len(u['lines'])} |"
-              for u in units)]
+            f"Catalog: {len(catalog)} rules from lens*.md and the rules file.",
+            f"{len(units)} units in {len({u['file'] for u in units})} files, "
+            f"{sum(len(c['rules']) for c in checklist.values())} checks. `checklist.json` lists each unit's rule IDs "
+            "and the references that `REF` must check.", "",
+            "| Unit | File | Symbol | Range | Added lines | Checks |", "|---|---|---|---|---|---|",
+            *(f"| {u['id']} | `{u['file']}` | `{u['symbol']}` | {u['range'][0]}-{u['range'][1]} | {len(u['lines'])} "
+              f"| {len(checklist[u['id']]['rules'])} |" for u in units)]
     rest = "Uses:\n" + "\n".join(body) + "\n"
     (d / "01-units.md").write_text(f"Status: done {hashlib.sha1(rest.encode()).hexdigest()[:12]}\n{rest}")
     (d / "02-review.md").write_text(
         f"Status: open\nUses: 01-units@{revision(d / '01-units.md')}\n\n"
-        "| Unit | file:line | Quote | Kind | Problem | Proof |\n|---|---|---|---|---|---|\n")
+        "| Unit | Rule | file:line | Quote | Kind | Problem | Proof |\n|---|---|---|---|---|---|---|\n")
     print(d)
 
 
@@ -170,34 +271,44 @@ def verdict(name):
     units = {u["id"]: u for u in json.loads((d / "units.json").read_text())}
     diff = parse_diff((d / "diff.patch").read_text())
     rules = re.search(r"^Rules: (.*)$", (d / "01-units.md").read_text(), re.M).group(1)
-    problems, seen, kept = [], set(), []
+    checklist = json.loads((d / "checklist.json").read_text())
+    problems, seen, kept, done = [], set(), [], {uid: set() for uid in units}
     for src, cells in rows(d):
-        if len(cells) != 6:
-            problems.append(f"{src}: a row has {len(cells)} cells, not 6: {' | '.join(cells)}")
+        if len(cells) != 7:
+            problems.append(f"{src}: a row has {len(cells)} cells, not 7: {' | '.join(cells)}")
             continue
-        uid, loc, quote, kind, problem, proof = cells
+        uid, rule, loc, quote, kind, problem, proof = cells
         quote, kind = quote.strip("`"), kind.lower()
+        ids = {r.strip().strip("`") for r in rule.split(",")} - {"-", ""}
         u = units.get(uid)
         if u is None or kind not in KINDS or not quote:
             problems.append(f"{uid}: unknown unit, kind not in {'/'.join(KINDS)}, or no quote")
             continue
+        if kind in ("fix", "ask", "note") and len(ids) > 1:
+            problems.append(f"{uid}: a {kind} row names one rule, or `-` for a finding that no rule owns")
+            continue
         path = loc.split(":")[0].strip("`")
-        if kind == "pass":  # a quote from the unit, or from code the diff removed in that file
+        if kind in ("pass", "n/a"):  # a quote from the unit, or from code the diff removed in that file
             src = d / "head" / u["file"]
             head = src.read_text().splitlines() if src.exists() else []
             scope = head[max(u["range"][0] - 1, 0):u["range"][1]] + diff[u["file"]]["removed"]
             if proof.lower().strip(". ") in GENERIC:
-                problems.append(f"{uid}: a pass needs a proof that names the input or case checked")
+                problems.append(f"{uid} {rule}: a {kind} needs a proof that names the case checked or why the rule cannot apply")
                 continue
         else:
             scope = [*diff.get(path, {}).get("new", {}).values(), *diff.get(path, {}).get("removed", [])]
         if not any(quote in line for line in scope):
-            problems.append(f"{uid}: quote not found {'in the unit' if kind == 'pass' else f'on the new side of {path}'}: {quote!r}")
+            problems.append(f"{uid}: quote not found {'in the unit' if kind in ('pass', 'n/a') else f'in the diff of {path}'}: {quote!r}")
             continue
         seen.add(uid)
-        if kind != "pass":
-            kept.append((uid, loc, quote, kind, problem, proof))
+        done[uid] |= ids
+        if kind in ("fix", "ask", "note"):
+            kept.append((uid, loc, quote, kind, f"{rule}: {problem}" if ids else problem, proof))
     problems += [f"{uid}: no row ({u['file']} {u['symbol']})" for uid, u in units.items() if uid not in seen]
+    missing = {uid: [r for r in checklist[uid]["rules"] if r not in done[uid]] for uid in units}
+    problems += [f"{uid}: no result for {', '.join(m)}" for uid, m in missing.items() if m]
+    checks = sum(len(c["rules"]) for c in checklist.values())
+    checked = checks - sum(len(m) for m in missing.values())
 
     count = {k: sum(1 for r in kept if r[3] == k) for k in ("fix", "ask", "note")}
     if problems:
@@ -205,7 +316,7 @@ def verdict(name):
     else:
         status = "done"
         word = "REQUEST CHANGES" if count["fix"] else "NEEDS DISCUSSION" if count["ask"] else "APPROVE"
-    line3 = (f"Verdict: {word} ({len(seen)} of {len(units)} units; {count['fix']} fix, {count['ask']} ask, "
+    line3 = (f"Verdict: {word} ({len(seen)} of {len(units)} units, {checked} of {checks} checks; {count['fix']} fix, {count['ask']} ask, "
              f"{count['note']} note; rules: {'none' if rules == 'none' else Path(rules).name})")
     uses = ", ".join(f"{f.stem}@{revision(f)}" for f in [d / "01-units.md", *sorted(d.glob("02-review*.md"))])
     body = [line3, "", *(f"- {p}" for p in problems),

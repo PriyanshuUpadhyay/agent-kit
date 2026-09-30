@@ -14,10 +14,10 @@
     "review.deep"
   ],
   "seat_template": {
-    "isolation": "one seat per set of units; seats do not read each other's review files",
+    "isolation": "one seat per aspect (lens, language, repo rules, refs); each answers its own rule IDs for every unit; a seat never reviews a change its own session wrote",
     "visibility": "host-visible owned leaf",
     "permission": "reads the repository and the run folder; writes only its own 02-review-<n>.md; no repository edits, no commits",
-    "artifact": "02-review-<n>.md under <repo>/tmp/review-check/<run>/, with one row for each assigned unit",
+    "artifact": "02-review-<aspect>.md under <repo>/tmp/review-check/<run>/, with a result for each of its IDs in checklist.json",
     "deadline": "bounded by the chair"
   },
   "refusals": [
@@ -66,18 +66,18 @@
     {
       "id": "happy-path",
       "events": [
-        "start:01-units",
-        "dispatch:02-review-1..n",
+        "start:01-units,checklist",
+        "dispatch:02-review-lens,lang,repo,refs",
         "verdict:03-verdict"
       ]
     },
     {
       "id": "gap",
       "events": [
-        "start:01-units",
-        "dispatch:02-review-1..n",
+        "start:01-units,checklist",
+        "dispatch:02-review-lens,lang,repo,refs",
         "verdict:INCOMPLETE",
-        "missing-units-reviewed",
+        "missing-ids-answered",
         "verdict:03-verdict"
       ]
     }
