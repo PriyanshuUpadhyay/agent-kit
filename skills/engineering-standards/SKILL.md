@@ -113,7 +113,7 @@ To record the decision once made, use `decisions`. This skill does not write an 
 
 ## Refusals
 
-- No `APPROVE` or `REQUEST CHANGES` verdict, and no coverage claim. `review-walk` owns those.
+- No `APPROVE` or `REQUEST CHANGES` verdict, and no coverage claim. `review-check` owns those.
 - No ADR, no decision record. `decisions` owns those.
 - No security rules. Out of scope by the user's instruction.
 - This skill supplies no implementation workflow, migrations, or installs; the caller owns them.

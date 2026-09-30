@@ -1,6 +1,6 @@
-# Backend lens
+# Lens
 
-Step 03 reads the cleanup part and step 04 reads the logic part. Each line is "what to flag → what
+The review reads both parts for every unit, in every language. Each line is "what to flag → what
 to ask for". The repo rules file and the domain catalog's `review` paths add to this list and win
 when they disagree. `engineering-standards` owns the rows for API shapes, keys and indexes, query
 cost, retries, and timeouts, so cite its row id instead of restating it.
@@ -9,7 +9,7 @@ Example. A diff adds `function parseId(v: unknown): string` that trims and check
 the same service wrote one call earlier. The cleanup part flags "validation of data we produced",
 and the comment asks if the helper is needed, because our own code sets the value.
 
-## Cleanup (step 03)
+## Cleanup
 
 The goal is a change that the next reader can follow without holding extra state in their head.
 
@@ -35,7 +35,7 @@ The goal is a change that the next reader can follow without holding extra state
 - One change that forces edits in many unrelated files → ask where the concept should live
   (Fowler, shotgun surgery).
 
-## Logic (step 04)
+## Logic
 
 The goal is a change that stays correct under real load, real failures, and real data.
 
@@ -63,10 +63,11 @@ The goal is a change that stays correct under real load, real failures, and real
 - Unproved defects stay questions. Mark them "potential issue, not confirmed:" and name the input
   that would trigger them.
 
-## Frontend
+## Language lenses
 
-No frontend lens yet. Add `frontend.md` here when the first frontend review needs it, and select it
-from the domain catalog's `web-ui` signals.
+A file `lens-<language>.md` next to this one adds checks for one language or platform, for example
+UI state or memory rules. None exists yet. Add one when a review of that language misses a real
+defect that this file cannot name. A missing language lens never skips a unit.
 
 Sources: John Ousterhout, *A Philosophy of Software Design* (deep modules, information hiding,
 cognitive load); Martin Fowler, *Refactoring* ch. 3 (code smells); Google Engineering Practices,

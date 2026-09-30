@@ -4,7 +4,7 @@ the pending review. The agent owns every judgment; this script owns every git an
 
   start <target>            make <repo>/tmp/review-walk/<run>/ and write 01-scope.md
   status [<run>]            print each step's status, readiness, and staleness
-  viewed <run>              record GitHub viewed marks and pending comments for 07-walk
+  viewed <run>              record GitHub viewed marks and pending comments for 05-walk
   remark <run>              mark files viewed on GitHub again when they did not change since view
   post <run> <comments.json>  add comments to your pending review; it never submits
 
@@ -16,11 +16,9 @@ from pathlib import Path
 STEPS = {  # step -> steps it uses
     "01-scope": [],
     "02-map": ["01-scope"],
-    "03-cleanup": ["02-map"],
-    "04-logic": ["02-map"],
-    "05-rules": ["02-map"],
-    "06-comments": ["03-cleanup", "04-logic", "05-rules"],
-    "07-walk": ["06-comments"],
+    "03-check": ["01-scope"],
+    "04-comments": ["02-map", "03-check"],
+    "05-walk": ["04-comments"],
 }
 
 
@@ -137,7 +135,7 @@ def start(target):
     (d / "01-scope.md").write_text(f"Status: done {hashlib.sha1(rest.encode()).hexdigest()[:12]}\n{rest}")
     skipped = t["kind"] != "pr"
     for step, uses in list(STEPS.items())[1:]:
-        status = "skipped not a PR" if skipped and step == "07-walk" else "open"
+        status = "skipped not a PR" if skipped and step == "05-walk" else "open"
         (d / f"{step}.md").write_text(f"Status: {status}\nUses: {', '.join(uses)}\n")
     print(d)
 
