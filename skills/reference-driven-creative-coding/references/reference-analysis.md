@@ -17,6 +17,19 @@ Record silhouette families, geometric versus organic balance, contour weight, co
 repeated motifs, fill behavior, texture scale, edge wear, material cues, and controlled
 imperfections. Distinguish drawn texture from image overlays when possible.
 
+Measure, do not only describe. Crop a typical mass at the delivery size and record:
+
+- the light direction, and the layers on the mass (base, lit plane, core shadow, tone, rim,
+  contour, material marks);
+- the contour width range in px, where it is heaviest, and its colour role;
+- how tone is made (halftone cell and angle, hatch spacing, dither, or a gradient) and where it
+  appears;
+- the marks per area, the grain scale, the paper colour, and any misregistration offset in px;
+- the number of depth layers and how far layers change.
+
+A number measured from the reference becomes a rule in the style grammar. The recipes in
+[mark-making.md](mark-making.md) give starting numbers where a reference is too small to measure.
+
 ## Pass 3: color and type
 
 Assign palette roles rather than sampling isolated colors: background, dominant fill, secondary fill,
@@ -42,18 +55,24 @@ branching). Keep the structure; write your own content.
 
 ```text
 Reference set:
+Benchmark (what to learn, what not to take):
 Target feeling:
 Visible facts:
 Inferences:
 Unknowns:
 
 Palette roles:
-Contour rules:
+Light direction:
+Mass stack (layers per mass near the camera):
+Contour rules (width range px, swell, heavy side, colour role):
+Tone method (halftone cell and angle, hatch thresholds, where it appears):
+Mark budget:
 Shape vocabulary:
-Composition/depth:
-Texture systems:
+Composition/depth (number of layers, aerial perspective):
+Texture systems (paper, grain, misregistration, each with its opacity or offset):
 Type behavior:
 Motion grammar:
+Boil policy (rate, which layers boil):
 Story structure:
 Controlled irregularity:
 Do not drift into:

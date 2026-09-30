@@ -15,6 +15,23 @@ contact-sheet.png
 
 A contact sheet helps compare rhythm but does not replace inspection of full-size frames.
 
+## Reference match
+
+Put each style frame or key frame beside the matching reference crop, at the same scale:
+
+```sh
+magick ref-crop.png frame-crop.png -resize x900 +append compare-01.png
+```
+
+Score every line of the style grammar as `match`, `partial`, or `miss`, each with the pixel
+evidence. Compare one crop of the whole frame and one crop at 100 % zoom, because texture and line
+swell show only at full size. A `miss` on any trait blocks production scenes. Do at least two
+rounds of fix and re-render. Record the scores in the QA log.
+
+Example. Round 1 of a cloud frame scores the palette `match`, the tone `miss` (flat fills, no dots),
+and the contour `partial` (right colour, even width). Round 2 adds the mass stack and line swell, and
+both become `match`.
+
 ## Story checks
 
 - Each beat's key frame reads on its own: the focal subject and the change of state are clear.
@@ -36,6 +53,9 @@ For each decisive frame inspect:
 - palette roles, contrast, and muddy overlaps;
 - mask edges, transform discontinuities, and layer order;
 - texture scale, density, flicker, and whether texture hides form;
+- no flat mass near the camera, no contour of one even width, and no pure black unless the
+  reference has it;
+- paper and grain visible at 100 % zoom;
 - lettering legibility, including what moving elements cover at different times. A moving shape
   that hides one letter can make a different word (a glint over the "C" turned "LOOK CLOSER" into
   "LOOK LOSER");
@@ -53,6 +73,7 @@ Inspect playback at intended speed and at reduced speed:
 - a white flash or a see-through frame in the middle of a blend;
 - unintended jitter caused by frame-rate dependence;
 - texture crawling or random reseeding;
+- boil at 6-12 changes per second, and no boil on text, halftone, or interface layers;
 - visible loop seam;
 - repeated motion that feels mechanically synchronized.
 

@@ -57,5 +57,6 @@ From https://www.instagram.com/reel/DdZHdUENhZw/. These notes describe one reel,
   local animation: blinking, drifting objects, a rotating UFO, pulsing forms, and blooming lettering.
 - The presenter cutout, captions, and title card are separate editorial layers.
 
-Its comic surface (flat saturated fills, thick contours, halftone, stitches) belongs to that reel's
-look, not to this pattern. Take the look from the user's references.
+Its comic surface (saturated fills, swelling contours, halftone in the shadows, stitches) belongs to
+that reel's look, not to this pattern. Take the look from the user's references, and build it with
+[mark-making.md](../mark-making.md).

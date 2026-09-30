@@ -6,13 +6,15 @@ Build a small story engine, so the story, the look, and the motion change in one
 
 ```text
 config / seed
-look          token object from style-grammar.md (palette roles, line widths, texture settings)
+look          token object from style-grammar.md (palette roles, light direction, line widths,
+              halftone cell, texture opacities); the passes are in mark-making.md
 entities      draw functions with parameters: character(ctx, look, {pose, mood, seed})
 scenes        draw(ctx, u, t, look, params): own coordinates, no colour literals, no story timing
 shots         data: scene id, duration, camera keys, params, transition in
 transitions   (ctx, drawA, drawB, k, params): how two shots meet
 cameraAt      (shot, u) -> transform
-render(t)     active shot or shots -> camera -> scene -> transition -> texture -> captions -> debug
+render(t)     active shot or shots -> camera -> scene (flat tints) -> transition -> tone pass
+              -> line pass -> surface pass (paper, grain, plates) -> captions -> debug
 export hooks
 ```
 
@@ -58,6 +60,11 @@ costly textures, and reused nested scenes.
   A scroll or gate story has no single clock, so accept `?shot=<id>&u=` instead.
 - Expose `stateAt(t)` (or `stateAt(shot, u)`): the camera and each carrier's screen position. The
   seam check in the QA reference compares these values on both sides of a cut.
+- A stateful simulation (particles with physics, reaction-diffusion, fluid) cannot jump to any `t`.
+  Step it with a fixed time step from frame 0, export frames in order in one session, and keep
+  checkpoints every N frames so `?t=` can resume from the nearest one.
+- On the GPU, `seek(t)` resolves only after the frame is on the canvas (`await renderer.renderAsync()`
+  in three.js, or `device.queue.onSubmittedWorkDone()`), so a screenshot never catches a half frame.
 
 ## Debug modes
 
@@ -76,18 +83,42 @@ Prototype at reduced resolution. Cache static textures. Do not redraw costly gra
 hatch marks every frame unless they move. Profile before cutting visual detail. Export from a fixed
 timestep so slow rendering does not change the motion.
 
+## Toolbox
+
+Choose tools for the look and the story, not for a small build. Dependencies, a loading screen, 3D
+models, shaders, and WebGPU are all acceptable when they make the piece better. Every tool still
+renders from `seek(t)` and the seed.
+
+Example. A comic reel with a camera that flies through a 3D city: three.js draws the city with
+stepped toon light, a post pass draws ink edges from depth and normals, a second pass puts halftone
+dots only in the shadow band, and a paper pass multiplies over the frame. This is the mass stack from
+[mark-making.md](mark-making.md) on a GPU.
+
+| Need | Tool | Note |
+|---|---|---|
+| 2D illustration, print looks | Canvas 2D or p5.js 2.x | recipes in mark-making.md |
+| Pencil, marker, hatching, watercolor fills | p5.brush (MIT) | p5.js WEBGL mode or WebGL2 only |
+| 3D scenes, cameras, glTF models | three.js (MIT), `WebGPURenderer` with its WebGL2 fallback | TSL node materials run on both back ends |
+| Shader post passes (ink edges, halftone, dither, paint filter, grain, misregistration) | three.js TSL post nodes, or pmndrs `postprocessing` (Zlib) on WebGL | one pass per surface layer of the mass stack |
+| Simulation at scale (millions of particles, reaction-diffusion, fluid, flocking) | WebGPU compute (three.js TSL compute or WGSL) | stateful, see Determinism |
+| Shader function library (noise, dither, filters, SDFs) | Lygia | Prosperity licence, free only for non-commercial work |
+| Timeline, easing, text choreography | GSAP (free no-charge licence, not open source) | drive a paused timeline with `tl.seek(t)` |
+| Scroll-driven story | GSAP ScrollTrigger or CSS scroll timelines | see the scroll driver in the storyboard reference |
+| Sound | Web Audio | cues from the shot list |
+
+Measure first-frame load time and show a loading state that fits the look. Load time is a trade-off,
+not a limit.
+
 ## Delivery
 
-- Animatic or small piece: one HTML file, code inline, p5.js from its official CDN or plain Canvas 2D.
-- Larger story: a small folder with `look.js`, `scenes/`, `story.js` (the shot list), `main.js`, and
-  a README. Browsers block ES modules over `file://`, so use classic scripts or tell the user to run
-  a local server.
+- Style frame or small piece: one HTML file, with libraries from a CDN through an import map.
+- Larger story: a folder with `look.js`, `scenes/`, `story.js` (the shot list), `main.js`, and a
+  README, or a Vite project. Browsers block ES modules over `file://`, so give a local server command.
 - Offline delivery: vendor dependencies explicitly.
 
 ## Style frames
 
-To try looks before motion, render one still per beat from the animatic with `?t=`, then take one of
-them through the detail passes. A design canvas can hold the board of style frames:
+Style frames are workflow step 4 in the skill. A design canvas can hold the board of style frames:
 [pen.dev](https://www.pen.dev/) (formerly Pencil) has an MCP server and a `pen` CLI and exports PNG
 and HTML, but it needs an account and has no timeline, so it cannot preview motion.
 
@@ -98,6 +129,11 @@ Render frames with a headless Chromium: `chrome-headless-shell --headless --wind
 `~/Library/Caches/ms-playwright/`. Run several at once, then encode with ffmpeg
 (`-c:v libx264 -pix_fmt yuv420p`). Lightpanda has no paint engine, and Obscura 0.2.2 drew canvas
 transforms, arcs, clips, and text wrong in a 2026-09 test, so neither can render canvas frames.
+
+For WebGPU, use the full Chrome for Testing binary from Playwright's `chromium-*` folder with
+`--headless=new --enable-unsafe-webgpu`. In a 2026-09 test on macOS arm64, `chrome-headless-shell`
+drew a blank WebGPU canvas and Chrome for Testing drew it correctly. Check one frame before a long
+export.
 
 For a DOM, CSS, or GSAP composition instead of a canvas,
 [HyperFrames](https://github.com/heygen-com/hyperframes) renders HTML to video in headless Chrome
