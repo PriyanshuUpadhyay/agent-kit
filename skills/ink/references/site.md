@@ -24,8 +24,9 @@ grammar.
   content, and its start, settled, and end state as the reader scrolls.
 - Screen widths replace duration and fps. Default to 1440 px and 390 px, plus any width the user
   names.
-- Record every driver the page uses: load, scroll, pointer (hover and cursor), and click. See
-  Drivers in [story-and-motion.md](story-and-motion.md).
+- Record the page's drivers. Load and scroll follow Drivers in
+  [story-and-motion.md](story-and-motion.md). Hover, cursor, and click change a state, not a time,
+  so list each state with the element it changes.
 - A screen recording is the best site reference. Record one full scroll at each width. Extract
   frames at each section's settled state, at each transition midpoint, and across the loader.
 - Research sources for sites: [threeui.com](https://threeui.com) (three.js site templates, some
@@ -35,8 +36,8 @@ grammar.
 
 ## 2. Look
 
-- Write `DESIGN.md` in the piece folder in the
-  [DESIGN.md format](https://github.com/google-labs-code/design.md): colors, typography, spacing,
+- Write `<piece>/DESIGN.md` beside the page code, not under `ink/`, because the code and other
+  design tools read it there. Use the [DESIGN.md format](https://github.com/google-labs-code/design.md): colors, typography, spacing,
   rounded, and components as YAML tokens, then the prose sections. Check it with
   `npx @google/design.md lint DESIGN.md`, which also tests WCAG contrast of the component color
   pairs. The linter exits 0 and reports low contrast only as a warning, so read its findings. Any
@@ -48,15 +49,14 @@ grammar.
   format drops it.
 - A `DESIGN.md` pulled from a live site (the
   [design-md-chrome](https://github.com/bergside/design-md-chrome) extension) or taken from a
-  collection ([awesome-claude-design](https://github.com/VoltAgent/awesome-claude-design)) is
-  `stated` evidence. Measure the rendered pages before you trust its values.
+  public `DESIGN.md` collection is `stated` evidence. Measure the rendered pages before you trust its values.
 - When the `design-taste-frontend` skill (Taste Skill) is installed, read it for the layout and
   type rules that keep a page from looking like a template.
 
 ## 3. Story and motion
 
-- The story sheet lists the sections in scroll order. Each section has one settled state that
-  carries its key fact.
+- The story sheet lists the sections in scroll order, each with the settled state that the Scroll
+  driver asks for.
 - The motion list names the loader, the section entrances, the scroll-linked motion, hover and
   cursor states, and the page transitions.
 - For UI timing and easing, read a motion skill when one is installed, such as `animate` from
@@ -80,7 +80,6 @@ Run these in addition to [qa.md](qa.md), at each width:
 
 - No sideways scroll: `document.documentElement.scrollWidth <= innerWidth` in the page.
 - Every link and control takes focus with Tab and shows a focus ring.
-- Every section's content shows with `prefers-reduced-motion: reduce`.
 - Text over an image, a video, or a 3D scene passes contrast in the screenshot, not only in
   `DESIGN.md`.
 - The loader ends on the painted hero, never on a blank frame. Record the time to the first

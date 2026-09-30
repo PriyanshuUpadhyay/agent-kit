@@ -75,7 +75,8 @@ that needs them, instead of linking them all into every session.
 | [cursor/plugins](https://github.com/cursor/plugins) | `d7cde2b` | `pstack/skills/typescript-best-practices/` | TypeScript rules |
 
 Tools, not skill files: `xcrun mcpbridge` (Xcode), the sosumi MCP (`https://sosumi.ai/mcp`), Mobbin
-through Composio (`composio link mobbin_mcp`, paid Mobbin plan), `npx @google/design.md lint`, and
+through Composio (`composio link mobbin_mcp`, paid Mobbin plan), `npx @google/design.md lint`, the
+`DESIGN.md` collection [awesome-claude-design](https://github.com/VoltAgent/awesome-claude-design), and
 [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing).
 Impeccable's hooks are left out, because they run on every edit in every session. Its launcher
 downloads a binary on first use.
