@@ -37,8 +37,7 @@ It holds:
 Give other agents this absolute path, never a paraphrase or a summary. Read the file first after a
 `/clear`, a `/compact`, or a resume, and make the first reply a status block: the behaviors done
 with their hashes, the behaviors pending, the current chunk, and the open decisions, then the next
-chunk. Nothing done is redone. The file is the truth, the chat is not. At a task boundary, advise
-`/clear` plus a re-read of this path, not `/compact`.
+chunk. Nothing done is redone. The file is the truth, the chat is not.
 
 The file is a log for a resume, not a display. Keep it to the fields above, with no source survey
 and no essay. Everything the user has to read, which is the behavior list, every chunk, and every
