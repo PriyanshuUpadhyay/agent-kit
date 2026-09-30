@@ -1,6 +1,6 @@
 ---
 name: flow
-description: Run one feature through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under ~/.flow and, for each step, the skills that the domain catalog gives the repo's domains. Use when the user says "flow continue <repo>/<folder>" or "flow start", or names a ~/.flow step file.
+description: Run one feature through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under <repo-root>/tmp/flow and, for each step, the skills that the domain catalog gives the repo's domains. Use when the user says "flow continue <folder>" or "flow start", or names a tmp/flow step file.
 ---
 
 # Flow
@@ -9,9 +9,10 @@ Use a flow for a feature that changes many files. Do not use it for a one-line c
 
 ## Start or continue
 
-The user says "flow continue <repo>/<folder>". The folder is `~/.flow/<repo>/<YYYY-MM-DD>-<branch>/`.
-`<repo>` is the name that the user types. If the user does not type it, it is the name of the
-folder above the git common dir (`git rev-parse --git-common-dir`), not the worktree folder name.
+The user says "flow continue <folder>" in the repo. The folder is
+`<repo-root>/tmp/flow/<YYYY-MM-DD>-<branch>/`, as `~/.claude/references/run-folder.md` says.
+The profile stays private in `~/.flow/<repo>/profile.md`. `<repo>` is the name of the folder above
+the git common dir (`git rev-parse --git-common-dir`), not the worktree folder name.
 
 1. If `~/.flow/<repo>/profile.md` does not exist, stop. Suggest each domain of the catalog
    `~/.flow/domains.md` whose `Signals:` line matches a file in the repo. Draft the profile with
@@ -58,7 +59,7 @@ A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run
 findings. That run moves the build revision, so the review is stale and runs again on the new
 range.
 
-At close, move the folder to `~/.flow/<repo>/_closed/<folder>/`. Release is a separate action
+At close, move the folder to `<repo-root>/tmp/flow/_closed/<folder>/`. Release is a separate action
 that the user asks for.
 
 ## Owners

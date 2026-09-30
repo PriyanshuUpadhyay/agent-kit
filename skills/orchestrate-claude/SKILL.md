@@ -86,4 +86,5 @@ notify the user. They report one consolidated result to the orchestrator.
 
 ## Task files
 
-A skill that keeps a task file across `/clear` keeps it in `~/.claude/pair/`.
+A skill that keeps a task file across `/clear` keeps it in `<repo-root>/tmp/<skill>/`, as
+`~/.claude/references/run-folder.md` says.

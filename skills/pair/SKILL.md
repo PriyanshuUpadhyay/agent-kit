@@ -11,10 +11,10 @@ does the typing.
 
 ## One task file per task
 
-Keep one task file, outside the product repository, at:
+Keep one task file, in the run folder that `~/.claude/references/run-folder.md` names, at:
 
 ```text
-~/.claude/pair/<YYYY-MM-DD>-<slug>.md
+<repo-root>/tmp/pair/<YYYY-MM-DD>-<slug>.md
 ```
 
 It holds:
@@ -152,7 +152,7 @@ no cleanup gate, no readability review, no extra tooling to set up or tear down.
 - The commit subject is one imperative line; a body is optional and short.
 - One chunk in front of the user at a time.
 - No second plan file. The task file is the only plan.
-- No task file inside the product repository.
+- No task file that git tracks. `tmp/` stays in `.git/info/exclude`.
 - Update the task file after every approved chunk.
 - Keep replies to the chunk itself. No progress essays, no restated plan.
 - Show the behavior list and every chunk inline in the chat. A file path is never the reply.
