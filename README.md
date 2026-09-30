@@ -21,7 +21,7 @@ Workflow skills for coding agents (Claude Code, Codex, Antigravity). Each skill 
 | `prove-it-works` | What counts as proof that a change works |
 | `sequence-verifiable-units` | Order multi-step work so each step can be checked |
 | `minimize-reader-load` | When code gets its own function, file or module |
-| `reference-driven-creative-coding` | p5.js and Canvas pieces from a story or a visual reference |
+| `ink` | Pictures, generative plates, and films drawn by code, from a story or a visual reference |
 | `orchestrate-claude`, `orchestrate-codex`, `orchestrate-agy` | Runtime adapters that bind the skills' worker needs to each agent CLI |
 
 `references/plan-layout.md` is the plan shape and the first screen of a long result that several

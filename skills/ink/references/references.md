@@ -1,9 +1,40 @@
-# Reference analysis
+# Intake and reference analysis
 
-Analyze every visual reference in the passes below. Keep observations tied to a frame, timestamp, or
-crop. First record what the reference informs: look, motion, structure, or more than one. A reference
-chosen for its story structure does not set the palette, and a still chosen for its palette does not
-set the pacing.
+## Intake
+
+Get these inputs before you build:
+
+- the story, as a logline or brief, with the beats, the characters, props, and places, and any
+  words on screen;
+- visual references with provenance;
+- one or two references named as the benchmark, each with what to learn from it and what not to
+  take;
+- a start, a middle, and an end frame for each shot, from the user or extracted from a reference;
+- the form, such as a still, a loop, a linear short, a journey, an interactive or scroll-driven
+  piece, or a reel background;
+- the aspect ratio, the duration, and the fps;
+- content limits, such as the subject, the words, brand assets, and things that must or must not
+  appear;
+- the delivery target when known, such as one HTML file, a source folder, frames, WebM, or MP4.
+
+Pixels carry a look that words cannot, such as a halftone or a line weight. That is why each shot
+needs its three frames.
+
+If the user gives no story ("make something cool"), propose a 3-5 beat story, one line per beat,
+and build that. Do not default to a pattern you used before.
+
+Fill low-risk gaps with defaults and record them. Use 1080x1920 for a vertical reel, 30 fps, 6-12 s
+for a loop, and 15-45 s for a short. Do not guess exact brand copy, logos, likenesses, or publishing
+destinations. Ask for them.
+
+Inspect every reference yourself. Watch a whole video, and extract frames at scene boundaries,
+motion extremes, and loop seams. Inspect stills at full resolution and in useful crops. Record each
+reference in `reference-notes.md` with what it informs (look, motion, structure, or more than one).
+A reference chosen for its story structure does not set the palette, and a still chosen for its
+palette does not set the pacing.
+
+Then analyse every reference in the passes below. Tie each observation to a frame, a timestamp, or
+a crop.
 
 ## Pass 1: composition and hierarchy
 
@@ -48,8 +79,8 @@ matching frames.
 
 Record the beats and where the story turns, shot sizes and their order, the length of each shot,
 the transition at each boundary and what it means, recurring motifs, and how on-screen text is
-timed. Map the result to a structure in the storyboard reference (linear, loop, journey, vignette,
-branching). Keep the structure; write your own content.
+timed. Map the result to a structure in [story-and-motion.md](story-and-motion.md) (linear, loop,
+journey, vignette, branching). Keep the structure; write your own content.
 
 ## Style grammar template
 
@@ -79,6 +110,10 @@ Do not drift into:
 Originality changes:
 ```
 
+Write the grammar to `style-grammar.md`, and turn it into one `look` token object. A scene that
+needs a different look (a flashback, a dream) gets a named variant of the same token keys, not new
+literals.
+
 ## Evidence language
 
 Use:
@@ -88,4 +123,5 @@ Use:
 - `inferred`: best explanation of observed behavior;
 - `unknown`: not shown or not recoverable.
 
-Do not upgrade `stated` or `inferred` to `visible`.
+Do not upgrade `stated` or `inferred` to `visible`. A creator's claim about their process is
+evidence of the claim, not of the hidden workflow.

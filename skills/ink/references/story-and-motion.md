@@ -116,7 +116,7 @@ which also keep every cut in a ledger file and check it with a script.
 
 ## Scene graph
 
-Show nesting and compositing explicitly:
+Show nesting and compositing explicitly in `scene-graph.md`:
 
 ```text
 Root

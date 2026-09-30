@@ -41,8 +41,8 @@ log scale, and the zoom centre stays still on screen.
 ## Animatic
 
 Prove nesting, camera continuity, and the seam with flat shapes first. A particle flow field is the
-wrong first prototype. Check `t=0` against `t=1` and run the frame-step check in the QA reference;
-the ancestor skip shows up there as a pop if a rule above is broken.
+wrong first prototype. Check `t=0` against `t=1` and run the pops check in [qa.md](../qa.md); the
+ancestor skip shows up there as a pop if a rule above is broken.
 
 ## Observed example: a recursive illustrated zoom reel
 

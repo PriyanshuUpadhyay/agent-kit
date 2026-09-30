@@ -23,6 +23,18 @@ marks:
 
 Cache passes 2 and 4 per state. Do not redraw thousands of dots on every frame when nothing moved.
 
+Draw the style frames in this order with the real drawing code. When a character recurs, add a
+model sheet that shows its poses and expressions.
+
+## Detail passes
+
+After the animatic, bring every scene up to the approved style frames. Add one system at a time,
+always through the look tokens, in this order: mass stacks, line hierarchy, tone marks, depth
+layers and masks, surface texture, secondary motion and boil, lettering, and final colour.
+
+Re-render the same decisive frames after each pass, so a regression shows. Do not hide a mismatch
+under texture.
+
 ## The mass stack
 
 Nothing flat near the camera. Give each mass these layers, all lit from one light direction per shot:
@@ -150,12 +162,12 @@ misregistered plate, or a stray mark).
 | spectral.js | pigment mixing, also in GLSL | any | MIT |
 
 Every recipe above also fits in a few lines of plain Canvas 2D. On a GPU, each surface layer becomes
-a post pass (see the toolbox in [implementation.md](implementation.md)).
+a post pass (see the toolbox in [build.md](build.md)).
 
 ## Observed examples
 
-Two reels by Kem (Glitch Cat Club) set the bar for this file. Tags follow the reference-analysis
-evidence levels.
+Two reels by Kem (Glitch Cat Club) set the bar for this file. Tags follow the evidence levels in
+[references.md](references.md).
 
 - **Pop-art zoom** (`instagram.com/p/DdZHdUENhZw`, 2026-09-17). Visible: dense layered scalloped clouds, a
   two-tone mass stack, halftone only in shadows, a dark navy contour with swell, small curl marks,

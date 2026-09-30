@@ -1,4 +1,4 @@
-# p5.js and Canvas implementation
+# Build
 
 ## Architecture
 
@@ -59,12 +59,14 @@ costly textures, and reused nested scenes.
 - Accept `?t=` (or a frame number) so any single frame renders alone. Frame export and QA need this.
   A scroll or gate story has no single clock, so accept `?shot=<id>&u=` instead.
 - Expose `stateAt(t)` (or `stateAt(shot, u)`): the camera and each carrier's screen position. The
-  seam check in the QA reference compares these values on both sides of a cut.
+  seam check in [qa.md](qa.md) compares these values on both sides of a cut.
 - A stateful simulation (particles with physics, reaction-diffusion, fluid) cannot jump to any `t`.
   Step it with a fixed time step from frame 0, export frames in order in one session, and keep
   checkpoints every N frames so `?t=` can resume from the nearest one.
-- On the GPU, `seek(t)` resolves only after the frame is on the canvas (`await renderer.renderAsync()`
-  in three.js, or `device.queue.onSubmittedWorkDone()`), so a screenshot never catches a half frame.
+- On the GPU, `seek(t)` resolves only after the frame is on the canvas, so a screenshot never
+  catches a half frame. Render, then wait for `device.queue.onSubmittedWorkDone()` and two
+  animation frames. Do not await `renderer.renderAsync()`, because three.js deprecated it in r181.
+  A 2026-09-30 three.js WebGPU trial captured full frames this way.
 
 ## Debug modes
 
@@ -75,6 +77,7 @@ Give toggles for:
 - camera centre and scale;
 - safe areas for the delivery format;
 - texture on and off, and layer isolation;
+- boil on and off (`?boil=0`);
 - a reference overlay when rights and source allow it.
 
 ## Performance
@@ -103,8 +106,14 @@ dots only in the shadow band, and a paper pass multiplies over the frame. This i
 | Simulation at scale (millions of particles, reaction-diffusion, fluid, flocking) | WebGPU compute (three.js TSL compute or WGSL) | stateful, see Determinism |
 | Shader function library (noise, dither, filters, SDFs) | Lygia | Prosperity licence, free only for non-commercial work |
 | Timeline, easing, text choreography | GSAP (free no-charge licence, not open source) | drive a paused timeline with `tl.seek(t)` |
-| Scroll-driven story | GSAP ScrollTrigger or CSS scroll timelines | see the scroll driver in the storyboard reference |
+| Scroll-driven story | GSAP ScrollTrigger or CSS scroll timelines | see the scroll driver in [story-and-motion.md](story-and-motion.md) |
 | Sound | Web Audio | cues from the shot list |
+
+Procedural 3D can read as a game, not as an illustration. In a 2026-09-30 trial, a three.js scene
+built from plain boxes read as a cel-shaded game. A 2D Canvas build of the same reference read as
+illustration. For an illustrated look, draw the masses in 2D and place them as cards in 3D space
+(2.5D parallax). Or give 3D shapes irregular silhouettes, bevels, and dense set dressing (props
+that fill the scene). Use full 3D when the camera move is the story.
 
 Measure first-frame load time and show a loading state that fits the look. Load time is a trade-off,
 not a limit.
@@ -118,9 +127,15 @@ not a limit.
 
 ## Style frames
 
-Style frames are workflow step 4 in the skill. A design canvas can hold the board of style frames:
+Style frames are step 4 in the skill. A design canvas can hold the board of style frames:
 [pen.dev](https://www.pen.dev/) (formerly Pencil) has an MCP server and a `pen` CLI and exports PNG
 and HTML, but it needs an account and has no timeline, so it cannot preview motion.
+
+## Animatic
+
+Build the shot list, the scene modules as flat shapes, the transitions, the timing, and the loop
+seam if there is one. Render the required evidence frames in [qa.md](qa.md). Fix readability,
+pacing, crop, and continuity before you add any detail.
 
 ## Frame export
 
@@ -131,13 +146,36 @@ Render frames with a headless Chromium: `chrome-headless-shell --headless --wind
 transforms, arcs, clips, and text wrong in a 2026-09 test, so neither can render canvas frames.
 
 For WebGPU, use the full Chrome for Testing binary from Playwright's `chromium-*` folder with
-`--headless=new --enable-unsafe-webgpu`. In a 2026-09 test on macOS arm64, `chrome-headless-shell`
-drew a blank WebGPU canvas and Chrome for Testing drew it correctly. Check one frame before a long
-export.
+`--headless=new --enable-unsafe-webgpu --use-mock-keychain`. In a 2026-09 test on macOS arm64,
+`chrome-headless-shell` drew a blank WebGPU canvas and Chrome for Testing drew it correctly. Check
+one frame before a long export.
+
+On macOS, headless Chrome for Testing reads its "Safe Storage" key from the login keychain at start,
+so macOS shows a keychain prompt during frame capture. Always launch it with `--use-mock-keychain`
+and a fresh `--user-data-dir`. If a prompt still appears, Deny is safe, because the capture profile
+is empty and the frames still render.
+
+The `--screenshot` flag cannot wait for an async GPU render. For WebGPU, drive Chrome for Testing
+over the DevTools protocol. Call `window.seek(t)` with `Runtime.evaluate` and `awaitPromise: true`,
+then call `Page.captureScreenshot`. The 2026-09-30 WebGPU trial exported its frames this way.
 
 For a DOM, CSS, or GSAP composition instead of a canvas,
 [HyperFrames](https://github.com/heygen-com/hyperframes) renders HTML to video in headless Chrome
 and ships its own agent skills.
+
+## Handoff
+
+Keep the coded artwork apart from editorial layers (presenter cutout, captions, titles, sound).
+Merge them only when the user asks for one build.
+
+Deliver these items:
+
+- the source and the exact run command;
+- the seed and the parameter preset;
+- still and export controls, and frame capture instructions;
+- the duration, fps, dimensions, and loop and alpha behaviour;
+- editor notes with safe areas;
+- `reference-notes.md`, `style-grammar.md`, `storyboard.md`, `scene-graph.md`, and the QA log.
 
 ## Technical references
 

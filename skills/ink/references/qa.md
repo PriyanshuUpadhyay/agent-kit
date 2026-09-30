@@ -86,6 +86,10 @@ Run these when frames can be rendered by `?t=`; they catch what a few stills mis
   `compare` exits 1 on any difference, so do not let `set -e` stop a script on it.
 - **Pops:** compare every frame with the next. A step much larger than its neighbours (for example
   more than 1.25 times their mean) marks a jump, a reseed, or a skipped layer. Include the seam step.
+  Run it with boil off (the `?boil=0` debug toggle). With boil on, it flagged every boil frame in a
+  2026-09-30 trial.
+- **Boil rate:** in a separate run with boil on, the large steps must come once per boil period, at
+  the rate in the motion checks above.
 - **Seam vectors:** for each continuity cut, read the carrier's screen velocity from `stateAt` on
   the last frame of shot A and the first frame of shot B. Flag a flipped sign on any axis, or a
   speed ratio outside about 0.5-2 (a starting threshold to tune). Skip cuts marked "jump".
