@@ -44,19 +44,5 @@ Prove nesting, camera continuity, and the seam with flat shapes first. A particl
 wrong first prototype. Check `t=0` against `t=1` and run the pops check in [qa.md](../qa.md); the
 ancestor skip shows up there as a pop if a rule above is broken.
 
-## Observed example: a recursive illustrated zoom reel
-
-From https://www.instagram.com/reel/DdZHdUENhZw/. These notes describe one reel, not all reels.
-
-- The artwork is a continuous multi-scene camera journey of about 27 seconds, repeated under a
-  longer talking-head take.
-- The creator says Opus wrote the JavaScript that drew the frames and that no image or video model
-  was used. The reel does not show the prompt, code, editor, or export, so the process is `stated`,
-  not `visible`.
-- The motion reads as rigid illustrated layers under continuous camera scale and translation, plus
-  local animation: blinking, drifting objects, a rotating UFO, pulsing forms, and blooming lettering.
-- The presenter cutout, captions, and title card are separate editorial layers.
-
-Its comic surface (saturated fills, swelling contours, halftone in the shadows, stitches) belongs to
-that reel's look, not to this pattern. Take the look from the user's references, and build it with
+This pattern sets the structure only. The look comes from the references, built with
 [mark-making.md](../mark-making.md).

@@ -6,7 +6,8 @@ Get these inputs before you build:
 
 - the story, as a logline or brief, with the beats, the characters, props, and places, and any
   words on screen;
-- visual references with provenance;
+- visual references with provenance, researched from the brief when the user gives none (see
+  Research references below);
 - one or two references named as the benchmark, each with what to learn from it and what not to
   take;
 - a start, a middle, and an end frame for each shot, from the user or extracted from a reference;
@@ -35,6 +36,21 @@ palette does not set the pacing.
 
 Then analyse every reference in the passes below. Tie each observation to a frame, a timestamp, or
 a crop.
+
+## Research references
+
+When the brief gives no references, find them from the brief before any design. Each part of the
+story and each quality of the look is a search.
+
+Example. The brief is "a small octopus mail sorter saves one letter from a flooded night post
+office". Search for flooded-city illustration, octopus character design, night post-office
+interiors, and print or comic looks that fit a small brave hero. Keep 4-8 works whose images or
+frames you can open and inspect.
+
+- Use the `research` skill, and the `web-search` skill when one session cannot reach enough sites.
+- Prefer primary pages (the artist's site, the studio, the museum, the film's frames) over reposts.
+- Record each work's source and what it informs, and name one or two as the benchmark.
+- Show the chosen set to the user at intake, with one line on why each fits the brief.
 
 ## Pass 1: composition and hierarchy
 

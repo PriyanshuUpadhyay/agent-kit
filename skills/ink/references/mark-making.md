@@ -164,20 +164,6 @@ misregistered plate, or a stray mark).
 Every recipe above also fits in a few lines of plain Canvas 2D. On a GPU, each surface layer becomes
 a post pass (see the toolbox in [build.md](build.md)).
 
-## Observed examples
-
-Two reels by Kem (Glitch Cat Club) set the bar for this file. Tags follow the evidence levels in
-[references.md](references.md).
-
-- **Pop-art zoom** (`instagram.com/p/DdZHdUENhZw`, 2026-09-17). Visible: dense layered scalloped clouds, a
-  two-tone mass stack, halftone only in shadows, a dark navy contour with swell, small curl marks,
-  speed lines, and one continuous camera zoom with no hard cut. Stated: Opus wrote the JavaScript,
-  and the method is "references" plus a storyboard with "a start, middle and end".
-- **Monochrome plates** (`instagram.com/p/Dd3ssviNEvm`, 2026-09-29). Visible: a card on a mottled
-  grey paper ground, a small numbered monospace label per plate, a serif headline, stipple lines,
-  and six hard cuts in 80 s, with camera moves for the other changes. Stated: models miss "texture,
-  noise, grain, that's the completeness" and "temporality, the pacing".
-
 ## Sources
 
 - Kem, Glitch Cat Club, `ai-coding-skins` (MIT): `skins/studio/riso.js` (plates, halftone, offsets),
