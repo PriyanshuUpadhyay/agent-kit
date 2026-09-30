@@ -11,6 +11,7 @@
     "close_owned_leaves"
   ],
   "roles": [
+    "review.check",
     "review.deep"
   ],
   "seat_template": {

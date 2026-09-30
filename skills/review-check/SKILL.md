@@ -86,16 +86,20 @@ doubt. Add a `lens-<name>.md` for a new language or platform in the same shape.
 
 ## Seats
 
-With seats, start one `review.deep` seat for each aspect, as
+With seats, start one seat for each aspect on the route the table gives, as
 [orchestration.json](orchestration.json) declares. The seats work at the same time, and each seat
-answers its own IDs for every unit.
+answers its own IDs for every unit. A `pass` or `n/a` row may list many IDs with one quote and one
+proof, so write one row for each group of IDs, not one row for each ID.
 
-| Seat | IDs | Writes |
-|---|---|---|
-| lens | `C-`, `L-` | `02-review-lens.md` |
-| language | the IDs from `lens-<name>.md` | `02-review-lang.md` |
-| repo | the IDs from the repo's rules file | `02-review-repo.md` |
-| refs | `REF`, and any finding it meets | `02-review-refs.md` |
+| Seat | Route | IDs | Writes |
+|---|---|---|---|
+| lens | `review.check` | `C-`, `L-` | `02-review-lens.md` |
+| language | `review.check` | the IDs from `lens-<name>.md` | `02-review-lang.md` |
+| repo | `review.check` | the IDs from the repo's rules file | `02-review-repo.md` |
+| refs | `review.deep` | `REF`, and any finding it meets | `02-review-refs.md` |
+
+REF stays on `review.deep`, because it judges a changed signature, return shape, or meaning at
+each caller, and it must search past the first 20 references on its own.
 
 `verdict` reads every `02-review*.md`. With one session and no seats, write `02-review.md` alone,
 but only when that session did not write the change.
