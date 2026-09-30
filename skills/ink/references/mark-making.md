@@ -3,7 +3,7 @@
 A frame with the right palette but flat fills reads as clip art. Frames that people call
 hand-drawn have more layers on each mass, lines that swell, tone made from marks, and a paper
 surface. This file gives recipes with starting numbers. Measure the reference, then replace the
-numbers with the measured ones in `style-grammar.md`.
+numbers with the measured ones in `ink/02-look.md`.
 
 Example. A 2026-09 trial drew a cloud tunnel with one flat fill and one even black outline per ring.
 The reference cloud had a base, a lit plane, a core shadow, halftone dots only in that shadow, a

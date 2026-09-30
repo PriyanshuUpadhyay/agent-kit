@@ -26,7 +26,7 @@ magick ref-crop.png frame-crop.png -resize x900 +append compare-01.png
 Score every line of the style grammar as `match`, `partial`, or `miss`, each with the pixel
 evidence. Compare one crop of the whole frame and one crop at 100 % zoom, because texture and line
 swell show only at full size. A `miss` on any trait blocks production scenes. Do at least two
-rounds of fix and re-render. Record the scores in the QA log.
+rounds of fix and re-render. Record the scores in the step file.
 
 Example. Round 1 of a cloud frame scores the palette `match`, the tone `miss` (flat fills, no dots),
 and the contour `partial` (right colour, even width). Round 2 adds the mass stack and line swell, and
@@ -99,6 +99,9 @@ Run these when frames can be rendered by `?t=`; they catch what a few stills mis
   few frames from it to inspect.
 
 ## QA log
+
+Keep the QA log as a table in the step file that it checks (`04-style-frames`, `06-detail`, or
+`07-export`).
 
 ```text
 Artifact/version:

@@ -29,7 +29,7 @@ destinations. Ask for them.
 
 Inspect every reference yourself. Watch a whole video, and extract frames at scene boundaries,
 motion extremes, and loop seams. Inspect stills at full resolution and in useful crops. Record each
-reference in `reference-notes.md` with what it informs (look, motion, structure, or more than one).
+reference in `ink/01-intake.md` with what it informs (look, motion, structure, or more than one).
 A reference chosen for its story structure does not set the palette, and a still chosen for its
 palette does not set the pacing.
 
@@ -110,7 +110,7 @@ Do not drift into:
 Originality changes:
 ```
 
-Write the grammar to `style-grammar.md`, and turn it into one `look` token object. A scene that
+Write the grammar to `ink/02-look.md`, and turn it into one `look` token object. A scene that
 needs a different look (a flashback, a dream) gets a named variant of the same token keys, not new
 literals.
 

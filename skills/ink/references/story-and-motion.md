@@ -2,7 +2,7 @@
 
 ## Story sheet
 
-Put this at the top of `storyboard.md`:
+Put this at the top of `ink/03-story.md`:
 
 ```text
 Logline:    one sentence: who or what, what changes, how it ends
@@ -116,7 +116,7 @@ which also keep every cut in a ledger file and check it with a script.
 
 ## Scene graph
 
-Show nesting and compositing explicitly in `scene-graph.md`:
+Show nesting and compositing explicitly in `ink/03-story.md`:
 
 ```text
 Root

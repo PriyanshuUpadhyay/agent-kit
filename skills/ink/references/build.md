@@ -6,7 +6,7 @@ Build a small story engine, so the story, the look, and the motion change in one
 
 ```text
 config / seed
-look          token object from style-grammar.md (palette roles, light direction, line widths,
+look          token object from ink/02-look.md (palette roles, light direction, line widths,
               halftone cell, texture opacities); the passes are in mark-making.md
 entities      draw functions with parameters: character(ctx, look, {pose, mood, seed})
 scenes        draw(ctx, u, t, look, params): own coordinates, no colour literals, no story timing
@@ -175,7 +175,7 @@ Deliver these items:
 - still and export controls, and frame capture instructions;
 - the duration, fps, dimensions, and loop and alpha behaviour;
 - editor notes with safe areas;
-- `reference-notes.md`, `style-grammar.md`, `storyboard.md`, `scene-graph.md`, and the QA log.
+- the step files in `ink/`, which hold the notes, the story, the scores, and the QA log.
 
 ## Technical references
 
