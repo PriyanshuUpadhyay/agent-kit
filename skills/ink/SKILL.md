@@ -1,6 +1,6 @@
 ---
 name: ink
-description: Draw pictures, generative plates, and short films where every frame is made by code (Canvas 2D, p5.js, three.js, WebGL or WebGPU shaders, 3D models), from a story, a visual reference, or both. Use for a story reel, animated short, explainer, title sequence, loop, generative still or plate, dense comic or print-style illustration, or infinite zoom; for "make this in p5.js", "animate this story", "storyboard and code this", "draw every frame in JavaScript", "creative coding from this reference", "recreate this style in code", or "animate this like the reel"; and for extracting style, story, and motion rules from references without building. Keeps story, look, and motion apart, proves the look with style frames beside the reference, and proves the story with an animatic.
+description: Draw pictures, generative plates, short films, and websites where every frame is made by code (Canvas 2D, p5.js, three.js, WebGL or WebGPU shaders, 3D models), from a story, a visual reference, or both. Use for a story reel, animated short, explainer, title sequence, loop, generative still or plate, dense comic or print-style illustration, or infinite zoom; for a landing page, portfolio, or product site with a 3D hero, a loader, or scroll motion; for "make a website like this", "make this in p5.js", "animate this story", "storyboard and code this", "draw every frame in JavaScript", "creative coding from this reference", "recreate this style in code", or "animate this like the reel"; and for extracting style, story, and motion rules from references without building. Keeps story, look, and motion apart, proves the look with style frames beside the reference, and proves the story with an animatic.
 ---
 
 # ink
@@ -59,6 +59,9 @@ one-prompt task, so do not suggest it is.
 6. **Detail passes** up to the style frames, with scenes in batches of about eight. See
    [mark-making.md](references/mark-making.md).
 7. **QA, export, and handoff.** See [qa.md](references/qa.md) and [build.md](references/build.md).
+
+A website changes each step: sections replace shots, screen widths replace fps, and a `DESIGN.md`
+joins the look. Read [site.md](references/site.md) at intake when the form is a website.
 
 A pattern file holds the mechanics of one reusable structure:
 [recursive-zoom.md](references/patterns/recursive-zoom.md) covers worlds inside worlds. Add a

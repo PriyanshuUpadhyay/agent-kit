@@ -12,7 +12,7 @@ Get these inputs before you build:
   take;
 - a start, a middle, and an end frame for each shot, from the user or extracted from a reference;
 - the form, such as a still, a loop, a linear short, a journey, an interactive or scroll-driven
-  piece, or a reel background;
+  piece, a reel background, or a website (see [site.md](site.md));
 - the aspect ratio, the duration, and the fps;
 - content limits, such as the subject, the words, brand assets, and things that must or must not
   appear;
