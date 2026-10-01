@@ -7,13 +7,19 @@ optional `Applies:` regex. `start` writes checklist.json: for each unit, the ID 
 glob matches the unit's file and whose regex matches the unit's code, plus `REF` when a symbol the
 unit defines or removes has references elsewhere. `verdict` refuses until each ID has a result.
 
+A rule with `Check: <tool>:<rule>` is owned by the build gate, not a seat, when the repo rules file
+has a `CI:` line and the repo's lint config runs that rule at error level, with default options, on
+the unit's file. `build` records the CI result for the run's head, and `verdict` counts those IDs
+only from it.
+
   start <local|base..head> [--patch FILE]   make <repo>/tmp/review-check/<run>/ with 01-units.md
+  build <run> [--run]                        record the CI result for the head, or run the CI command here
   verdict <run>                              gate the rows of 02-review*.md and write 03-verdict.md
 
 `--patch` reviews that patch instead of the whole range, for example review-walk's diff since view.
 `verdict` exits 1 when the gate fails, so a caller cannot read an APPROVE that no one earned.
 """
-import fnmatch, hashlib, json, re, subprocess, sys
+import fnmatch, hashlib, json, re, subprocess, sys, urllib.parse
 from pathlib import Path
 
 KINDS = ("pass", "fix", "ask", "note", "n/a")
@@ -80,10 +86,54 @@ def load_rules(files):
                 continue
             globs = re.search(r"Files: `([^`]+)`", m.group(2))
             applies = re.search(r"Applies: `([^`]+)`", m.group(2))
+            check = re.search(r"Check: `([^`]+)`", m.group(2))
+            scope = re.search(r"Scope: (\w+)", m.group(2))
             rules.append({"id": m.group(1), "source": f.name,
                           "files": globs_of(globs.group(1)) if globs else default,
-                          "applies": re.compile(applies.group(1)) if applies else None})
+                          "applies": re.compile(applies.group(1)) if applies else None,
+                          "check": [c.strip() for c in check.group(1).split(",")] if check else [],
+                          "scope": scope.group(1) if scope else None})
     return rules
+
+
+def ci_of(rules_file):
+    """{name, cmd, config} from the line ``CI: `<check name>` runs `<command>`; config `<file>` ``."""
+    m = re.search(r"^CI: `([^`]+)` runs `([^`]+)`(?:; config `([^`]+)`)?", rules_file.read_text(), re.M) \
+        if rules_file.exists() else None
+    return {"name": m.group(1), "cmd": m.group(2), "config": m.group(3)} if m else None
+
+
+def lint_config(ci, head):
+    if not ci or not ci["config"]:
+        return None
+    text = git("show", f"{head}:{ci['config']}", check=False) if head else \
+        (Path(ci["config"]).read_text() if Path(ci["config"]).exists() else "")
+    try:
+        return json.loads(text)
+    except ValueError:  # a JSONC config with comments leaves every rule with the seats
+        return None
+
+
+def lint_name(name):
+    return re.sub(r"^eslint/", "", re.sub(r"^@?typescript-eslint/", "typescript/", name))
+
+
+def tool_owned(cfg, check, path):
+    """True when the repo's oxlint config runs `check` on `path` at error level with default options.
+    The fixtures run with default options, so a rule with options stays with the seats."""
+    tool, _, rule = check.partition(":")
+    if tool != "oxlint" or cfg is None:
+        return False
+    if rule.startswith("typescript/") and Path(path).suffix not in (".ts", ".tsx", ".mts", ".cts"):
+        return False  # type-aware rules need type data, which a JS file may not have
+    ignores = [g for p in cfg.get("ignorePatterns", []) for g in (p, p.rstrip("/") + "/**")]
+    if glob_match(path, ignores):
+        return False
+    level = None
+    for block in [cfg.get("rules", {})] + [o.get("rules", {}) for o in cfg.get("overrides", [])
+                                           if glob_match(path, o.get("files", []))]:
+        level = next((v for k, v in block.items() if lint_name(k) == lint_name(rule)), level)
+    return level in ("error", "deny", 2)
 
 
 # Names other files can reach: exported bindings, top-level functions and types, and class members with
@@ -220,6 +270,9 @@ def start(target, *opts):
     rules = Path.home() / ".review-check" / "rules" / f"{repo_name()}.md"
     catalog = load_rules(sorted((Path(__file__).resolve().parent.parent / "references").glob("lens*.md"))
                          + ([rules] if rules.exists() else []))
+    ci = ci_of(rules)
+    cfg = lint_config(ci, head)
+    (d / "target.json").write_text(json.dumps({"target": target, "base": base, "head": head, "ci": ci}, indent=2) + "\n")
     diff = parse_diff(patch)
     checklist = {}
     for u in units:
@@ -227,9 +280,11 @@ def start(target, *opts):
         src = d / "head" / u["file"]
         body = src.read_text(errors="replace").splitlines()[max(u["range"][0] - 1, 0):u["range"][1]] if src.exists() else []
         text = "\n".join(body + info["removed"])  # removed code counts, so a rule about what was dropped still fires
-        ids = [r["id"] for r in catalog
-               if glob_match(u["file"], r["files"]) and (r["applies"] is None or r["applies"].search(text))]
         added = [info["new"][n] for n in u["lines"]]
+        matched = [r for r in catalog if glob_match(u["file"], r["files"]) and (r["applies"] is None or r["applies"].search(
+            "\n".join(added) if r["scope"] == "added" else text))]
+        tool = [r["id"] for r in matched if r["check"] and all(tool_owned(cfg, c, u["file"]) for c in r["check"])]
+        ids = [r["id"] for r in matched if r["id"] not in tool]
         symbols = {m.group(1) for line in added + info["removed"] for m in [DEFINES.search(line)] if m}
         if not u["symbol"].startswith(("hunk ", "deleted ")):
             symbols.add(u["symbol"])
@@ -237,14 +292,17 @@ def start(target, *opts):
         refs = references(symbols, head, own, family(u["file"]))
         if refs:
             ids.append("REF")
-        checklist[u["id"]] = {"rules": ids, "refs": refs}
+        checklist[u["id"]] = {"rules": ids, "tool": tool, "refs": refs}
     (d / "checklist.json").write_text(json.dumps(checklist, indent=2) + "\n")
+    owned = sum(len(c["tool"]) for c in checklist.values())
     body = [f"Target: {target}", f"Base: {base}", f"Head: {head or 'working tree'}",
             f"Rules: {rules if rules.exists() else 'none'}", "",
             f"Catalog: {len(catalog)} rules from lens*.md and the rules file.",
             f"{len(units)} units in {len({u['file'] for u in units})} files, "
             f"{sum(len(c['rules']) for c in checklist.values())} checks. `checklist.json` lists each unit's rule IDs "
-            "and the references that `REF` must check.", "",
+            "and the references that `REF` must check.",
+            f"Build: `{ci['name']}` must pass at this head, and it owns {owned} more checks (`tool` in checklist.json); "
+            "run `build` before `verdict`." if ci else "Build: none, because the rules file has no `CI:` line.", "",
             "| Unit | File | Symbol | Range | Added lines | Checks |", "|---|---|---|---|---|---|",
             *(f"| {u['id']} | `{u['file']}` | `{u['symbol']}` | {u['range'][0]}-{u['range'][1]} | {len(u['lines'])} "
               f"| {len(checklist[u['id']]['rules'])} |" for u in units)]
@@ -254,6 +312,47 @@ def start(target, *opts):
         f"Status: open\nUses: 01-units@{revision(d / '01-units.md')}\n\n"
         "| Unit | Rule | file:line | Quote | Kind | Problem | Proof |\n|---|---|---|---|---|---|---|\n")
     print(d)
+
+
+def tree_digest():
+    return hashlib.sha1(local_patch().encode()).hexdigest()[:12]
+
+
+def build(name, *opts):
+    """Write build.json: the named CI check's result for the run's head, or with --run the CI command's
+    result in this checkout. --run refuses a checkout that is not exactly the head, so the result
+    cannot come from other code."""
+    d = home() / name
+    t = json.loads((d / "target.json").read_text())
+    ci, head = t["ci"], t["head"]
+    if not ci:
+        raise SystemExit("the repo rules file has no `CI:` line, so this run has no build gate")
+    if opts[:1] == ("--run",):
+        if head and (git("rev-parse", "HEAD").strip() != head or git("status", "--porcelain")):
+            raise SystemExit(f"--run needs a clean checkout at {head[:7]}; check it out, or record the CI result instead")
+        r = subprocess.run(["bash", "-c", ci["cmd"]], capture_output=True, text=True)
+        result = {"source": "command", "name": ci["cmd"], "conclusion": "success" if r.returncode == 0 else "failure",
+                  "tail": (r.stdout + r.stderr).splitlines()[-40:]}
+    elif not head:
+        raise SystemExit("uncommitted changes have no CI result; use `build <run> --run`")
+    else:
+        q = urllib.parse.quote(ci["name"])
+        out = subprocess.run(["gh", "api", f"repos/{{owner}}/{{repo}}/commits/{head}/check-runs?check_name={q}"],
+                             capture_output=True, text=True)
+        if out.returncode != 0:
+            raise SystemExit(f"gh: {out.stderr.strip()}")
+        # skipped, cancelled, or running checks prove nothing; a re-run of the same head gets a higher id
+        found = sorted((c for c in json.loads(out.stdout)["check_runs"] if c["status"] == "completed"
+                        and c["conclusion"] in ("success", "failure", "timed_out")), key=lambda c: c["id"])
+        if not found:
+            raise SystemExit(f"no finished `{ci['name']}` check for {head[:7]} (not pushed, a draft PR, or still "
+                             "running); wait, or use `build <run> --run`")
+        last = found[-1]
+        result = {"source": "check-run", "name": ci["name"],
+                  "conclusion": "success" if last["conclusion"] == "success" else "failure", "tail": [last["html_url"]]}
+    result |= {"head": head, "digest": None if head else tree_digest()}
+    (d / "build.json").write_text(json.dumps(result, indent=2) + "\n")
+    print(f"build: {result['conclusion']} ({result['source']} `{result['name']}`)")
 
 
 def rows(d):
@@ -272,7 +371,22 @@ def verdict(name):
     diff = parse_diff((d / "diff.patch").read_text())
     rules = re.search(r"^Rules: (.*)$", (d / "01-units.md").read_text(), re.M).group(1)
     checklist = json.loads((d / "checklist.json").read_text())
+    t = json.loads((d / "target.json").read_text()) if (d / "target.json").exists() else {"ci": None}
     problems, seen, kept, done = [], set(), [], {uid: set() for uid in units}
+    built = "none"
+    if t["ci"]:  # the build must pass even with no tool IDs, because a missing import breaks no rule ID
+        b = json.loads((d / "build.json").read_text()) if (d / "build.json").exists() else None
+        if b is None:
+            problems.append("build: no result; run `build <run>`, or `build <run> --run` for an unpushed head")
+        elif b["head"] != t["head"] or (t["head"] is None and b["digest"] != tree_digest()):
+            problems.append("build: the result is for other code; run `build` again")
+        else:
+            built = "pass" if b["conclusion"] == "success" else "fail"
+            for uid in units:
+                done[uid] |= set(checklist[uid].get("tool", []))
+            if built == "fail":
+                kept.append(("build", f"build {b['name']}", "", "fix", f"build `{b['name']}` failed at "
+                             f"{(t['head'] or 'working tree')[:7]}", b["tail"][-1] if b["tail"] else "no output"))
     for src, cells in rows(d):
         if len(cells) != 7:
             problems.append(f"{src}: a row has {len(cells)} cells, not 7: {' | '.join(cells)}")
@@ -287,18 +401,25 @@ def verdict(name):
         if kind in ("fix", "ask", "note") and len(ids) > 1:
             problems.append(f"{uid}: a {kind} row names one rule, or `-` for a finding that no rule owns")
             continue
+        if ids & set(checklist[uid].get("tool", [])):
+            problems.append(f"{uid}: {', '.join(sorted(ids & set(checklist[uid]['tool'])))} belongs to the build gate, not a seat")
+            continue
+        if proof.lower().strip(". ") in GENERIC:
+            problems.append(f"{uid} {rule}: a {kind} needs a proof that names the case, the input, or why the rule cannot apply")
+            continue
         path = loc.split(":")[0].strip("`")
         if kind in ("pass", "n/a"):  # a quote from the unit, or from code the diff removed in that file
             src = d / "head" / u["file"]
             head = src.read_text().splitlines() if src.exists() else []
             scope = head[max(u["range"][0] - 1, 0):u["range"][1]] + diff[u["file"]]["removed"]
-            if proof.lower().strip(". ") in GENERIC:
-                problems.append(f"{uid} {rule}: a {kind} needs a proof that names the case checked or why the rule cannot apply")
-                continue
-        else:
-            scope = [*diff.get(path, {}).get("new", {}).values(), *diff.get(path, {}).get("removed", [])]
+        else:  # the quote must be at the line the row names, or in code the diff removed from that file
+            at = re.search(r":(\d+)(?:-(\d+))?", loc)
+            new = diff.get(path, {}).get("new", {})
+            scope = [new[n] for n in range(int(at.group(1)), int(at.group(2) or at.group(1)) + 1) if n in new] if at else []
+            scope += diff.get(path, {}).get("removed", [])
         if not any(quote in line for line in scope):
-            problems.append(f"{uid}: quote not found {'in the unit' if kind in ('pass', 'n/a') else f'in the diff of {path}'}: {quote!r}")
+            where = "in the unit" if kind in ("pass", "n/a") else f"at {loc.strip('`')} or in code removed from {path}"
+            problems.append(f"{uid}: quote not found {where}: {quote!r}")
             continue
         seen.add(uid)
         done[uid] |= ids
@@ -307,8 +428,8 @@ def verdict(name):
     problems += [f"{uid}: no row ({u['file']} {u['symbol']})" for uid, u in units.items() if uid not in seen]
     missing = {uid: [r for r in checklist[uid]["rules"] if r not in done[uid]] for uid in units}
     problems += [f"{uid}: no result for {', '.join(m)}" for uid, m in missing.items() if m]
-    checks = sum(len(c["rules"]) for c in checklist.values())
-    checked = checks - sum(len(m) for m in missing.values())
+    checks = sum(len(c["rules"]) + len(c.get("tool", [])) for c in checklist.values())
+    checked = sum(len(done[uid] & set(c["rules"] + c.get("tool", []))) for uid, c in checklist.items())
 
     count = {k: sum(1 for r in kept if r[3] == k) for k in ("fix", "ask", "note")}
     if problems:
@@ -317,8 +438,9 @@ def verdict(name):
         status = "done"
         word = "REQUEST CHANGES" if count["fix"] else "NEEDS DISCUSSION" if count["ask"] else "APPROVE"
     line3 = (f"Verdict: {word} ({len(seen)} of {len(units)} units, {checked} of {checks} checks; {count['fix']} fix, {count['ask']} ask, "
-             f"{count['note']} note; rules: {'none' if rules == 'none' else Path(rules).name})")
-    uses = ", ".join(f"{f.stem}@{revision(f)}" for f in [d / "01-units.md", *sorted(d.glob("02-review*.md"))])
+             f"{count['note']} note; rules: {'none' if rules == 'none' else Path(rules).name}; build: {built})")
+    uses = ", ".join(f"{f.stem}@{revision(f)}" for f in [d / "01-units.md", *sorted(d.glob("02-review*.md")),
+                                                          *[f for f in [d / "build.json"] if f.exists()]])
     body = [line3, "", *(f"- {p}" for p in problems),
             *(f"- {k} `{loc}` {problem} (proof: {proof})" for _, loc, _, k, problem, proof in kept)]
     rest = f"Uses: {uses}\n" + "\n".join(body) + "\n"
@@ -329,7 +451,7 @@ def verdict(name):
 
 
 if __name__ == "__main__":
-    commands = {"start": start, "verdict": verdict}
+    commands = {"start": start, "build": build, "verdict": verdict}
     if len(sys.argv) < 3 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
     sys.exit(commands[sys.argv[1]](*sys.argv[2:]))

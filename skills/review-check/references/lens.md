@@ -45,7 +45,6 @@ The goal is a change that stays correct under real load, real failures, and real
 - `L-11` A migration that rewrites or rebuilds existing data or indexes → an additive change, or proof that the rewrite is bounded.
 - `L-12` A contract that a caller relies on (return shape, ordering, null meaning) that the change alters → name each caller that breaks. Search callers before you claim none break.
 - `L-13` A client, stub, connection, or session resolved once before a retry loop (or cached in a field or closure that each retry reuses) → re-acquire it inside each attempt. A broken handle fails every retry at once, and the retry budget is spent in zero time. Applies: `(?i)(retr(y|ies)|attempt|backoff)`. Source: https://github.com/cloudflare/agents/issues/1918 (all step retries failed on one cached stub after a platform reset); https://developers.cloudflare.com/durable-objects/best-practices/error-handling/ (make a new stub after an exception)
-- `L-14` Unproved defects stay questions. Mark them "potential issue, not confirmed:" and name the input that would trigger them.
 
 ## Language lenses
 

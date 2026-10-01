@@ -25,14 +25,22 @@ helper that already does that math.
   the rows come from new seats.
 - Judge the change on its own merits. Messy code around it does not excuse a new defect.
 - No style nits that a linter or formatter owns.
+- Seats never judge what the build gate owns, which is compile errors such as a missing import and
+  the IDs in a unit's `tool` list. Missing or stale build evidence gives INCOMPLETE, and those IDs
+  never go back to a seat.
 
 ## Run
 
 ```sh
 C=<skill-dir>/scripts/review_check.py
 python3 $C start <base>..<head>     # or `local` for uncommitted changes; --patch FILE for a part
+python3 $C build <run>              # when 01-units.md has a Build line: the CI check for the head
+python3 $C build <run> --run        # or run the CI command here, only on a clean checkout of the head
 python3 $C verdict <run>            # exits 1 with the gaps, or writes 03-verdict.md
 ```
+
+Use `build <run>` for a pushed head. Use `--run` for an unpushed head or `local`. `--run` refuses a
+checkout that is not exactly the head, so check the head out, or wait for CI.
 
 Run it from the repo root. The run folder is `<repo-root>/tmp/review-check/<run>/`, where `<run>`
 is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` describes.
@@ -40,9 +48,11 @@ is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` descr
 | File | Who | Holds |
 |---|---|---|
 | `01-units.md` | script | target, rules file or `none`, and every unit with its file, symbol, range, and count of checks |
-| `checklist.json` | script | for each unit, the rule IDs that apply and, under `refs`, the places that name a symbol the unit defines or removes |
+| `checklist.json` | script | for each unit, the seat's rule IDs under `rules`, the build gate's IDs under `tool`, and, under `refs`, the places that name a symbol the unit defines or removes |
+| `target.json` | script | base, head, and the repo's `CI:` line |
+| `build.json` | script | the CI result for the head, or the `--run` result for the tree |
 | `02-review.md` | reviewer | one or more rows for each unit |
-| `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix>, <ask>, <note>; rules: <file>)`, then each gap or kept row |
+| `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix>, <ask>, <note>; rules: <file>; build: pass\|fail\|none)`, then each gap or kept row |
 
 `head/` holds the new version of each changed file. Read full functions there, not in a checkout
 that can move.
@@ -65,16 +75,17 @@ Write each row as `| unit | rule | file:line | quote | kind | problem | proof |`
 - `rule` is one ID, a comma list of IDs for a `pass` or an `n/a` row, or `-`.
 - `kind` is `pass` (the unit follows the rule), `n/a` (the rule cannot apply, for example "no SQL
   in this hunk"), `fix` (a proved defect or a rule break), `ask` (a question, or a defect that is
-  not proved), or `note` (optional cleanup).
+  not proved), or `note` (optional cleanup). An unproved defect is an `ask`, never a `fix`. Start
+  its problem with "potential issue, not confirmed:" and name the input that would trigger it.
 - `quote` is an exact part of one line. A `pass` or `n/a` quotes a line of its unit. Other kinds
-  quote a line of the diff, new or removed.
+  quote the new line that `file:line` names, or a line the diff removed from that file.
 - `proof` names the input, caller, or rule text that triggers the problem. For a `pass`, it names
   the case that was checked, for example "empty list returns before the loop". For an `n/a`, it
-  says why the rule cannot apply. A bare "ok" fails the gate.
+  says why the rule cannot apply. A bare "ok" fails the gate in every kind of row.
 - Escape a `|` inside a cell as `\|`.
 
-Any `fix` gives REQUEST CHANGES. Else any `ask` gives NEEDS DISCUSSION. Else the verdict is
-APPROVE.
+Any `fix`, or a failed build, gives REQUEST CHANGES. Else any `ask` gives NEEDS DISCUSSION. Else
+the verdict is APPROVE.
 
 ## Rule files
 
@@ -82,13 +93,24 @@ Each rule is one line: ``- `ID` flag → ask. Files: `<glob>, <glob>`. Applies: 
 `Files:` is optional and falls back to the file's own `Files:` header line. `Applies:` is one
 Python regex on the unit's code, new and removed; with none, the rule applies to every unit of a
 matching file. A regex must never skip a unit that can break the rule, so leave it out when in
-doubt. Add a `lens-<name>.md` for a new language or platform in the same shape.
+doubt. `Scope: added` matches `Applies:` against the unit's added lines only. Use it only when the
+token on the added line is the defect itself, never for a rule about callers, aliases, or data
+flow. Add a `lens-<name>.md` for a new language or platform in the same shape.
+
+`Check: <tool>:<rule>` names the lint rule that proves the whole rule text. The build gate owns
+the ID for a unit only when the repo's `CI:` line names a lint config that runs that rule at
+error level, with no options, on the unit's file, and not as a type-aware rule on a JS file. Else
+the seat owns it. A rule that a tool covers only in part splits into two IDs, one with `Check:`
+and one for the seat, as TS-1 and TS-33 do. Every `Check:` needs `fixtures/<tool>/<rule>/` with
+`bad`, `good`, and `exception` files, where each `// expect` line of `bad` is a hit and the other
+files have none. `scripts/test_review_check.py` runs them with the oxlint on PATH, so run it with
+`PATH=<repo>/node_modules/.bin:$PATH` to test the repo's own version before you add a `Check:`.
 
 ## Seats
 
 With seats, start one seat for each aspect on the route the table gives, as
 [orchestration.json](orchestration.json) declares. The seats work at the same time, and each seat
-answers its own IDs for every unit. A `pass` or `n/a` row may list many IDs with one quote and one
+answers its own IDs under `rules` for every unit, never an ID under `tool`. A `pass` or `n/a` row may list many IDs with one quote and one
 proof, so write one row for each group of IDs, not one row for each ID.
 
 | Seat | Route | IDs | Writes |
@@ -111,6 +133,11 @@ reviews. `<repo>` is the folder name above the git common dir. It stays out of t
 because it names internal code. This skill owns the format and the upkeep of those files. A rule
 that the repo's own docs already state points to that doc and is not copied. Add a rule when a
 review raises the same point on a third PR.
+
+A rules file may have one line ``CI: `<check name>` runs `<command>`; config `<lint config>` ``.
+`<check name>` is the GitHub check that `build` reads, `<command>` is what `build --run` runs from
+the repo root, and the JSON lint config decides which `Check:` IDs the build owns. The command
+must not write files, so check that its type checker sets `noEmit`.
 
 ## Callers
 
