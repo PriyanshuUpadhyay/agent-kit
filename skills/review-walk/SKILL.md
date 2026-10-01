@@ -21,6 +21,8 @@ viewed it, and marks the unchanged files viewed again on GitHub after you say ye
 - review-check owns the findings, the lens, the repo rules, and the verdict. This skill never
   states a verdict that review-check did not print.
 - No findings about secrets in plain text in a public comment. Tell the user in chat instead.
+  `post` refuses a body with a known token or key shape, but that check is partial, so read each
+  body for other secrets too.
 
 ## Run folder
 
@@ -31,7 +33,7 @@ to `.git/info/exclude`, so no one else sees the folder.
 ```sh
 W=<skill-dir>/scripts/review_walk.py
 python3 $W start <pr-number|url|local|base..head>   # makes the run and writes 01-scope.md
-python3 $W status [<run>]                            # status, ready, and stale for each step
+python3 $W status [<run>]                            # status, ready, stale, and each problem it can prove
 python3 $W post <run> <run>/comments.json            # drafts into your pending review
 python3 $W viewed <run>                              # records viewed marks for the next round
 python3 $W remark <run>                              # marks unchanged-since-view files viewed
@@ -54,7 +56,7 @@ confirm that it still holds.
 |---|---|---|---|
 | `01-scope.md` | script | none | target, base, head, every file with its state: new to you, changed since view, unchanged since view, whitespace only |
 | `02-map.md` | chair | 01 | files in groups by feature, in reading order, one line of purpose per group |
-| `03-check.md` | chair | 01 | the review-check run folder and line 3 of its `03-verdict.md` |
+| `03-check.md` | chair | 01 | line 3 of the review-check `03-verdict.md`, then `Run: <its run folder>` |
 | `04-comments.md` | chair | 02, 03 | the verdict, and the comments in the reviewer's voice |
 | `05-walk.md` | user, chair | 04 | viewed marks, the user's own comments, what was submitted |
 
@@ -66,9 +68,12 @@ confirm that it still holds.
    groups so a reader meets a type before its users. End with `Files: <mapped> of <total>`, and
    the two numbers must be equal.
 3. **Check.** Run review-check on `<Base>..<Head>` from `01-scope.md`, or `local` for a local
-   target. In a new round, add `--patch <run>/since-view.patch`. Follow review-check to its
-   verdict, and write its run folder and line 3 into `03-check.md`. An `INCOMPLETE` verdict keeps
-   this step open.
+   target. In a new round, add `--patch <run>/since-view.patch`, which holds what changed since
+   view and the whole diff of each file new to you. Follow review-check to its verdict. Line 3 of
+   `03-check.md` is line 3 of its `03-verdict.md`, and line 4 is `Run: <its run folder>`, relative
+   to the repo root. An `INCOMPLETE` verdict keeps this step open. `status` prints a problem when
+   the map skips a file or names one twice, or when line 3 does not match a done review-check run
+   of this head.
 4. **Comments.** Take the `fix`, `ask`, and `note` rows of the review-check run. Drop what the user
    already said in an earlier round or in a pending comment. Write each comment in the voice of
    `~/.review-walk/voice.md`, with the file-level or line-level choice it gives. With no voice file,

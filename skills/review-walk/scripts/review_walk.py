@@ -13,6 +13,9 @@ the pending review. The agent owns every judgment; this script owns every git an
 import hashlib, json, re, subprocess, sys
 from pathlib import Path
 
+SECRET = re.compile(r"AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|sk-[A-Za-z0-9_-]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}"
+                    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----")
+
 STEPS = {  # step -> steps it uses
     "01-scope": [],
     "02-map": ["01-scope"],
@@ -119,6 +122,8 @@ def start(target):
             rows.append(f"| `{f}` | {'changed since view' if p else 'unchanged since view'} |")
         else:
             rows.append(f"| `{f}` | {'whitespace only' if f in whitespace_only else 'new to you'} |")
+            if prev:  # review-check gets only since-view.patch in a new round, so a file new to you needs its whole diff
+                since.append(git("diff", *PLAIN, t["base"], t["head"], "--", f))
     (d / "since-view.patch").write_text("".join(since))
     (d / "unchanged.txt").write_text("".join(f + "\n" for f in unchanged))
 
@@ -128,7 +133,8 @@ def start(target):
             f"Previous run: {prev['name'] if prev else 'none'}", "",
             f"{len(files)} files. {len(changed)} changed since your last view, {len(unchanged)} unchanged since view, "
             f"{len(whitespace_only)} whitespace only.", "",
-            "`diff.patch` is the whole change. `since-view.patch` is only what changed after you viewed each file.",
+            "`diff.patch` is the whole change. `since-view.patch` is what changed after you viewed each file, plus the "
+            "whole diff of each file new to you.",
             "`unchanged.txt` lists the files that `remark` can mark viewed on GitHub again.", "",
             "| File | State |", "|---|---|", *rows, *(f"| `{f}` | untracked |" for f in untracked)]
     rest = "Uses:\n" + "\n".join(body) + "\n"
@@ -154,6 +160,36 @@ def status(name=None):
         ready = all(state[u].split()[0] in ("done", "skipped") for u in uses)
         note = "stale: " + ", ".join(stale) if stale else ("ready" if ready and state[s] == "open" else "")
         print(f"{s:12} {state[s]:30} {note}")
+    for problem in checks(d, state):
+        print("problem:", problem)
+
+
+def checks(d, state):
+    """What a done step claims and the files can disprove: every file mapped once, and the verdict line
+    copied from a done review-check run of this head."""
+    out = []
+    text = {s: (d / f"{s}.md").read_text() for s in STEPS}
+    if state["02-map"].startswith("done"):
+        files = re.findall(r"^\| `([^`]+)` \|", text["01-scope"], re.M)
+        mapped = re.findall(r"`([^`]+)`", text["02-map"])
+        missing, twice = [f for f in files if f not in mapped], [f for f in files if mapped.count(f) > 1]
+        if missing or twice:
+            out.append(f"02-map: not mapped {', '.join(missing) or 'none'}; mapped twice {', '.join(twice) or 'none'}")
+    if state["03-check"].startswith("done"):
+        run = re.search(r"^Run: (\S+)", text["03-check"], re.M)
+        rc = home().parent.parent / run.group(1) if run else None
+        verdict = (rc / "03-verdict.md").read_text().splitlines() if rc and (rc / "03-verdict.md").exists() else []
+        target = json.loads((rc / "target.json").read_text()) if rc and (rc / "target.json").exists() else {}
+        head = json.loads((d / "target.json").read_text())["head"]
+        if len(verdict) < 3 or not verdict[0].startswith("Status: done"):
+            out.append("03-check: its `Run:` line names no done review-check verdict")
+        elif text["03-check"].splitlines()[2:3] != verdict[2:3]:
+            out.append("03-check: line 3 is not line 3 of the review-check verdict")
+        elif target and target.get("head") != head:
+            out.append("03-check: the review-check run is for another head")
+        elif state["04-comments"].startswith("done") and text["04-comments"].splitlines()[2:3] != verdict[2:3]:
+            out.append("04-comments: line 3 is not the review-check verdict")
+    return out
 
 
 def pr_query(t, fields):
@@ -193,10 +229,12 @@ def viewed(name):
 
 def remark(name):
     d, t = load(name)
-    pr_id = pr_query(t, "")["id"]
+    pr = pr_query(t, "")
+    if pr["headRefOid"] != t["head"]:
+        raise SystemExit("the PR head moved after this run, so a file may have changed again; start a new run")
     for path in (d / "unchanged.txt").read_text().split():
         gql("mutation($p:ID!,$f:String!){markFileAsViewed(input:{pullRequestId:$p,path:$f}){clientMutationId}}",
-            p=pr_id, f=path)
+            p=pr["id"], f=path)
         print("viewed", path)
 
 
@@ -240,6 +278,8 @@ def post(name, comments_file):
     patch = (d / "diff.patch").read_text()
     planned = []
     for c in json.loads(Path(comments_file).read_text()):
+        if SECRET.search(c["body"]):  # a literal check only; the chair still reads each body for other secrets
+            raise SystemExit(f"{c['path']}: a comment holds what looks like a secret; tell the user in chat instead")
         thread = {"path": c["path"], "body": c["body"], "subjectType": "FILE"}
         if c.get("first"):
             start_line, end = anchor(patch, c["path"], c["first"], c.get("last"))
@@ -265,6 +305,7 @@ def post(name, comments_file):
             continue
         gql("mutation($i:AddPullRequestReviewThreadInput!){addPullRequestReviewThread(input:$i){thread{id}}}",
             i={"pullRequestReviewId": review, **thread})
+        seen.add((thread["path"], thread["body"]))
         print("added", thread["path"], thread.get("line", "file"))
     print(f"pending review {review}; submit it yourself on GitHub")
 
