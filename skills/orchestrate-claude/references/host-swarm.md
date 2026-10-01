@@ -1,20 +1,14 @@
 # Orchestrate from Claude — Swarm host reference
 
 This reference is active under the `[agent-host: herdr]` host contract.
-Set `SWARM_ADAPTER=herdr` under Herdr (`HERDR_ENV=1`).
-Set `SWARM_ADAPTER=tmux` inside tmux.
 
 ## Session
 
-Create the swarm session and record the orchestrator pane.
+Create the swarm session. It records this pane as the orchestrator, so a child's finish rings the chair.
 
 ```sh
-export SWARM_SESSION_ID=$(swarm session new lane)
-export SWARM_AGENT_ID=orchestrator
-swarm agent add orchestrator orchestrator
+swarm session new lane
 ```
-
-The command `swarm agent add orchestrator orchestrator` records the chair pane so that a child finish notification rings the chair.
 
 ## Seats
 
@@ -26,7 +20,6 @@ swarm launch <id> <role> --cwd <abs path> [-- <extra>]
 
 The route owns model, effort, sandbox, and approval settings.
 Seat identifiers must carry the run id.
-Never pass `SWARM_*` environment variables on the command line.
 
 ## Work
 
@@ -40,11 +33,11 @@ printf '%s' '<ask>' | swarm send <id> ask
 ```
 
 A reply arrives as a `swarm: new message` prompt in the chair pane.
-Read the inbox, read the body file under `$SWARM_HOME/.swarm`, and acknowledge the message.
+Read the inbox, read the body file at the folder the prompt names, and acknowledge the message.
 
 ```sh
 swarm inbox
-# Read runs/<session>/<seq>.txt under $SWARM_HOME/.swarm
+# Read <folder from the prompt>/<body_path>
 swarm ack <seq>
 ```
 
