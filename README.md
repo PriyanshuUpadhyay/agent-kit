@@ -34,9 +34,12 @@ skills point to.
 Link the skills you want into your agent's skills folder, and the references next to them:
 
 ```sh
-git clone https://github.com/PriyanshuUpadhyay/agent-kit ~/agent-kit
+git clone --recurse-submodules https://github.com/PriyanshuUpadhyay/agent-kit ~/agent-kit
 mkdir -p ~/.claude/skills ~/.claude/references
-for s in ~/agent-kit/skills/*/; do ln -sfn "$s" ~/.claude/skills/"$(basename "$s")"; done
+for s in ~/agent-kit/skills/*/ ~/agent-kit/vendor/taste-skill/skills/taste-skill/ \
+  ~/agent-kit/vendor/emil-skills/skills/animate/; do
+  ln -sfn "$s" ~/.claude/skills/"$(basename "$s")"
+done
 ln -sfn ~/agent-kit/references/plan-layout.md ~/.claude/references/plan-layout.md
 ```
 
@@ -53,7 +56,9 @@ Codex reads `~/.agents/skills` and Antigravity reads `~/.gemini/config/skills`.
 
 ## Borrowed skills
 
-These are the expert packs used next to this kit. They are not in this repo. To copy the setup,
+These are the expert packs used next to this kit. Two of them are in `vendor/` as git submodules,
+because `ink` reads their `taste-skill` and `animate` skills on every site build: Leonxlnx/taste-skill
+and emilkowalski/skills. The others are not in this repo. To copy the setup,
 take each pack at the commit shown, keep its license, and read its skills by path from the step
 that needs them, instead of linking them all into every session.
 
@@ -61,11 +66,11 @@ that needs them, instead of linking them all into every session.
 |---|---|---|---|
 | [cloudflare/skills](https://github.com/cloudflare/skills) | `626547c` | `skills/` | Workers, Durable Objects |
 | [AvdLee/SwiftUI-Agent-Skill](https://github.com/AvdLee/SwiftUI-Agent-Skill) | `b24e68a` | `skills/swiftui-expert-skill/` | SwiftUI and AppKit |
-| [emilkowalski/skills](https://github.com/emilkowalski/skills) | `d16ebe6` | `skills/` | motion, Apple design, Swift |
+| [emilkowalski/skills](https://github.com/emilkowalski/skills) | `e8a175d` | `skills/` (`vendor/emil-skills`) | motion, Apple design, Swift |
 | [phuryn/pm-skills](https://github.com/phuryn/pm-skills) | `8607e3b` | the `pm-*/` folders | product framing |
 | [codeswithroh/tastemaker](https://github.com/codeswithroh/tastemaker) | `6bada3c` | `skills/tastemaker/` | web visuals |
 | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | `09170ee` | `cli/assets/skills/` | design systems; `design` sends prompts to Gemini and MuAPI |
-| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | `ce26fc2` | `skills/` without `output-skill` | web visuals |
+| [Leonxlnx/taste-skill](https://github.com/Leonxlnx/taste-skill) | `ce26fc2` | `skills/` without `output-skill` (`vendor/taste-skill`) | web visuals |
 | [NSHipster/sosumi.ai](https://github.com/NSHipster/sosumi.ai) | `79337f5` | `public/SKILL.md` | Apple docs and HIG as Markdown |
 | [vercel-labs/web-interface-guidelines](https://github.com/vercel-labs/web-interface-guidelines) | `e3d624b` | `command.md`, not `install.sh` | web UX rules |
 | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | `9d715cc` | `plugin/skills/impeccable/`, not `hooks/` | web design checks; `scripts/impeccable detect <file>` runs 61 rules |
