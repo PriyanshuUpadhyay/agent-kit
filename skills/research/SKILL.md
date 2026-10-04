@@ -24,8 +24,9 @@ In this order:
 
 Then the web. Under a Fable chair, one `search.web` seat does the web part and writes its notes to
 a file; any other session uses its own search and fetch tools. Either way the web part follows the
-Depth rule in `web-search`: name the known answers as baseline only, seed the under-discussed
-candidates, and dig below the first page of results.
+Depth rule and the blocked-site ladder (the brief's **method** item) in `web-search`: name the
+known answers as baseline only, seed the under-discussed candidates, and dig below the first page
+of results.
 
 For each decision, track the open question, primary evidence, contrary evidence, and remaining
 gap in the report. Inspect the source's actual method or code before accepting its headline.
@@ -53,8 +54,11 @@ Write `~/.claude/reports/<YYYY-MM-DD>-<slug>.md`, under 800 words, in plain word
 3. **What is contested** — where the sources disagree.
 4. **Sources** — newest first, with dates.
 
-Check that every link resolves before you finish; an HTTP status check is enough. Mark a link that
-does not resolve, and drop the claim that rests on it alone.
+Check that every link resolves before you finish. An HTTP status shows only that the page opens,
+so also find the claim's number or wording on the page you cite. Mark a link that does not resolve
+or does not support its claim, and drop the claim that rests on it alone. When you convert a page,
+PDF, or table to text, compare its headers, units, and values with the source and keep the page or
+cell location in the citation. If the conversion lost structure, cite the original.
 
 Example. The question is "does anyone run two coding agents on one repository". You read two prior
 reports, then fetch six pages. One returns 404. The report keeps five links, marks the sixth

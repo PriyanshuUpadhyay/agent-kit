@@ -34,6 +34,8 @@ grammar.
   with their prompt), [21st.dev](https://21st.dev) (components and page templates), and the
   [GSAP showcase](https://gsap.com/showcase/). A template's prompt is a `stated` source. Its
   rendered page is the `visible` one.
+- When the page borrows a component or effect from a repo, record its licence and its last release
+  date in `02-look.md`.
 
 ## 2. Look
 
@@ -53,7 +55,7 @@ grammar.
   [design-md-chrome](https://github.com/bergside/design-md-chrome) extension) or taken from a
   collection, such as VoltAgent's on GitHub, is `stated` evidence. Measure the rendered pages
   before you trust its values.
-- When the `design-taste-frontend` skill (Taste Skill) is installed, read it for the layout and
+- Read the `taste-skill` skill (Taste Skill, `design-taste-frontend`) for the layout and
   type rules that keep a page from looking like a template.
 
 ## 3. Story and motion
@@ -62,8 +64,7 @@ grammar.
   driver asks for.
 - The motion list names the loader, the section entrances, the scroll-linked motion, hover and
   cursor states, and the page transitions.
-- For UI timing and easing, read a motion skill when one is installed, such as `animate` from
-  Emil Kowalski's pack or `design-motion-principles`.
+- For UI timing and easing, read the `animate` skill from Emil Kowalski's pack.
 
 ## 4. Style frames
 

@@ -56,7 +56,8 @@ seat's brief word for word, because a paraphrase loses the exact commands and th
 first 403.
 
 ```
-Any page:  curl -s "https://r.jina.ai/<url>"
+Public page:  curl -s "https://r.jina.ai/<url>"
+Signed-in or visual page: use the playwriter skill, never an outside reader.
 Search:    mcporter call exa.web_search_exa query="<query>" numResults=10
 Reddit:    opencli reddit search "<query>" -f yaml
            opencli reddit read <post-id> -f yaml
@@ -139,7 +140,8 @@ After collect accepts the artifacts:
    quoted, accept what it returns, and say so in the coverage table. Mark "(unverified)" and drop
    from the answer any finding whose only evidence is a homepage or that repeats the brief's seed
    words without a page that says them.
-2. Check every link's HTTP status. Mark a link only a seat could open as "(seat-read only)".
+2. Check every link as the link check in `research` says. Mark a link only a seat could open as
+   "(seat-read only)".
 3. Merge the three reports into `~/.claude/reports/<YYYY-MM-DD>-<slug>-web.md`, in the same output
    shape, plus a coverage table with one row per seat: seat, model, sites, threads read, blocked,
    and a matrix with one row per sub-question: independent sources per seat, gap or covered.

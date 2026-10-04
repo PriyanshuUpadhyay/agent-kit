@@ -31,7 +31,9 @@ For UI, the runnable checks decide done. Report taste as awaiting the user's rev
 When changing model routes, rule loading, or standards selection, run existing loader checks and
 retain a case from the failure being fixed. Selection tests prove selection only. A claim about
 model compliance also needs an agent run against the expected behavior, under the active host
-contract. Record the model, rule version, result, and limits in the existing task record.
+contract. Record the model, rule version, result, and limits in the existing task record. When an
+edit changes how a skill, rule, or model route behaves, run the retained case on the old text and
+on the new text, with the same model and host, and record both results.
 
 Rank a claim of safety or success on this ladder, and say where it stopped:
 
