@@ -44,7 +44,7 @@ Line 1 of each step file is its status:
   when the step needs nothing), and `take` adds each `@<revision>`. So the folder carries its own
   step graph for a reader without the script, such as the Swarm app. A step whose revision is a
   commit has a line `Revision: HEAD` below line 2, which the skill's script writes at start; a reader
-  takes `git rev-parse HEAD` as that step's revision.
+  takes the first 12 characters of `git rev-parse HEAD` as that step's revision.
 - A step is ready when each step that it needs is done or skipped.
 - A step is stale when a revision in its `Uses:` line is no longer the current one. Its owner does it
   again or confirms that it still holds.
