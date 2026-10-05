@@ -18,7 +18,8 @@ that remains with the user.
 
 A council is a step run, so the kit's `references/step-run.md` owns the status line, pick-up,
 close, and when a step waits for the user. The run folder is the decision-log folder below,
-`<log>/<YYYY-MM-DD>-<slug>/`, next to the log file. "council continue <folder>" picks it up.
+`<log>/<YYYY-MM-DD>-<slug>/`, next to the log file. "council continue <folder>" picks it up. Make the folder with
+`python3 <kit>/references/step_run.py start <folder> <this SKILL.md>`, and close each step with `done`.
 
 | File | Needs | Holds |
 |---|---|---|

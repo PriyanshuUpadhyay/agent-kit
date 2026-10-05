@@ -16,7 +16,8 @@ The runtime adapter (`orchestrate-claude`) selects the host and its reference; w
 A web search is a step run, so the kit's `references/step-run.md` owns the status line, pick-up,
 close, and when a step waits for the user. The run folder is
 `~/.claude/reports/<YYYY-MM-DD>-<slug>-seats/`, which also keeps the seat reports at the end.
-"web-search continue <folder>" picks it up.
+"web-search continue <folder>" picks it up. Make the folder with
+`python3 <kit>/references/step_run.py start <folder> <this SKILL.md>`, and close each step with `done`.
 
 | File | Needs | Holds |
 |---|---|---|

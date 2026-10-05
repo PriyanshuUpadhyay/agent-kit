@@ -19,6 +19,14 @@ sees `02-local.md` done and `03-web.md` open, does the web step, and goes on to 
 - The skill's step table lists the step files `NN-<name>.md`, what each one needs, and what it holds.
   On start, make every step file with `Status: open`.
 
+## Script
+
+A skill with a step table makes its folder with the kit's `references/step_run.py`, unless the skill
+names its own script. `start <folder> <SKILL.md>` writes one file per table row, with a todo for what
+the row holds and a `## Result` section. `take <folder> <step> <agent>` marks a step active and fills
+its `Uses:` line. `done <folder> <step>` sets the step done only when every todo is checked with its
+evidence after the colon. Never set a step done by hand.
+
 ## Status line
 
 Line 1 of each step file is its status:

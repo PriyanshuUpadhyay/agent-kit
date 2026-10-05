@@ -25,7 +25,8 @@ Two failure modes define this skill, and the whole design exists to prevent them
 A walkthrough is a step run, so the kit's `references/step-run.md` owns the status line, pick-up,
 close, and when a step waits for the user. The run folder stays outside the user's repository,
 at `<reports>/<YYYY-MM-DD>-walkthrough-<target>/`, where `<reports>` is the reports folder that the
-active runtime adapter names, because the repository must stay untouched. "pr-walkthrough continue <folder>" picks it up.
+active runtime adapter names, because the repository must stay untouched. "pr-walkthrough continue <folder>" picks it up. Make the folder with
+`python3 <kit>/references/step_run.py start <folder> <this SKILL.md>`, and close each step with `done`.
 
 | File | Needs | Holds |
 |---|---|---|
