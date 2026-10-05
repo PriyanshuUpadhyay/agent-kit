@@ -72,7 +72,9 @@ outside a scratch place, such as a GUI permission or a system service.
 
 ## 05-report
 
-Write `~/.claude/reports/<YYYY-MM-DD>-<slug>.md`, under 800 words, in plain words, in this order:
+Write `~/.claude/reports/<YYYY-MM-DD>-<slug>.md` in plain words. Aim for about 800 words, and go
+longer when the evidence needs it. Never cut a claim, a caveat, or a source only to meet the number.
+Use this order:
 
 1. **Answer** — the answer first, in two or three sentences.
 2. **Evidence** — each claim with its link.
