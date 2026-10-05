@@ -14,6 +14,22 @@ inspect evidence and write only council scratch artifacts. Workers follow the ac
 adapter's `Worker contract` section. End with the options, evidence, disagreement, and the decision
 that remains with the user.
 
+## Start or continue
+
+A council is a step run, so the kit's `references/step-run.md` owns the status line, pick-up,
+close, and when a step waits for the user. The run folder is the decision-log folder below,
+`<log>/<YYYY-MM-DD>-<slug>/`, next to the log file. "council continue <folder>" picks it up.
+
+| File | Needs | Holds |
+|---|---|---|
+| `01-brief.md` | none | the pinned brief path, the seat names, and their routed models |
+| `02-round1.md` | brief | the Round-0 questions and answers, and each seat's Round-1 verdict and file |
+| `03-cross.md` | round1 | Rounds 2-3 per seat, or `skipped converged at round 1` |
+| `04-verdict.md` | cross | the Output block |
+| `05-close.md` | verdict | the decision-log path, the seats closed and verified, and the scratch removed |
+
+Round-0 questions that survive the filter, and a split after Round 3, set the step to `waiting`.
+
 ## Execution backend
 
 The runtime adapter (`orchestrate-claude`) selects the host and its reference; the council names no host.

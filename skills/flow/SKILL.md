@@ -1,11 +1,23 @@
 ---
 name: flow
-description: Run one feature through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under <repo-root>/tmp/flow and, for each step, the skills that the domain catalog gives the repo's domains. Use when the user says "flow continue <folder>" or "flow start", or names a tmp/flow step file.
+description: Run one change through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under <repo-root>/tmp/flow and, for each step, the skills that the domain catalog gives the repo's domains. Use when the user says "flow continue <folder>" or "flow start", names a tmp/flow step file, or when pair or deliver starts with no flow folder.
 ---
 
 # Flow
 
-Use a flow for a feature that changes many files. Do not use it for a one-line change.
+Use a flow for any change that `pair` or `deliver` builds. A one-line change takes the fast lane.
+
+## Entry and lanes
+
+`/pair`, `/deliver`, and "flow start" all use this route. When `pair` or `deliver` starts with no
+flow folder named, make the folder and do `01-frame.md` first. Then pick the lane from the change
+and the repo's contracts, never from the missing folder. The fast lane sets `02-design.md`,
+`03-contracts.md`, and `04-impact.md` to `skipped fast lane: <reason>` only when none of them needs a
+new decision. Otherwise do them before build. The command keeps its own mode. After "flow start",
+ask the user for the mode before build.
+
+When a step ends and the next step is not yours, print `Next: <command>` as the last line of the
+reply, for example `Next: flow continue tmp/flow/2026-10-05-login 06-review`.
 
 ## Start or continue
 
@@ -20,28 +32,30 @@ the git common dir (`git rev-parse --git-common-dir`), not the worktree folder n
    that close runs), and `Needs:` (the tools that a step uses). Show the draft, and write
    `~/.flow/<repo>/profile.md` only after the user confirms it. Tell the user that the new profile
    is not in version control yet.
-2. If the folder does not exist, make it and make the seven step files below, each with
-   `Status: open`.
+2. Run the script from the repo root. `F=<skill-dir>/scripts/flow_run.py`.
+
+   ```sh
+   python3 $F start                          # makes the folder and step files, writes each step's skills into its file in full
+   python3 $F status [<folder>]              # each step's status, and which open step is ready
+   python3 $F take <folder> <step> <agent>   # marks the step active and prints its skills in full
+   python3 $F done <folder> <step>           # sets the step done, only when every todo has its evidence
+   ```
+
 3. Read `01-frame.md`. If `Worktree:` or `Branch:` is not the current worktree and branch, stop and
    tell the user. If two open folders exist for one branch, stop and tell the user.
-4. Take the step that the user gave you. With one pane only, take the first ready step.
-5. In the catalog, read the paths for that step in the `any` section and in the section of each
-   profile domain that the change touches. Also read the profile's repo rules. Read only those.
-   When a tool that the profile names is missing, set the status to `unavailable <tool>` and tell
-   the user.
-6. Write only your step's file. Line 1 is the status.
+4. Pick up a step as `references/step-run.md` says, and take it with `take`. The step file holds the
+   full text of the skills that the catalog gives the step (the `any` section, each profile domain,
+   and the repo rules) under `## Rules for this step`, and a todo list. Apply the rules, check each
+   todo with its evidence after the colon, write the result under `## Result`, and close the step
+   with `done`. Never set a step done by hand. When a tool
+   that the profile names is missing, set the status to `unavailable <tool>` and tell the user.
+5. Write only your step's file. Line 1 is the status.
 
 ## Status line
 
-`Status: open | active <agent> | done <revision> | skipped <reason> | unavailable <tool>`
-
-- The revision of `05-build` is the commit that you checked.
-- The revision of any other step is the hash of its file below line 1:
-  `tail -n +2 <file> | shasum | cut -c1-12`.
-- Line 2 of each step is `Uses: <step>@<revision>, ...` for each step that it needs.
-- A step is ready when each step that it needs is done or skipped.
-- A step is stale when a revision in its `Uses:` line is no longer the current one. Its owner
-  does it again or confirms that it still holds.
+The flow is a step run, so the kit's `references/step-run.md` owns the status line, the `Uses:`
+line, pick-up, close, and when a step waits for the user. The revision of `05-build` is the commit
+that you checked.
 
 ## Steps
 
@@ -75,7 +89,7 @@ unit order. `decisions` owns the ADRs. The flow never pushes.
 
 This skill is on trial. At the end of each step file, add two lines:
 
-- `Skills read: <paths>`
+- `Skills read: <paths>` (the script writes it when you `take` a step)
 - `Helped: yes | no, <one example>`
 
 Also add a line for each stall, wrong skill, or repeated manual step. These lines decide if the

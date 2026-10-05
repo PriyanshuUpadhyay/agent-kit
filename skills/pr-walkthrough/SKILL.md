@@ -20,6 +20,22 @@ Two failure modes define this skill, and the whole design exists to prevent them
 1. **Hallucinated-but-formatted citations.** A polished `[file:42]` that points at nothing has *more* authority than an honest "I'm not sure" — so the reviewer stops spot-checking exactly when they shouldn't. Defense: cite only from the real diff, then verify mechanically (step 4). This is non-negotiable; without it the skill is just another confident summarizer.
 2. **Drift into judgment / noise.** Severity scores, approve/reject, bug-hunting, whole-repo tangents, padding. Noise is the #1 documented complaint about AI review tools. Defense: scope guardrails + anti-patterns below. High signal, low volume.
 
+## Start or continue
+
+A walkthrough is a step run, so the kit's `references/step-run.md` owns the status line, pick-up,
+close, and when a step waits for the user. The run folder stays outside the user's repository,
+at `<reports>/<YYYY-MM-DD>-walkthrough-<target>/`, where `<reports>` is the reports folder that the
+active runtime adapter names, because the repository must stay untouched. "pr-walkthrough continue <folder>" picks it up.
+
+| File | Needs | Holds |
+|---|---|---|
+| `01-target.md` | none | `PR_TARGET`, the base and head SHAs, and `$PRDIR` |
+| `02-diff.md` | target | the diff stats and the path of the saved diff; redo it when `$PRDIR` is gone |
+| `03-intent.md` | diff | the intent and the logical order of the change |
+| `04-write.md` | intent | the walkthrough text |
+| `05-validate.md` | write | each citation and its check result |
+| `06-clean.md` | validate | the clone removed, and the walkthrough as sent |
+
 ## 0. Resolve the target — fail closed
 
 Normalize the user's request into one target before running any command. `PR_TARGET` is a PR number,

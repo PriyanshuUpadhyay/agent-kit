@@ -78,17 +78,13 @@ Example. `~/work/seed-city/ink/` holds one file per step. Steps 1-4 are done, so
 - Step N writes `ink/0N-<name>.md`: `01-intake`, `02-look`, `03-story`, `04-style-frames`,
   `05-animatic`, `06-detail`, `07-export`. The file is the step's output (notes, grammar, story
   sheet, scores, QA log), not a copy of it.
-- Line 1 is `Status: open | active <role> <runner> | done <revision> | skipped <reason> |
-  blocked <question>`.
-- Line 2 is `Uses: <step>@<revision>, ...`. Step 2 uses 1, 3 uses 1, 4 uses 2 and 3, 5 uses 3,
-  6 uses 4 and 5, and 7 uses 4 and 6.
-- The revision is `tail -n +2 <file> | shasum | cut -c1-12`. A build step lists its frame paths and
-  a hash of its source files in its body, so a code change changes its revision.
-- A step is ready when every step it uses is done or skipped. A step is stale when a revision in
-  its `Uses:` line is no longer current. Redo a stale step, or confirm that it still holds.
+- A piece is a step run, so the kit's `references/step-run.md` owns the status line, ready and
+  stale steps, pick-up, close, and when a step waits for the user.
+- Step 2 uses 1, 3 uses 1, 4 uses 2 and 3, 5 uses 3, 6 uses 4 and 5, and 7 uses 4 and 6.
+- A build step lists its frame paths and a hash of its source files in its body, so a code change
+  changes its revision.
 - Intake sets the skipped steps from the route. `study` skips 3, 5, and 6. `prototype` skips 6.
   `analysis-only` skips 4 to 7. `production` skips none.
-- An `active` step left by an earlier chat is open again after you check what its files hold.
 
 ## Roles
 

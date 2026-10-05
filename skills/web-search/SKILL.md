@@ -11,6 +11,21 @@ blocked fetch is another seat's open page, so the coverage is wider than any sin
 
 The runtime adapter (`orchestrate-claude`) selects the host and its reference; web search names no host. Without a visible host, stop and say so; a hidden or headless seat is not a substitute.
 
+## Start or continue
+
+A web search is a step run, so the kit's `references/step-run.md` owns the status line, pick-up,
+close, and when a step waits for the user. The run folder is
+`~/.claude/reports/<YYYY-MM-DD>-<slug>-seats/`, which also keeps the seat reports at the end.
+"web-search continue <folder>" picks it up.
+
+| File | Needs | Holds |
+|---|---|---|
+| `01-brief.md` | none | the sub-questions, the known list, the seeds, the reach rows that returned content, and the brief path |
+| `02-seats.md` | brief | each seat's name, model, and report path, and whether its artifact was accepted |
+| `03-gate.md` | seats | the depth-gate result per seat, any seat sent back, and the link check |
+| `04-merge.md` | gate | the merged report path |
+| `05-close.md` | merge | the seats closed and verified, and the scratch run directory removed |
+
 ## Seat mechanics
 
 The seats follow the council's mechanics but ride the cheap `search.web` route. Launch each one as

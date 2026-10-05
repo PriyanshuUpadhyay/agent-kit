@@ -1,0 +1,61 @@
+---
+description: Owner contract for a step run, a skill's work split into step files that any agent can pick up, close, and move past. Read when a skill says it runs as a step run.
+---
+
+# Step run
+
+A step run keeps a skill's work in files, one file per step, so that any agent on any provider can
+read the folder, finish the next ready step, and move on. A chat holds no state that a step needs.
+
+Example. A `research` run stops after `02-local.md` because the session ends. Next day a Codex
+session gets "research continue <reports>/2026-10-05-browser-tool/". It reads the folder,
+sees `02-local.md` done and `03-web.md` open, does the web step, and goes on to the report.
+
+## Folder
+
+- The skill names the folder. A run tied to a repository uses `references/run-folder.md`. A run
+  whose result is a report keeps its folder next to the report, in the reports folder that the
+  active runtime adapter names.
+- The skill's step table lists the step files `NN-<name>.md`, what each one needs, and what it holds.
+  On start, make every step file with `Status: open`.
+
+## Status line
+
+Line 1 of each step file is its status:
+
+`Status: open | active <agent> | waiting <question> | blocked <reason> | done <revision> | skipped <reason> | unavailable <tool>`
+
+- The revision of a step is the hash of its file below line 1,
+  `tail -n +2 <file> | shasum | cut -c1-12`, unless the skill names another revision, such as a
+  commit.
+- Line 2 is `Uses: <step>@<revision>, ...` for each step that it needs.
+- A step is ready when each step that it needs is done or skipped.
+- A step is stale when a revision in its `Uses:` line is no longer the current one. Its owner does it
+  again or confirms that it still holds.
+
+## Pick up
+
+1. Read every step file's line 1. Take the step that the user named, or else the first ready step.
+2. If a step is `active <agent>` and that agent is still running, stop and tell the user. An
+   `active` step left by an earlier chat is open again after you check what its files hold.
+3. Set your step to `active <agent>` and read only what its row in the skill's step table names.
+
+## Close and move on
+
+1. Write the step's result and its evidence below line 2, then set line 1 to `done <revision>`.
+2. Go on to the next ready step in the same turn. Stop only for one of the reasons below.
+
+## When a step waits for the user
+
+A step waits only for a choice that `AGENTS.md` says to ask about, a diff approval that the
+skill's mode requires, or an external write or irreversible action. Set its status to
+`waiting <question>`, put the question and the options in the reply, and stop. Every other step
+closes and the run moves on.
+
+A step that cannot go on because an input is missing or two inputs disagree is `blocked <reason>`.
+Name the missing input in the reply.
+
+## End
+
+When the last step is done, the skill's own final step says where the result goes. Keep the folder,
+because it is the record of how the result was made.

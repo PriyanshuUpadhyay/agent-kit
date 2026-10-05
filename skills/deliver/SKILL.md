@@ -14,9 +14,10 @@ only the user can give.
 
 1. State the exit condition as a checkable predicate before the first change: tests green, the
    repro fixed, the feature exercised on the real surface. Show it in one line and start. Do not
-   wait for approval of the predicate. When the user names a `flow` folder, the predicate is the
-   done-when of its `01-frame.md`, and you hold its build step. Before the first change, read the
-   build skills that the `flow` skill selects for the repo.
+   wait for approval of the predicate. When no `flow` folder is named, first run
+   `python3 <flow-skill-dir>/scripts/flow_run.py start` and follow the `flow` skill's entry rule.
+   With a `flow` folder, the predicate is the done-when of its `01-frame.md`, and you hold its
+   build step. Before the first change, apply the rules and the todo list in its `05-build.md`.
 2. Each iteration makes the smallest change the evidence justifies, verifies it against the
    predicate, commits when it advanced, and discards a change that did not help. A change that
    "might help" is reverted, not left to ride. Order the work per the
@@ -31,7 +32,8 @@ only the user can give.
 5. When the predicate holds, run `review-check` on `<base>..HEAD`, where `<base>` is the commit
    before this run's first commit. Fix each `fix` row in one more iteration, then review the
    new range. In a flow, you also hold the review step, and the last verdict goes in
-   `06-review.md`, because it covers the build range.
+   `06-review.md`, because it covers the build range. Then print the flow's `Next:` line for the
+   close step.
 6. Stop only when the predicate is met and the review has no `fix` row, or when blocked on
    user input. A plateau is not a stop,
    so change the approach. A genuine dead end is reported with the evidence, not spun on. Never

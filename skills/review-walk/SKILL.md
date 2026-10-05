@@ -44,11 +44,9 @@ ready step.
 
 ## Status line
 
-Line 1 is `Status: open | active <agent> | done <revision> | skipped <reason> | blocked <question>`.
-Line 2 is `Uses: <step>@<revision>, ...`. The revision is
-`tail -n +2 <file> | shasum | cut -c1-12`. A step is ready when every step it uses is done or
-skipped, and stale when a revision in its `Uses:` line is no longer current. Redo a stale step, or
-confirm that it still holds.
+A review walk is a step run, so the kit's `references/step-run.md` owns the status line, ready
+and stale steps, pick-up, close, and when a step waits for the user. The script reads the same
+status line.
 
 ## Steps
 

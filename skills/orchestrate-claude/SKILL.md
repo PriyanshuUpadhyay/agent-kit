@@ -87,4 +87,5 @@ notify the user. They report one consolidated result to the orchestrator.
 ## Task files
 
 A skill that keeps a task file across `/clear` keeps it in `<repo-root>/tmp/<skill>/`, as
-`~/.claude/references/run-folder.md` says.
+`~/.claude/references/run-folder.md` says. The reports folder is `~/.claude/reports/`; a step run
+whose result is a report keeps its folder there.
