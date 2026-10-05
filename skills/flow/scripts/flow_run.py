@@ -12,9 +12,8 @@ only a path often does not open it (Sonnet workers opened 0 of 4 pointer skills,
 2026-10-05), and every agent reads the step file it works on, on every provider. `take` prints them
 again.
 
-The step graph is the step table in ../SKILL.md. `start` writes each step's need names on its `Uses:`
-line and a `Revision: HEAD` line in 05-build.md, so the folder itself carries the graph and the
-revision rule for a reader that has no kit, such as the Swarm app. The kit's references/step_run.py
+The step graph is the step table in ../SKILL.md. `start` writes the need names and marks 05-build.md
+with `Revision: HEAD`, as references/step-run.md describes. The kit's references/step_run.py
 owns status, ready, stale, take, done, and events.log. This script adds the flow rules: the revision
 of 05-build is HEAD, take 04-impact lists the places that name the contracts' code names, and take
 07-close needs the review-check run's own APPROVE verdict on HEAD.
