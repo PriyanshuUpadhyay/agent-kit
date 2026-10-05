@@ -53,7 +53,7 @@ status line.
 | File | Who | Uses | Holds |
 |---|---|---|---|
 | `01-scope.md` | script | none | target, base, head, every file with its state: new to you, changed since view, unchanged since view, whitespace only |
-| `02-map.md` | chair | 01 | files in groups by feature, in reading order, one line of purpose per group |
+| `02-map.md` | chair | 01 | the intent, files in groups by feature in reading order with one cited line of purpose per group, the critical path, and a diagram when the change needs one |
 | `03-check.md` | chair | 01 | line 3 of the review-check `03-verdict.md`, then `Run: <its run folder>` |
 | `04-comments.md` | chair | 02, 03 | the verdict, and the comments in the reviewer's voice |
 | `05-walk.md` | user, chair | 04 | viewed marks, the user's own comments, what was submitted |
@@ -64,7 +64,21 @@ status line.
 2. **Map.** Put every file of `01-scope.md` into exactly one group. Use the PR body and the code
    to name each group, for example `s1 storage`, `s2 api routes`, `mig migrations`. Order the
    groups so a reader meets a type before its users. End with `Files: <mapped> of <total>`, and
-   the two numbers must be equal.
+   the two numbers must be equal. Mark lock files, generated code, and vendored code
+   `skipped: generated` in their group, and do not explain them.
+
+   Above the groups, write the intent in one or two lines, the problem and the approach, from the
+   PR body. If the body does not say, write `intent not stated; inferred from <path:line>`. Below
+   the groups, trace one critical path, the most important changed behavior from input to output,
+   with a `path:line` for each hop and each guard on the way.
+
+   Add a diagram when the kit's `references/explain-formats.md` says that one helps, and draw it
+   as that file says for the place it is read.
+
+   Cite new-side lines with the repo-relative path, and cite a removed line as `deleted`. Then run
+   `python3 <skill-dir>/scripts/validate_citations.py <run>/diff.patch <run>/02-map.md`. Fix or
+   drop each citation that it rejects, because a wrong citation looks as sure as a right one. The
+   map explains and never judges. Findings belong to step 03.
 3. **Check.** Run review-check on `<Base>..<Head>` from `01-scope.md`, or `local` for a local
    target. In a new round, add `--patch <run>/since-view.patch`, which holds what changed since
    view and the whole diff of each file new to you. Follow review-check to its verdict. Line 3 of
@@ -98,10 +112,10 @@ stays out of this public skill. The repo rules belong to review-check.
 
 ## Callers
 
-`pr-walkthrough` explains a change before review and never judges it. flow, deliver, and pair call
-review-check, not this skill.
+flow, deliver, and pair call review-check, not this skill.
 
 ## Output
 
-In chat, give the verdict with its counts, then the comments by group, each with its `file:line`.
+In chat, give the intent, the map with its diagram, and the verdict with its counts, then the
+comments by group, each with its `file:line`.
 Then give the run folder and the next step.

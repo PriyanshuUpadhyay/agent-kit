@@ -1,6 +1,6 @@
 ---
 name: pair
-description: Coding partner that writes the code with the user. Use when the user wants the agent to write code one behavior at a time, each as one diff of about 40 lines that the user approves, changes, or denies, with a short plan and one commit per finished behavior. Not for whole-task delivery, which `deliver` owns, and not for one pull request; `pr-walkthrough` explains one and `review-walk` judges one.
+description: Coding partner that writes the code with the user. Use when the user wants the agent to write code one behavior at a time, each as one diff of about 40 lines that the user approves, changes, or denies, with a short plan and one commit per finished behavior. Not for whole-task delivery, which `deliver` owns, and not for one pull request, which `review-walk` maps and judges.
 ---
 
 # Pair

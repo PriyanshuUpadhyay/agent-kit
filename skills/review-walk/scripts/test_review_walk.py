@@ -68,6 +68,8 @@ def test_new_round_patch_and_status():
     assert any("line 3 is not line 3" in p for p in problems), problems
     (d / "03-check.md").write_text(f"Status: done x\nUses: 01-scope@x\nVerdict: REQUEST CHANGES (1 fix)\nRun: {rc}\n")
     assert not any(p.startswith("03-check") for p in rw.checks(d, state)), "the copied line matches"
+    (d / "02-map.md").write_text("Status: done x\nUses: 01-scope@x\n\n`p.ts` `q.ts`\n```mermaid\nflowchart LR\n  a-->b\n```\n- `r.ts`, see `r.ts:3`\n")
+    assert not any(p.startswith("02-map") for p in rw.checks(d, state)), "a diagram and citations do not hide a mapped file"
 
 
 def test_secret_pattern():

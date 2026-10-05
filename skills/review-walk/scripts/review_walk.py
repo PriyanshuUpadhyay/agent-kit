@@ -171,7 +171,8 @@ def checks(d, state):
     text = {s: (d / f"{s}.md").read_text() for s in STEPS}
     if state["02-map"].startswith("done"):
         files = re.findall(r"^\| `([^`]+)` \|", text["01-scope"], re.M)
-        mapped = re.findall(r"`([^`]+)`", text["02-map"])
+        # A fenced diagram has three backticks, which would shift every inline pair after it.
+        mapped = re.findall(r"`([^`]+)`", re.sub(r"```.*?```", "", text["02-map"], flags=re.S))
         missing, twice = [f for f in files if f not in mapped], [f for f in files if mapped.count(f) > 1]
         if missing or twice:
             out.append(f"02-map: not mapped {', '.join(missing) or 'none'}; mapped twice {', '.join(twice) or 'none'}")

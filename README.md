@@ -15,7 +15,6 @@ Workflow skills for coding agents (Claude Code, Codex, Antigravity). Each skill 
 | `council` | A visible debate between Claude, GPT and Gemini voices that ends in a verdict |
 | `review-check` | Judge a range or local changes; a script gives the verdict only when every changed unit has a row |
 | `review-walk` | Walk a PR with review-check findings drafted in your voice into a pending review |
-| `pr-walkthrough` | Explain a diff in plain words before review |
 | `decisions` | Record consequential choices as in-repo ADRs |
 | `cleanup-gate` | A full cleanup pass, only on request |
 | `engineering-standards` | Scoped engineering rules for design, code and review |
