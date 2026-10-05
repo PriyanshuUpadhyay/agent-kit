@@ -73,18 +73,22 @@ first 403.
 
 ```
 Public page:  curl -s "https://r.jina.ai/<url>"
-Signed-in or visual page: use the playwriter skill, never an outside reader.
+Browser page: python3 <skill-dir>/scripts/browser_read.py "<url>"
+           reads any page in the user's own signed-in browser: X posts, Reddit threads, login walls, JS-only pages
 Search:    mcporter call exa.web_search_exa query="<query>" numResults=10
-Reddit:    opencli reddit search "<query>" -f yaml
-           opencli reddit read <post-id> -f yaml
-X:         twitter search "<query>" -n 20
-           if that fails: opencli twitter search "<query>" -f yaml
+Reddit:    python3 <skill-dir>/scripts/browser_read.py "https://www.reddit.com/r/<sub>/search/?q=<query>&sort=new"
+           then the same command on each post URL, for the post and its comments
+X:         python3 <skill-dir>/scripts/browser_read.py x "<query>"
+           then the same command on each post URL, for the thread
 YouTube:   yt-dlp --write-auto-sub --skip-download -o "/tmp/%(id)s" "<url>"
 GitHub:    gh search issues "<query>" --sort updated --limit 30
 ```
 
-If `agent-reach` is not installed, say so in the coverage table and use the fallback ladder in the
-method only.
+Write `<skill-dir>` as this skill's real folder in the brief. The browser rows need `playwriter` on
+the PATH, its extension on in the user's browser, and a seat that may reach local addresses. The
+runtime adapter names the launch flag for a seat whose sandbox blocks them. They only read, so a seat never signs in, posts,
+likes, follows, or types into a page there. If `agent-reach` is not installed, say so in the
+coverage table and use the fallback ladder in the method only.
 
 ## Depth, a hard rule
 
@@ -132,12 +136,12 @@ One brief, one section per seat. It holds:
    in;
 5. **method** — use your own native search and fetch tools and the Reach tools block; prefer
    2025-2026 material; when a site blocks you, try in order the Reach tool for that site, the
-   Jina reader, the search snippet, `old.reddit.com`, `<url>.json`, a public mirror,
+   browser row, the Jina reader, the search snippet, `old.reddit.com`, `<url>.json`, a public mirror,
    `web.archive.org`, and `archive.ph`; mark anything you could not open "(snippet only)"; never
    invent a quote; stop after about 20 minutes;
 6. **blocked log** — a seat may call a site blocked only when its Coverage lists, for that site,
    each step it tried and the error each step gave, for example
-   `reddit: opencli → AUTH_REQUIRED; r.jina.ai → 403; old.reddit.com → 403; archive.ph → no copy`;
+   `reddit: browser_read → no extension; r.jina.ai → 403; old.reddit.com → 403; archive.ph → no copy`;
 7. **output shape** — `Coverage` with a matrix row per sub-question (sources found, gap or not),
    `Findings` with a quote or paraphrase plus its link and confidence tag, `What is contested`,
    `Sources` newest first, under 800 words, and a final `RESEARCH_DONE` line;

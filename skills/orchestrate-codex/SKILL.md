@@ -61,3 +61,7 @@ A skill that keeps a task file across `/clear` keeps it in `<repo-root>/tmp/<ski
 `~/.claude/references/run-folder.md` says. The reports folder is `~/.claude/reports/`; a step run
 whose result is a report keeps its folder there.
 `<kit>` is `~/.claude`, so the kit's references are in `~/.claude/references/`.
+
+A Codex `search.web` seat for `web-search` gets
+`-- -c features.network_proxy.allow_local_binding=true` at `swarm launch`, so its browser rows
+reach the local `playwriter` relay. No other Codex seat gets this flag.
