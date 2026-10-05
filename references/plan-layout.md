@@ -42,6 +42,7 @@ as accepted. Nothing comes before the opening. Do not repeat it as a Goal sectio
 - Detail, rejected options, and file inventories come after the steps or are dropped. No design
   essay before the steps.
 - A worker brief keeps its own owner (`orchestrate-claude`) and is not a plan.
+- A diagram or a local HTML page follows `explain-formats.md` in this folder.
 
 ## First screen of a long result
 
