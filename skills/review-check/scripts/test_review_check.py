@@ -131,6 +131,17 @@ def test_build_gate():
     assert line3.startswith("Verdict: REQUEST CHANGES") and line3.endswith("build: fail)"), line3
 
 
+def test_rust_function_range():
+    """universal-ctags gives a Rust fn no end line, so the unit must still span the whole body,
+    or a pass row that quotes a body line fails its quote check."""
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / "notice.rs"
+        src.write_text('fn waiting_notice(new: &str) -> Option<String> {\n'
+                       '    if new != "waiting" {\n        return None;\n    }\n'
+                       '    Some(format!("{} needs you", new))\n}\n\nfn other() {}\n')
+        assert ("waiting_notice", 1, 6) in rc.functions(src), rc.functions(src)
+
+
 def test_catalog():
     """Rule IDs are unique, every regex compiles, and every `Check:` has bad, good, and exception fixtures."""
     catalog = rc.load_rules(sorted((HERE.parent / "references").glob("lens*.md")))
@@ -163,6 +174,7 @@ def test_fixtures():
 
 
 if __name__ == "__main__":
+    test_rust_function_range()
     test_catalog()
     test_fixtures()
     with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as home:
