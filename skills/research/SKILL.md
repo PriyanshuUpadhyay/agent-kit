@@ -19,7 +19,7 @@ close, and when a step waits for the user. "research <question>" starts a run in
 |---|---|---|
 | `01-question.md` | none | the question in one line and the decision it serves in one line |
 | `02-local.md` | question | what the local sources say, with paths |
-| `03-web.md` | question | what the web says, with links, and the `web-search` report path if one ran |
+| `03-web.md` | question | the `web-search` run folder, or the reason no trigger below held; what the web says, with links to the sources that own the claims; the off-path ideas and the searches that found them |
 | `04-test.md` | local, web | for a tool pick, each candidate's install, task, time, and result; else `skipped: not a tool pick` |
 | `05-report.md` | local, web, test | the report path and the result of the link check |
 | `06-close.md` | report | the reply as sent |
@@ -59,7 +59,37 @@ Invoke the `web-search` skill when any of these is true:
 - this session's own fetches are blocked;
 - the local step or a first web pass returned only the answers the user already knew.
 
-Its report is one source among the others, not the answer.
+Start it as its own step run with this run's slug, so its folder
+`~/.claude/reports/<YYYY-MM-DD>-<slug>-seats/` sits next to this one. Close `03-web.md` when its
+merged report is written. Its report is one source among the others, not the answer. If a trigger
+holds but this session cannot open visible seats, do the web part yourself and write in the gaps
+that `web-search` did not run and why.
+
+### Off the usual path
+
+Every run also looks for ideas that the common advice misses or rejects. You do not know in advance
+what you will find, so search on purpose:
+
+- the opposite of the usual answer, such as "we removed X" or "X considered harmful";
+- the same problem in another field or another community, which often solved it first;
+- a way to drop the problem instead of solving it;
+- old or abandoned tools whose idea is still good, and small projects with few stars;
+- people who tried the popular answer and moved away, with their reason.
+
+Example. The question is "which state library should this React app use". The usual answers are
+libraries. An off-path search also finds a team that removed its state library and kept the state
+in the URL, so every view can be shared and reloaded.
+
+Keep each off-path idea that has a real source, even when it looks wrong at first. Write why it
+might work and why it might fail. Do not let it replace the main answer without evidence.
+
+For X, Reddit, and other pages that a plain fetch cannot open, use the browser rows of the Reach
+tools in `web-search`. They read the page in the user's own signed-in browser.
+
+Follow each claim back to the source that owns it, such as the official docs, the source code, the
+spec, or the first-party API. A blog post, a forum answer, or a summary that reports the claim
+points you to that source. It is not the evidence. When you cannot reach the owner, cite the
+secondary page and mark the claim "(secondary)".
 
 ## 04-test
 
@@ -77,9 +107,13 @@ longer when the evidence needs it. Never cut a claim, a caveat, or a source only
 Use this order:
 
 1. **Answer** — the answer first, in two or three sentences.
-2. **Evidence** — each claim with its link.
+2. **Evidence** — each claim with its link to the source that owns it.
 3. **What is contested** — where the sources disagree.
-4. **Sources** — newest first, with dates.
+4. **Off the usual path** — each off-path idea with its source, why it might work, and why it
+   might fail. If none held up, name the searches you tried.
+5. **Sources** — newest first, with dates.
+
+Add a diagram or a local HTML page only as `~/.claude/references/explain-formats.md` says.
 
 Check that every link resolves before you finish. An HTTP status shows only that the page opens,
 so also find the claim's number or wording on the page you cite. Mark a link that does not resolve
