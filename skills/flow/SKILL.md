@@ -11,9 +11,9 @@ Use a flow for any change that `pair` or `deliver` builds. A one-line change tak
 
 `/pair`, `/deliver`, and "flow start" all use this route. When `pair` or `deliver` starts with no
 flow folder named, make the folder and do `01-frame.md` first. Then pick the lane from the change
-and the repo's contracts, never from the missing folder. The fast lane sets `02-design.md`,
-`03-contracts.md`, and `04-impact.md` to `skipped fast lane: <reason>` only when none of them needs a
-new decision. Otherwise do them before build. The command keeps its own mode. After "flow start",
+and the repo's contracts, never from the missing folder. The fast lane skips `02-design.md`,
+`03-contracts.md`, and `04-impact.md` with `skip <folder> <step> fast lane: <reason>` only when none
+of them needs a new decision. Otherwise do them before build. The command keeps its own mode. After "flow start",
 ask the user for the mode before build.
 
 When a step ends and the next step is not yours, print `Next: <command>` as the last line of the
@@ -36,9 +36,10 @@ the git common dir (`git rev-parse --git-common-dir`), not the worktree folder n
 
    ```sh
    python3 $F start                          # makes the folder and step files, writes each step's skills into its file in full
-   python3 $F status [<folder>]              # each step's status, and which open step is ready
-   python3 $F take <folder> <step> <agent>   # marks the step active and prints its skills in full
+   python3 $F status [<folder>]              # each step's status, which open step is ready, and which is stale
+   python3 $F take <folder> <step> <agent>   # marks the step active and prints its file with its skills in full
    python3 $F done <folder> <step>           # sets the step done, only when every todo has its evidence
+   python3 $F skip <folder> <step> <reason>  # skips 02-design, 03-contracts, or 04-impact, never another step
    ```
 
 3. Read `01-frame.md`. If `Worktree:` or `Branch:` is not the current worktree and branch, stop and
@@ -47,15 +48,15 @@ the git common dir (`git rev-parse --git-common-dir`), not the worktree folder n
    full text of the skills that the catalog gives the step (the `any` section, each profile domain,
    and the repo rules) under `## Rules for this step`, and a todo list. Apply the rules, check each
    todo with its evidence after the colon, write the result under `## Result`, and close the step
-   with `done`. Never set a step done by hand. When a tool
+   with `done`. Never set a step done or skipped by hand. When a tool
    that the profile names is missing, set the status to `unavailable <tool>` and tell the user.
 5. Write only your step's file. Line 1 is the status.
 
 ## Status line
 
 The flow is a step run, so the kit's `references/step-run.md` owns the status line, the `Uses:`
-line, pick-up, close, and when a step waits for the user. The revision of `05-build` is the commit
-that you checked.
+line, pick-up, close, and when a step waits for the user. The step table below is the step graph that
+the script reads. The revision of `05-build` is `HEAD`, so a new commit makes `06-review` stale.
 
 ## Steps
 
@@ -64,12 +65,14 @@ that you checked.
 | `01-frame.md` | none | `Worktree:`, `Branch:`, goal, user, out of scope, done-when |
 | `02-design.md` | frame | UX flow and screens, or `skipped: no UI` |
 | `03-contracts.md` | frame | APIs, data model, integrations, and the result of the `decisions` skill's check for the topic |
-| `04-impact.md` | contracts | the existing features that change, or "independent" |
+| `04-impact.md` | contracts | the existing features that change, or "independent", judged from the `## Callers` section that `take` writes with the places that name each code name in backticks in `03-contracts.md` |
 | `05-build.md` | impact, and design unless skipped | the task-file path of the `pair` or `deliver` run that the user started, and `Base:`, the commit before its first commit |
-| `06-review.md` | build | the `review-check` run on `<Base>..<build revision>`, line 3 of its `03-verdict.md`, and each `fix` row with its fix or the reason it stays |
+| `06-review.md` | build | the `review-check` run on `<Base>..<build revision>`, line 3 of its `03-verdict.md`, each `fix` row with its fix or the reason it stays, and `Run: tmp/review-check/<run>` for the last run |
 | `07-close.md` | review with APPROVE | the done-when of `01-frame.md`, each with its evidence |
 
-A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run for the
+`take 07-close` reads line 3 of the last run's own `03-verdict.md` and refuses unless it is APPROVE
+and the run's head is `HEAD`. A NEEDS DISCUSSION verdict passes only after the user accepts it, with
+`User accepted: <their words>` in `06-review.md`. A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run for the
 findings. That run moves the build revision, so the review is stale and runs again on the new
 range.
 

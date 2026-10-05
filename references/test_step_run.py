@@ -19,4 +19,9 @@ with tempfile.TemporaryDirectory() as tmp:
     out = run("take", folder, "02-look", "agent-b")
     assert out.returncode == 0 and "Uses: 01-ask@" in (folder / "02-look.md").read_text()
     assert "(ready)" not in run("status", folder).stdout.split("02-look")[1]
+    assert "stale" not in run("status", folder).stdout
+    f.write_text(f.read_text() + "a later edit\n")
+    assert "02-look: active agent-b  (stale: 01-ask)" in run("status", folder).stdout
+    events = [l.split("\t")[1:] for l in (folder / "events.log").read_text().splitlines()]
+    assert events[0][0] == "01-ask" and events[0][1].startswith("done ") and events[1] == ["02-look", "take agent-b"]
     print("ok")
