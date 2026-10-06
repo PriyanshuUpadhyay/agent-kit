@@ -36,7 +36,7 @@ Link the skills you want into your agent's skills folder, and the references nex
 git clone --recurse-submodules https://github.com/PriyanshuUpadhyay/agent-kit ~/agent-kit
 mkdir -p ~/.claude/skills ~/.claude/references
 for s in ~/agent-kit/skills/*/ ~/agent-kit/vendor/taste-skill/skills/taste-skill/ \
-  ~/agent-kit/vendor/emil-skills/skills/animate/; do
+  ~/agent-kit/vendor/emil-skills/skills/animate/ ~/agent-kit/vendor/emil-skills/skills/break-ui/; do
   ln -sfn "$s" ~/.claude/skills/"$(basename "$s")"
 done
 ln -sfn ~/agent-kit/references/plan-layout.md ~/.claude/references/plan-layout.md
