@@ -212,8 +212,23 @@ def functions(path):
     except (OSError, subprocess.TimeoutExpired):
         return []
     tags = [json.loads(l) for l in out.splitlines() if l.startswith("{")]
-    return [(t["name"], t["line"], t.get("end", t["line"])) for t in tags
+    lines = Path(path).read_text(errors="replace").splitlines()
+    return [(t["name"], t["line"], t.get("end") or brace_end(lines, t["line"])) for t in tags
             if t.get("_type") == "tag" and t.get("kind") in FUNC_KINDS and t.get("line")]
+
+
+def brace_end(lines, start):
+    """The line that closes the first `{` at or after `start`, for a parser that gives no end line
+    (universal-ctags 6.2 has none for Rust). With no brace, the function is its first line."""
+    # ponytail: counts braces, so a lone `{` inside a string or comment can shift the end; a real
+    # parser per language if that shows up in a review.
+    depth = 0
+    for n, line in enumerate(lines[start - 1:], start):
+        for ch in line:
+            depth += (ch == "{") - (ch == "}")
+            if ch == "}" and depth == 0:
+                return n
+    return start
 
 
 def units_of(path, info, source):
