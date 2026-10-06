@@ -1,6 +1,6 @@
 ---
 name: flow
-description: Run one change through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under <repo-root>/tmp/flow and, for each step, the skills that the domain catalog gives the repo's domains. Use when the user says "flow continue <folder>" or "flow start", names a tmp/flow step file, or when pair or deliver starts with no flow folder.
+description: Run one change through seven steps (frame, design, contracts, impact, build, review, close), with one status file per step under tmp/flow at the repo root and, for each step, the skills that the domain catalog gives the repo's domains. Use when the user says "flow continue" with a folder or "flow start", names a tmp/flow step file, or when pair or deliver starts with no flow folder.
 ---
 
 # Flow

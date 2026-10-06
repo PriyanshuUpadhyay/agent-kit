@@ -1,5 +1,18 @@
 # Mark-making: density, tone, and texture
 
+## Contents
+
+- Order of work
+- Detail passes
+- The mass stack
+- Line
+- Tone from marks
+- Surface
+- Depth
+- Generative plates
+- Libraries
+- Sources
+
 A frame with the right palette but flat fills reads as clip art. Frames that people call
 hand-drawn have more layers on each mass, lines that swell, tone made from marks, and a paper
 surface. This file gives recipes with starting numbers. Measure the reference, then replace the

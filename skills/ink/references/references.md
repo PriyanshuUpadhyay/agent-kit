@@ -1,5 +1,17 @@
 # Intake and reference analysis
 
+## Contents
+
+- Intake
+- Research references
+- Pass 1: composition and hierarchy
+- Pass 2: shape and surface
+- Pass 3: color and type
+- Pass 4: motion and causality
+- Pass 5: story and structure (narrative references)
+- Style grammar template
+- Evidence language
+
 ## Intake
 
 Get these inputs before you build:

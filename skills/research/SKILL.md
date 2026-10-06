@@ -1,6 +1,6 @@
 ---
 name: research
-description: Research one question and write a short evidence-backed report, shown in full in the reply and kept as a file. Use when the user says research, look into, find out, compare, find me, writeups, articles, good reads, or asks what others do, and for "research continue <folder>". Calls the `web-search` skill for a wide forum search. A Fable chair sends the web part to a `search.web` seat.
+description: Research one question and write a short evidence-backed report, shown in full in the reply and kept as a file. Use when the user says research, look into, find out, compare, find me, writeups, articles, good reads, or asks what others do, and for "research continue" with a folder. Calls the `web-search` skill for a wide forum search. A Fable chair sends the web part to a `search.web` seat.
 ---
 
 # Research
