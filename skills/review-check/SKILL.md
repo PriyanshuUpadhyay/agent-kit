@@ -104,8 +104,9 @@ Anyone may turn an `ask` into a `fix` with a failing test. Write the answer as
 `fix: <test> fails at <head7>`.
 
 After answering, run `verdict <run>` again on the same run, with no new range.
-`start` refuses a new range, or `local`, above the newest ancestor run with no verdict, INCOMPLETE,
-or 0 fix and an open ask (same head too for `local`).
+`start` refuses a new range, or `local`, when the newest run for any ancestor head has no verdict,
+an INCOMPLETE verdict, or 0 fix and an open ask (same head too for `local`).
+Answers carry from the deepest ancestor run, newest first on a tie.
 `--patch` runs never block `start` or carry answers; runs whose heads are no longer ancestors after
 a rebase or amend are skipped.
 `answers-before.md` is history only; copy an answer into `answers.md` to use it in this run.

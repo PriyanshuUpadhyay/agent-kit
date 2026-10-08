@@ -2,9 +2,9 @@
 a unit with no row, a rule with no result, a made-up quote, a quote at the wrong line, or a bare "ok"
 proof blocks it; a language with no ctags support still gets units; a changed function that others
 call gets REF; the build gate owns the IDs the repo's lint config proves, and only for this head."""
-import json, os, shutil, subprocess, sys, tempfile
+import json, os, runpy, shutil, subprocess, sys, tempfile
 from contextlib import redirect_stdout
-from io import StringIO
+from io import BytesIO, StringIO, TextIOWrapper
 from pathlib import Path
 from unittest.mock import patch
 
@@ -220,11 +220,15 @@ def test_answers():
             assert "Answered: other.py `return 2` closes 0 asks" in verdict, "unmatched lines display the first quote"
 
             unicode_answer = "- util.py `return 2`: user approved the value — 合意\n"
+            for separator in ("\x85", "\u2028", "\u2029", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e"):
+                text = f"user approved{separator}the value"
+                (run / "answers.md").write_text(f"- util.py `return 2`: {text}\n", encoding="utf-8")
+                assert rc.answers(run / "answers.md") == [[("util.py", "return 2", text)]], repr(separator)
             (run / "answers.md").write_text(unicode_answer, encoding="utf-8")
             read_text = Path.read_text
 
             def ascii_default(path, *args, **kwargs):
-                kwargs.setdefault("encoding", "utf-8" if path.is_relative_to(HERE.parent / "references") else "ascii")
+                kwargs.setdefault("encoding", "ascii")
                 return read_text(path, *args, **kwargs)
 
             write_text = Path.write_text
@@ -402,13 +406,7 @@ def test_answers():
             (same_head / "answers.md").write_text(same_head_answer)
             assert rc.verdict(same_head.name) == 0
             assert "Verdict: APPROVE" in (same_head / "03-verdict.md").read_text()
-            try:
-                rc.start("local")
-                raise AssertionError("local must also check an older run at the same head")
-            except SystemExit as e:
-                assert after_patch.name in str(e), e
-            (after_patch / "answers.md").write_text(same_head_answer)
-            assert rc.verdict(after_patch.name) == 0
+            assert "0 fix, 1 ask" in (after_patch / "03-verdict.md").read_text(), "the older run remains superseded"
             rc.start("local")
             local = Path("tmp/review-check/local-02")
             assert (local / "answers-before.md").read_text() == same_head_answer
@@ -474,7 +472,7 @@ def test_merge_guard():
 
 
 def test_same_head_carry():
-    """Creation time selects carry-forward when different bases share one head."""
+    """Creation time selects carry-forward; equal times use the folder name."""
     previous = Path.cwd()
     with tempfile.TemporaryDirectory() as d:
         try:
@@ -505,7 +503,8 @@ def test_same_head_carry():
             newer_answer = "- util.py `return 2`: user approved the value in the newer review\n"
             (newer / "answers.md").write_text(newer_answer)
             assert rc.verdict(newer.name) == 0
-            (older / "answers.md").write_text("- util.py `return 2`: user approved the value in the older review\n")
+            older_answer = "- util.py `return 2`: user approved the value in the older review\n"
+            (older / "answers.md").write_text(older_answer)
             assert rc.verdict(older.name) == 0
             os.utime(older / "target.json", (1000, 1000))
             os.utime(newer / "target.json", (2000, 2000))
@@ -515,14 +514,14 @@ def test_same_head_carry():
             local = Path("tmp/review-check/local-01")
             assert (local / "answers-before.md").read_text() == newer_answer, "carry-forward must use the newer target.json"
 
-            Path("合意.py").write_text("value = 1\n", encoding="utf-8")
+            Path("合意.py").write_text("value = '合意'\n", encoding="utf-8")
             sh("git", "config", "core.quotepath", "false")
             write_text = Path.write_text
             encodings = {}
 
             def ascii_write(path, text, *args, **kwargs):
                 encodings[path.name] = kwargs.get("encoding")
-                kwargs.setdefault("encoding", "ascii" if path.name in ("01-units.md", "02-review.md") else "utf-8")
+                kwargs.setdefault("encoding", "ascii")
                 return write_text(path, text, *args, **kwargs)
 
             with patch.object(Path, "write_text", ascii_write):
@@ -531,6 +530,139 @@ def test_same_head_carry():
             unicode_run = Path("tmp/review-check/local-02")
             assert "合意.py" in (unicode_run / "01-units.md").read_text(encoding="utf-8")
             assert rc.revision(unicode_run / "02-review.md")
+
+            os.utime(older / "target.json", (2000, 2000))
+            glob = Path.glob
+            carried = []
+            for reverse in (False, True):
+                def ordered_glob(path, pattern, *args, **kwargs):
+                    found = glob(path, pattern, *args, **kwargs)
+                    return iter(sorted(found, reverse=reverse)) if pattern == "*/target.json" else found
+
+                with patch.object(Path, "glob", ordered_glob):
+                    rc.start("local")
+                tied_run = Path("tmp/review-check") / f"local-{3 + len(carried):02d}"
+                carried.append((tied_run / "answers-before.md").read_text(encoding="utf-8"))
+            assert carried == [older_answer, older_answer], "equal mtimes must carry from the same folder in either glob order"
+        finally:
+            os.chdir(previous)
+
+
+def test_superseded_run():
+    """Only the newest run at each ancestor head guards a new range."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "def helper():\n    return 1\n"}, "superseded base")
+            head = commit({"util.py": "def helper():\n    return 2\n"}, "superseded head")
+            prefix = f"range-{base[:7]}-{head[:7]}"
+            rc.start(f"{base}..{head}")
+            older = Path("tmp/review-check") / f"{prefix}-01"
+            assert rc.verdict(older.name) == 1
+            assert "Verdict: INCOMPLETE" in (older / "03-verdict.md").read_text(encoding="utf-8")
+            rc.start(f"{base}..{head}")
+            newer = Path("tmp/review-check") / f"{prefix}-02"
+
+            def review(run, ask=False):
+                checklist = json.loads((run / "checklist.json").read_text(encoding="utf-8"))
+                extra = ["| u1 | - | util.py:2 | `return 2` | ask | may change a caller | caller expects 1 |"] if ask else []
+                rows(run, *(f"| {uid} | {', '.join(c['rules']) or '-'} | x | `return 2` | n/a | | "
+                            "the test code has no case these rules name |" for uid, c in checklist.items()), *extra)
+                assert rc.verdict(run.name) == 0
+
+            review(newer)
+            assert "Verdict: APPROVE" in (newer / "03-verdict.md").read_text(encoding="utf-8")
+            os.utime(older / "target.json", (1000, 1000))
+            os.utime(newer / "target.json", (2000, 2000))
+            changed = commit({"util.py": "def helper():\n    return 3\n"}, "after superseded head")
+            rc.start(f"{head}..{changed}")
+            next_run = Path("tmp/review-check") / f"range-{head[:7]}-{changed[:7]}-01"
+            assert next_run.is_dir(), "a newer APPROVE supersedes the older INCOMPLETE run"
+
+            review(older)
+            review(newer, ask=True)
+            folders = set(Path("tmp/review-check").iterdir())
+            try:
+                rc.start(f"{head}..{changed}")
+                raise AssertionError("the newer open ask must block despite the older APPROVE")
+            except SystemExit as e:
+                assert newer.name in str(e), e
+            assert set(Path("tmp/review-check").iterdir()) == folders
+        finally:
+            os.chdir(previous)
+
+
+def test_run_numbering():
+    """Deleting an earlier run leaves the next number above every remaining run."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "value = 1\n"}, "numbering base")
+            head = commit({"util.py": "value = 2\n"}, "numbering head")
+            prefix = f"range-{base[:7]}-{head[:7]}"
+            for number in range(1, 4):
+                rc.start(f"{base}..{head}")
+                assert (Path("tmp/review-check") / f"{prefix}-{number:02d}").is_dir()
+            shutil.rmtree(Path("tmp/review-check") / f"{prefix}-01")
+            rc.start(f"{base}..{head}")
+            assert (Path("tmp/review-check") / f"{prefix}-04").is_dir()
+        finally:
+            os.chdir(previous)
+
+
+def test_cli_encoding():
+    """An ASCII console escapes Unicode rows without changing the verdict or exit code."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "def helper():\n    return 1\n"}, "console base")
+            head = commit({"util.py": "def helper():\n    return '合意'\n"}, "console head")
+            target = f"{base}..{head}"
+            rc.start(target)
+            run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+            checklist = json.loads((run / "checklist.json").read_text(encoding="utf-8"))
+            rows(run, *(f"| {uid} | {', '.join(c['rules']) or '-'} | x | `return '合意'` | n/a | | "
+                        "the test code has no case these rules name |" for uid, c in checklist.items()),
+                 "| u1 | - | util.py:2 | `return '合意'` | note | helper → 合意 | caller logs the helper result |")
+            script = str(HERE / "review_check.py")
+            with TextIOWrapper(BytesIO(), encoding="ascii") as output:
+                with redirect_stdout(output), patch.object(sys, "argv", [script, "verdict", run.name]):
+                    try:
+                        runpy.run_path(script, run_name="__main__")
+                        raise AssertionError("the CLI must exit with its verdict result")
+                    except SystemExit as e:
+                        assert e.code == 0, e
+                output.flush()
+                assert "helper \\u2192 \\u5408\\u610f" in output.buffer.getvalue().decode("ascii")
+            verdict = (run / "03-verdict.md").read_text(encoding="utf-8")
+            assert "Verdict: APPROVE" in verdict and "helper → 合意" in verdict
+            output = StringIO()
+            with redirect_stdout(output), patch.object(sys, "argv", [script, "verdict", run.name]):
+                try:
+                    runpy.run_path(script, run_name="__main__")
+                    raise AssertionError("the CLI must exit with its verdict result")
+                except SystemExit as e:
+                    assert e.code == 0, e
+            assert "helper → 合意" in output.getvalue()
+
+            env = dict(os.environ, LC_ALL="C", PYTHONUTF8="0", PYTHONCOERCECLOCALE="0", PYTHONIOENCODING="ascii")
+            result = subprocess.run([sys.executable, script, "start", target], env=env,
+                                    capture_output=True, encoding="utf-8", errors="replace")
+            assert result.returncode == 0, result.stderr
+            next_run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-02"
+            assert "return '合意'" in (next_run / "head/util.py").read_text(encoding="utf-8")
         finally:
             os.chdir(previous)
 
@@ -577,7 +709,10 @@ if __name__ == "__main__":
         sh("git", "config", "user.name", "t")
         main()
         test_build_gate()
+        test_cli_encoding()
+        test_superseded_run()
         test_answers()
         test_merge_guard()
         test_same_head_carry()
+        test_run_numbering()
     print("ok")

@@ -32,7 +32,7 @@ GENERIC = {"", "n/a", "na", "none", "ok", "okay", "fine", "good", "looks fine", 
 
 
 def git(*args, check=True):
-    r = subprocess.run(["git", *args], capture_output=True, text=True)
+    r = subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if check and r.returncode != 0:
         raise SystemExit(f"git {' '.join(args[:3])}: {r.stderr.strip()}")
     return r.stdout
@@ -45,10 +45,10 @@ def repo_name():
 def home():
     root = Path(git("rev-parse", "--show-toplevel").strip())
     exclude = Path(git("rev-parse", "--git-common-dir").strip()).resolve() / "info" / "exclude"
-    lines = exclude.read_text().splitlines() if exclude.exists() else []
+    lines = exclude.read_text(encoding="utf-8").splitlines() if exclude.exists() else []
     if "/tmp/" not in lines:  # local to this clone, so the team never sees it
         exclude.parent.mkdir(parents=True, exist_ok=True)
-        exclude.write_text("\n".join(lines + ["/tmp/"]) + "\n")
+        exclude.write_text("\n".join(lines + ["/tmp/"]) + "\n", encoding="utf-8")
     return root / "tmp" / "review-check"
 
 
@@ -77,7 +77,7 @@ def load_rules(files):
     rules = []
     for f in files:
         default = ["**/*"]
-        for line in f.read_text().splitlines():
+        for line in f.read_text(encoding="utf-8").splitlines():
             head = re.match(r"^Files: `([^`]+)`", line)
             if head:
                 default = globs_of(head.group(1))
@@ -98,7 +98,7 @@ def load_rules(files):
 
 def ci_of(rules_file):
     """{name, cmd, config} from the line ``CI: `<check name>` runs `<command>`; config `<file>` ``."""
-    m = re.search(r"^CI: `([^`]+)` runs `([^`]+)`(?:; config `([^`]+)`)?", rules_file.read_text(), re.M) \
+    m = re.search(r"^CI: `([^`]+)` runs `([^`]+)`(?:; config `([^`]+)`)?", rules_file.read_text(encoding="utf-8"), re.M) \
         if rules_file.exists() else None
     return {"name": m.group(1), "cmd": m.group(2), "config": m.group(3)} if m else None
 
@@ -107,7 +107,7 @@ def lint_config(ci, head):
     if not ci or not ci["config"]:
         return None
     text = git("show", f"{head}:{ci['config']}", check=False) if head else \
-        (Path(ci["config"]).read_text() if Path(ci["config"]).exists() else "")
+        (Path(ci["config"]).read_text(encoding="utf-8") if Path(ci["config"]).exists() else "")
     try:
         return json.loads(text)
     except ValueError:  # a JSONC config with comments leaves every rule with the seats
@@ -249,7 +249,7 @@ def start(target, *opts):
         raise SystemExit("target is `local` or `<base>..<head>`")
     is_patch = opts[:1] == ("--patch",)
     if is_patch:
-        patch = Path(opts[1]).read_text()
+        patch = Path(opts[1]).read_text(encoding="utf-8")
 
     d = home()
     prior = []
@@ -263,7 +263,11 @@ def start(target, *opts):
                     ["git", "merge-base", "--is-ancestor", before, head or base], capture_output=True).returncode == 0):
                 prior.append((target_file.parent, before))
         prior.sort(key=lambda item: (int(git("rev-list", "--count", item[1])),
-                                     (item[0] / "target.json").stat().st_mtime), reverse=True)
+                                     (item[0] / "target.json").stat().st_mtime, item[0].name), reverse=True)
+        newest = {}
+        for previous, before in prior:
+            newest.setdefault(before, (previous, before))
+        prior = list(newest.values())
         for previous, before in prior:
             if target != "local" and before == head:
                 continue
@@ -273,24 +277,26 @@ def start(target, *opts):
             if not lines or not lines[0].startswith("Status: done ") or (counts and counts[1] == "0" and int(counts[2])):
                 raise SystemExit(f"start refused by {previous}: answer its asks in {previous / 'answers.md'} and run "
                                  f"`verdict {previous.name}` again, or delete the run folder if it was abandoned")
-    n = len(list(d.glob(f"{prefix}-[0-9][0-9]"))) + 1
+    numbers = (p.name[len(prefix) + 1:] for p in d.glob(f"{prefix}-[0-9]*") if p.is_dir())
+    n = max((int(number) for number in numbers if number.isdecimal()), default=0) + 1
     d = d / f"{prefix}-{n:02d}"
     (d / "head").mkdir(parents=True)
     if prior and (prior[0][0] / "answers.md").exists():
         shutil.copyfile(prior[0][0] / "answers.md", d / "answers-before.md")
-    (d / "diff.patch").write_text(patch)
+    (d / "diff.patch").write_text(patch, encoding="utf-8")
     units = []
     for path, info in parse_diff(patch).items():
         src = d / "head" / path  # seats read full functions here, never from a moving checkout
         if not info["deleted"]:
             src.parent.mkdir(parents=True, exist_ok=True)
-            src.write_text(Path(path).read_text() if head is None else git("show", f"{head}:{path}"))
+            src.write_text(Path(path).read_text(encoding="utf-8") if head is None else git("show", f"{head}:{path}"),
+                           encoding="utf-8")
         units += units_of(path, info, src)
     if not units:
         raise SystemExit("the diff has no changed lines to review")
     for i, u in enumerate(units, 1):
         u["id"] = f"u{i}"
-    (d / "units.json").write_text(json.dumps(units, indent=2) + "\n")
+    (d / "units.json").write_text(json.dumps(units, indent=2) + "\n", encoding="utf-8")
 
     rules = Path.home() / ".review-check" / "rules" / f"{repo_name()}.md"
     catalog = load_rules(sorted((Path(__file__).resolve().parent.parent / "references").glob("lens*.md"))
@@ -304,7 +310,7 @@ def start(target, *opts):
     for u in units:
         info = diff[u["file"]]
         src = d / "head" / u["file"]
-        body = src.read_text(errors="replace").splitlines()[max(u["range"][0] - 1, 0):u["range"][1]] if src.exists() else []
+        body = src.read_text(encoding="utf-8", errors="replace").splitlines()[max(u["range"][0] - 1, 0):u["range"][1]] if src.exists() else []
         text = "\n".join(body + info["removed"])  # removed code counts, so a rule about what was dropped still fires
         added = [info["new"][n] for n in u["lines"]]
         matched = [r for r in catalog if glob_match(u["file"], r["files"]) and (r["applies"] is None or r["applies"].search(
@@ -319,7 +325,7 @@ def start(target, *opts):
         if refs:
             ids.append("REF")
         checklist[u["id"]] = {"rules": ids, "tool": tool, "refs": refs}
-    (d / "checklist.json").write_text(json.dumps(checklist, indent=2) + "\n")
+    (d / "checklist.json").write_text(json.dumps(checklist, indent=2) + "\n", encoding="utf-8")
     owned = sum(len(c["tool"]) for c in checklist.values())
     body = [f"Target: {target}", f"Base: {base}", f"Head: {head or 'working tree'}",
             f"Rules: {rules if rules.exists() else 'none'}", "",
@@ -349,7 +355,7 @@ def build(name, *opts):
     result in this checkout. --run refuses a checkout that is not exactly the head, so the result
     cannot come from other code."""
     d = home() / name
-    t = json.loads((d / "target.json").read_text())
+    t = json.loads((d / "target.json").read_text(encoding="utf-8"))
     ci, head = t["ci"], t["head"]
     if not ci:
         raise SystemExit("the repo rules file has no `CI:` line, so this run has no build gate")
@@ -377,7 +383,7 @@ def build(name, *opts):
         result = {"source": "check-run", "name": ci["name"],
                   "conclusion": "success" if last["conclusion"] == "success" else "failure", "tail": [last["html_url"]]}
     result |= {"head": head, "digest": None if head else tree_digest()}
-    (d / "build.json").write_text(json.dumps(result, indent=2) + "\n")
+    (d / "build.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(f"build: {result['conclusion']} ({result['source']} `{result['name']}`)")
 
 
@@ -393,7 +399,7 @@ def rows(d):
 
 def answers(path):
     out = []
-    for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
+    for line in path.read_text(encoding="utf-8").split("\n") if path.exists() else []:
         if m := re.match(r"^\s*- (.+?) `(.*)$", line):
             file, text = m.groups()
             alternatives = [(file, text[:split.start()], text[split.end():])
@@ -417,7 +423,7 @@ def verdict(name):
     selected = [alternatives[0] for alternatives in replied]
     built = "none"
     if t["ci"]:  # the build must pass even with no tool IDs, because a missing import breaks no rule ID
-        b = json.loads((d / "build.json").read_text()) if (d / "build.json").exists() else None
+        b = json.loads((d / "build.json").read_text(encoding="utf-8")) if (d / "build.json").exists() else None
         if b is None:
             problems.append("build: no result; run `build <run>`, or `build <run> --run` for an unpushed head")
         elif b["head"] != t["head"] or (t["head"] is None and b["digest"] != tree_digest()):
@@ -452,7 +458,7 @@ def verdict(name):
         path = loc.split(":")[0].strip("`")
         if kind in ("pass", "n/a"):  # a quote from the unit, or from code the diff removed in that file
             src = d / "head" / u["file"]
-            head = src.read_text().splitlines() if src.exists() else []
+            head = src.read_text(encoding="utf-8").splitlines() if src.exists() else []
             scope = head[max(u["range"][0] - 1, 0):u["range"][1]] + diff[u["file"]]["removed"]
         else:  # the quote must be at the line the row names, or in code the diff removed from that file
             at = re.search(r":(\d+)(?:-(\d+))?", loc)
@@ -525,6 +531,8 @@ def verdict(name):
 
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
     commands = {"start": start, "build": build, "verdict": verdict}
     if len(sys.argv) < 3 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
