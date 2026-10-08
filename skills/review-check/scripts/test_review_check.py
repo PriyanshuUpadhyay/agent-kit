@@ -414,6 +414,134 @@ def test_answers():
             os.chdir(previous)
 
 
+def test_limits():
+    """Only limit: answers on the same whole new line close fix rows; asks still block start."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "def helper():\n    return 1\n"}, "limit base")
+            head = commit({"util.py": "def helper():\n    return 2\n"}, "limit change")
+            rc.start(f"{base}..{head}")
+            run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+
+            def review(run, quote="return 2", kind="fix", *extra):
+                checklist = json.loads((run / "checklist.json").read_text())
+                uid, checks = next(iter(checklist.items()))
+                rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `{quote}` | n/a | | "
+                     "the test code has no case these rules name |",
+                     f"| {uid} | - | util.py:2 | `{quote}` | {kind} | helper changes a caller | caller expects 1 |", *extra)
+
+            review(run)
+            answer = "- util.py `return 2`: limit: user accepts the caller returning 2\n"
+            for prefix in ("limit:", "Limit:", "LIMIT:"):
+                (run / "answers.md").write_text(answer.replace("limit:", prefix))
+                assert rc.verdict(run.name) == 0
+                verdict = (run / "03-verdict.md").read_text()
+                assert verdict.splitlines()[2].startswith("Verdict: APPROVE"), verdict
+                assert "0 fix, 0 ask, 0 note, 0 answered, 1 limit" in verdict, verdict
+                counts = rc.re.search(r"; (\d+) fix, (\d+) ask", verdict.splitlines()[2])
+                assert counts and counts.groups() == ("0", "0"), "the start guard must still parse line 3"
+                assert "- limit `util.py:2` helper changes a caller (limit: user accepts the caller returning 2)" in verdict, verdict
+                assert "Answered: util.py `return 2` closes 1 fixes" in verdict, verdict
+
+            for text in ("limit: ok", "Limit:ok", "LIMIT:", " limit: ok. "):
+                (run / "answers.md").write_text(f"- util.py `return 2`: {text}\n")
+                assert rc.verdict(run.name) == 1, "the text after limit: must pass the answer gate"
+                assert "an answer needs" in (run / "03-verdict.md").read_text()
+
+            for text in ("fix: test_helper fails at " + head[:7], "user accepts the caller returning 2"):
+                (run / "answers.md").write_text(f"- util.py `return 2`: {text}\n")
+                assert rc.verdict(run.name) == 0
+                verdict = (run / "03-verdict.md").read_text()
+                assert "Verdict: REQUEST CHANGES" in verdict and "1 fix" in verdict, verdict
+                assert "closes 0 asks" in verdict, "a fix row needs a limit: answer"
+            for file, line in (("other.py", "return 2"), ("util.py", "return"), ("util.py", "return 1")):
+                (run / "answers.md").write_text(f"- {file} `{line}`: limit: user accepts the caller returning 2\n")
+                assert rc.verdict(run.name) == 0
+                assert "Verdict: REQUEST CHANGES" in (run / "03-verdict.md").read_text()
+
+            (run / "answers.md").write_text(answer)
+            review(run, "return 2", "ask")
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert "Verdict: NEEDS DISCUSSION" in verdict and "1 ask" in verdict, "limit: never closes an ask"
+
+            review(run, "return 2", "fix",
+                   "| u1 | - | util.py:2 | `return 2` | ask | may change another caller | second caller expects 1 |")
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert "0 fix, 1 ask, 0 note, 0 answered, 1 limit" in verdict, verdict
+            changed = commit({"util.py": "def helper():\n    return 3\n"}, "limit line changed")
+            folders = set(Path("tmp/review-check").iterdir())
+            try:
+                rc.start(f"{head}..{changed}")
+                raise AssertionError("0 fix and an open ask must block start even with a limit count")
+            except SystemExit as e:
+                assert run.name in str(e) and "answers.md" in str(e), e
+            assert set(Path("tmp/review-check").iterdir()) == folders
+            review(run)
+            assert rc.verdict(run.name) == 0
+            rc.start(f"{head}..{changed}")
+            next_run = Path("tmp/review-check") / f"range-{head[:7]}-{changed[:7]}-01"
+            assert (next_run / "answers-before.md").read_text() == answer
+            review(next_run, "return 3")
+            (next_run / "answers.md").write_text(answer)
+            assert rc.verdict(next_run.name) == 0
+            verdict = (next_run / "03-verdict.md").read_text()
+            assert "Verdict: REQUEST CHANGES" in verdict and "1 fix" in verdict, "a changed line must reopen the fix"
+        finally:
+            os.chdir(previous)
+
+
+def test_stale_verdict_guard():
+    """start refuses changed verdict inputs until verdict runs again, including answers.md."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "def helper():\n    return 1\n"}, "stale base")
+            head = commit({"util.py": "def helper():\n    return 2\n"}, "stale change")
+            rc.start(f"{base}..{head}")
+            run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+            checklist = json.loads((run / "checklist.json").read_text())
+            uid, checks = next(iter(checklist.items()))
+            rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `return 2` | n/a | | "
+                 "the test code has no case these rules name |",
+                 f"| {uid} | - | util.py:2 | `return 2` | ask | may change a caller | caller expects 1 |")
+            (run / "answers.md").write_text("- util.py `return 2`: user approved the return value in the contract\n")
+            (run / "02-review-refs.md").write_text("Status: done x\nUses:\n")
+            (run / "build.json").write_text("{}\n")
+            assert rc.verdict(run.name) == 0
+            assert "Verdict: APPROVE" in (run / "03-verdict.md").read_text()
+            changed = commit({"util.py": "def helper():\n    return 3\n"}, "after stale change")
+            folders = set(Path("tmp/review-check").iterdir())
+            for filename in ("answers.md", "01-units.md", "02-review.md", "02-review-refs.md", "build.json"):
+                file = run / filename
+                original = file.read_text()
+                file.write_text(original.replace("approved", "accepts") if filename == "answers.md" else original + "\n")
+                for target in (f"{head}..{changed}", "local"):
+                    try:
+                        rc.start(target)
+                        raise AssertionError(f"start must refuse a stale verdict after {filename} changes")
+                    except SystemExit as e:
+                        expected = f"start refused by {run.resolve()}: its verdict is stale ({filename} changed); run `verdict {run.name}` again"
+                        assert str(e) == expected, e
+                    assert set(Path("tmp/review-check").iterdir()) == folders, "a stale verdict creates no folder"
+                assert rc.verdict(run.name) == 0
+                assert "Verdict: APPROVE" in (run / "03-verdict.md").read_text()
+            rc.start(f"{head}..{changed}")
+            assert (Path("tmp/review-check") / f"range-{head[:7]}-{changed[:7]}-01").is_dir()
+        finally:
+            os.chdir(previous)
+
+
 def test_merge_guard():
     """Every ancestor review must pass the guard, even when a deeper branch is approved."""
     previous = Path.cwd()
@@ -712,6 +840,8 @@ if __name__ == "__main__":
         test_cli_encoding()
         test_superseded_run()
         test_answers()
+        test_limits()
+        test_stale_verdict_guard()
         test_merge_guard()
         test_same_head_carry()
         test_run_numbering()

@@ -54,7 +54,7 @@ is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` descr
 | `02-review.md` | reviewer | one or more rows for each unit |
 | `answers.md` | chair or user | answers for this run, with a file and a whole trimmed source line |
 | `answers-before.md` | script | answers from a prior run, for history only |
-| `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix> fix, <ask> ask, <note> note, <answered> answered; rules: <file>; build: pass\|fail\|none)`, then each gap or kept row |
+| `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix> fix, <ask> ask, <note> note, <answered> answered, <limit> limit; rules: <file>; build: pass\|fail\|none)`, then each gap or kept row |
 
 `head/` holds the new version of each changed file. Read full functions there, not in a checkout
 that can move.
@@ -79,7 +79,8 @@ Write each row as `| unit | rule | file:line | quote | kind | problem | proof |`
   in this hunk"), `fix` (a proved defect or a rule break), `ask` (a question, or a defect that is
   not proved), or `note` (optional cleanup). An unproved defect is an `ask`, never a `fix`. Start
   its problem with "potential issue, not confirmed:" and name the input that would trigger it.
-  The script sets `answered` when an answer closes an `ask`; a seat never writes that kind.
+  The script sets `answered` when an answer closes an `ask`, or `limit` when the user accepts a
+  `fix` as a known limit; a seat never writes those kinds.
 - `quote` is an exact part of one line. A `pass` or `n/a` quotes a line of its unit. Other kinds
   quote the new line that `file:line` names, or a line the diff removed from that file.
 - `proof` names the input, caller, or rule text that triggers the problem. For a `pass`, it names
@@ -102,6 +103,15 @@ The user closes an `ask`. The chair may close one only by citing a record the us
 such as the frame's done-when, contracts, an ADR, or an earlier user answer.
 Anyone may turn an `ask` into a `fix` with a failing test. Write the answer as
 `fix: <test> fails at <head7>`.
+
+The user can accept a `fix` as a known limit. Write this line only with the user's words:
+
+```text
+- <file> `<line>`: limit: <the user's words>
+```
+
+`<line>` is the whole trimmed source line, as in an ask's answer. A new `start` of the same range
+does not replace the answer that an open ask needs.
 
 After answering, run `verdict <run>` again on the same run, with no new range.
 `start` refuses a new range, or `local`, when the newest run for any ancestor head has no verdict,
@@ -177,5 +187,5 @@ must not write files, so check that its type checker sets `noEmit`.
 
 ## Output
 
-In chat, give line 3 of `03-verdict.md`, then each `fix`, `ask`, and `note` row with its
+In chat, give line 3 of `03-verdict.md`, then each `fix`, `ask`, `note`, and `limit` row with its
 `file:line`, then the run folder.

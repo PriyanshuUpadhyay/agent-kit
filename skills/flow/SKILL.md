@@ -67,15 +67,17 @@ the script reads. The revision of `05-build` is `HEAD`, so a new commit makes `0
 | `03-contracts.md` | frame | APIs, data model, integrations, and the result of the `decisions` skill's check for the topic |
 | `04-impact.md` | contracts | the existing features that change, or "independent", judged from the `## Callers` section that `take` writes with the places that name each code name in backticks in `03-contracts.md` |
 | `05-build.md` | impact, and design unless skipped | the task-file path of the `pair` or `deliver` run that the user started, and `Base:`, the commit before its first commit |
-| `06-review.md` | build | the `review-check` run on `<Base>..<build revision>`, line 3 of its `03-verdict.md`, each `fix` row with its fix or the reason it stays, and `Run: tmp/review-check/<run>` for the last run |
+| `06-review.md` | build | the `review-check` runs on `<Base>..<build revision>`, line 3 of the newest run's `03-verdict.md`, each `fix` row with its fix or the reason it stays, and one `Run: tmp/review-check/<run>` line per round, newest last |
 | `07-close.md` | review with APPROVE | the done-when of `01-frame.md`, each with its evidence |
 
 `take 07-close` reads line 3 of the last run's own `03-verdict.md` and refuses unless it is APPROVE
-and the run's head is `HEAD`. A NEEDS DISCUSSION verdict passes only after the user accepts it, with
-`User accepted: <their words>` in `06-review.md`. A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run for the
+and the run's head is `HEAD`. A NEEDS DISCUSSION verdict closes only after the user's words go into
+the run's `answers.md` as answers or `limit:` lines per review-check's Asks section, and `verdict`
+runs again to APPROVE. A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run for the
 findings. That run moves the build revision, so the review is stale and runs again on the new
 range. Answer each `ask` in the run's `answers.md` per review-check's Asks section, and stop
-and ask the user at the third run on this step.
+and ask the user after three review rounds on this step. `deliver` takes `06-review` again for each
+review round, so the warning counts real runs; the cap is a warning, not enforced.
 
 At close, move the folder to `<repo-root>/tmp/flow/_closed/<folder>/`. Release is a separate action
 that the user asks for.

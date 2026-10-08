@@ -37,8 +37,10 @@ Score every line of the style grammar as `match`, `partial`, or `miss`, each wit
 evidence. Compare one crop of the whole frame and one crop at 100 % zoom, because texture and line
 swell show only at full size. A `miss` on any trait blocks production scenes. Do at least two
 rounds of fix and re-render. Record the scores in the step file. After round 3 with the same
-`miss`, stop the step and show the user the frame and the miss. Keep `accepted miss: <trait>, <why>`
-lines in the step file; later rounds do not re-score those traits.
+`miss`, stop the step and show the user the frame and the miss. Keep
+`accepted miss: <trait>, user: <their words>` in the step file, written only after the user has seen
+the frame. Later rounds keep scoring every trait and exempt only that accepted miss from the
+gate. A miss that changes asks again.
 
 Example. Round 1 of a cloud frame scores the palette `match`, the tone `miss` (flat fills, no dots),
 and the contour `partial` (right colour, even width). Round 2 adds the mass stack and line swell, and

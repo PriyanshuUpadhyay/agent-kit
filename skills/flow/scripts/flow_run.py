@@ -183,10 +183,8 @@ def approved(folder):
     run = Path(git("rev-parse", "--show-toplevel")) / runs[-1]
     lines = (run / "03-verdict.md").read_text().splitlines() if (run / "03-verdict.md").exists() else []
     verdict = lines[2] if len(lines) > 2 else f"no verdict in {run}/03-verdict.md"
-    accepted = verdict.startswith("Verdict: NEEDS DISCUSSION") and re.search(r"^User accepted: \S", text, re.M)
-    if not (verdict.startswith("Verdict: APPROVE") or accepted):
-        raise SystemExit(f"07-close needs an APPROVE verdict, or NEEDS DISCUSSION with a `User accepted: <their words>` "
-                         f"line in 06-review.md. {runs[-1]} says: {verdict}")
+    if not verdict.startswith("Verdict: APPROVE"):
+        raise SystemExit(f"07-close needs an APPROVE verdict on HEAD. {runs[-1]} says: {verdict}")
     head = json.loads((run / "target.json").read_text()).get("head", "") if (run / "target.json").exists() else ""
     if not head.startswith(rev(folder, "05-build")):
         raise SystemExit(f"{runs[-1]} covers {head[:12] or 'no head'}, but the build is now {rev(folder, '05-build')}; "

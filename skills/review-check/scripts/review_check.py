@@ -273,6 +273,11 @@ def start(target, *opts):
                 continue
             result = previous / "03-verdict.md"
             lines = result.read_text(encoding="utf-8").splitlines() if result.exists() else []
+            for name, stamp in re.findall(r"([\w.-]+)@([a-f0-9]+)", lines[1] if len(lines) > 1 else ""):
+                file = previous / f"{name}.{'json' if name == 'build' else 'md'}"
+                if not file.exists() or revision(file) != stamp:
+                    raise SystemExit(f"start refused by {previous}: its verdict is stale ({file.name} changed); "
+                                     f"run `verdict {previous.name}` again")
             counts = re.search(r"; (\d+) fix, (\d+) ask", lines[2]) if len(lines) > 2 else None
             if not lines or not lines[0].startswith("Status: done ") or (counts and counts[1] == "0" and int(counts[2])):
                 raise SystemExit(f"start refused by {previous}: answer its asks in {previous / 'answers.md'} and run "
@@ -466,7 +471,8 @@ def verdict(name):
             new_lines = [new[n] for n in range(int(at.group(1)), int(at.group(2) or at.group(1)) + 1) if n in new] if at else []
             matches = [(i, match) for i, alternatives in enumerate(replied)
                        if (match := next((alt for alt in alternatives if alt[0] == path
-                                          and any(alt[1] == source.strip() for source in new_lines)), None))] if kind == "ask" else []
+                                          and any(alt[1] == source.strip() for source in new_lines)
+                                          and alt[2].strip().lower().startswith("limit:") == (kind == "fix")), None))] if kind in ("ask", "fix") else []
             scope = new_lines + diff.get(path, {}).get("removed", [])
         if not any(quote in line for line in scope):
             where = "in the unit" if kind in ("pass", "n/a") else f"at {loc.strip('`')} or in code removed from {path}"
@@ -483,7 +489,7 @@ def verdict(name):
                     if match:
                         file, line, answer = match
                         history.append(f"History: {file} `{line}`: {answer}")
-            if kind == "ask" and matches:
+            if kind in ("ask", "fix") and matches:
                 normalized = []
                 for i, match in matches:
                     closed[i] += 1
@@ -491,16 +497,18 @@ def verdict(name):
                     text = match[2].strip()
                     normalized.append((text, text.lower().startswith("fix:")))
                 answer, is_fix = next((item for item in normalized if item[1]), normalized[0])
-                kind = "fix" if is_fix else "answered"
+                kind = "limit" if kind == "fix" else "fix" if is_fix else "answered"
                 if kind == "fix":
                     problem = answer
+                elif kind == "limit":
+                    proof = answer[6:].strip()
                 else:
                     proof = answer
             kept.append((uid, loc, quote, kind, problem, proof))
     for alternatives, match, n in zip(replied, selected, closed):
         path, quote, answer = match if n else min(alternatives, key=lambda alt: len(alt[2]))
         text = answer.strip()
-        body = text[4:].strip() if text.lower().startswith("fix:") else text
+        body = re.sub(r"^(?:fix|limit):\s*", "", text, flags=re.I)
         if body.lower().strip(". ") in GENERIC:
             problems.append(f"answers.md {path} `{quote}`: an answer needs a record the user approved or a failing test")
     problems += [f"{uid}: no row ({u['file']} {u['symbol']})" for uid, u in units.items() if uid not in seen]
@@ -509,20 +517,21 @@ def verdict(name):
     checks = sum(len(c["rules"]) + len(c.get("tool", [])) for c in checklist.values())
     checked = sum(len(done[uid] & set(c["rules"] + c.get("tool", []))) for uid, c in checklist.items())
 
-    count = {k: sum(1 for r in kept if r[3] == k) for k in ("fix", "ask", "note", "answered")}
+    count = {k: sum(1 for r in kept if r[3] == k) for k in ("fix", "ask", "note", "answered", "limit")}
     if problems:
         status, word = "blocked gate failed", "INCOMPLETE"
     else:
         status = "done"
         word = "REQUEST CHANGES" if count["fix"] else "NEEDS DISCUSSION" if count["ask"] else "APPROVE"
     line3 = (f"Verdict: {word} ({len(seen)} of {len(units)} units, {checked} of {checks} checks; {count['fix']} fix, {count['ask']} ask, "
-             f"{count['note']} note, {count['answered']} answered; rules: {'none' if rules == 'none' else Path(rules).name}; build: {built})")
+             f"{count['note']} note, {count['answered']} answered, {count['limit']} limit; rules: {'none' if rules == 'none' else Path(rules).name}; build: {built})")
     uses = ", ".join(f"{f.stem}@{revision(f)}" for f in [d / "01-units.md", *sorted(d.glob("02-review*.md")),
                                                           *[f for f in [d / "build.json", d / "answers.md"] if f.exists()]])
     body = [line3, "", *(f"- {p}" for p in problems),
-            *(f"- {k} `{loc}` {problem} ({'answer' if k == 'answered' else 'proof'}: {proof})"
+            *(f"- {k} `{loc}` {problem} ({'answer' if k == 'answered' else 'limit' if k == 'limit' else 'proof'}: {proof})"
               for _, loc, _, k, problem, proof in kept),
-            *(f"Answered: {path} `{quote}` closes {n} asks" for (path, quote, _), n in zip(selected, closed)), *history]
+            *(f"Answered: {path} `{quote}` closes {n} {'fixes' if answer.strip().lower().startswith('limit:') else 'asks'}"
+              for (path, quote, answer), n in zip(selected, closed)), *history]
     rest = f"Uses: {uses}\n" + "\n".join(body) + "\n"
     rev = f" {hashlib.sha1(rest.encode()).hexdigest()[:12]}" if status == "done" else ""
     (d / "03-verdict.md").write_text(f"Status: {status}{rev}\n{rest}", encoding="utf-8")

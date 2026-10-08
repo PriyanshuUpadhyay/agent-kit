@@ -93,6 +93,8 @@ with tempfile.TemporaryDirectory() as tmp:
         if count < 2:
             assert "bring the open rows" not in out.stdout
         assert r.read_text().startswith("Status: active a\n")
+        assert [line for line in r.read_text().splitlines() if line.startswith("Run:")] == [
+            f"Run: tmp/review-check/range-{i}" for i in range(count)], "take must keep one Run: line per round, newest last"
     r.write_text(review_text)
     review = Path(repo, "tmp", "review-check", "range-1")
     review.mkdir(parents=True)
@@ -106,7 +108,8 @@ with tempfile.TemporaryDirectory() as tmp:
     (review / "03-verdict.md").write_text("Status: done x\nUses:\nVerdict: NEEDS DISCUSSION (1 of 1 units; 1 ask)\n")
     assert "NEEDS DISCUSSION" in run("take", folder, "07-close", "a").stderr
     r.write_text(r.read_text() + "User accepted: ship it, the ask is a follow-up\n")
-    assert run("take", folder, "07-close", "a").returncode == 0
+    refused = run("take", folder, "07-close", "a")
+    assert refused.returncode != 0 and "NEEDS DISCUSSION" in refused.stderr, "User accepted: must not bypass the run's verdict"
     r.write_text(r.read_text().replace("User accepted: ship it, the ask is a follow-up\n", ""))
     (review / "03-verdict.md").write_text("Status: done x\nUses:\nVerdict: APPROVE (1 of 1 units; 0 fix)\n")
 

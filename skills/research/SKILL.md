@@ -14,13 +14,12 @@ Research is a step run, so the kit's `references/step-run.md` owns the status li
 close, and when a step waits for the user. "research <question>" starts a run in
 `~/.claude/reports/<YYYY-MM-DD>-<slug>/`. "research continue <folder>" picks it up. Make the folder with
 `python3 <kit>/references/step_run.py start <folder> <this SKILL.md>`, and close each step with `done`.
-The web step file keeps a `Fetched:` list of URLs. "research continue" skips URLs on that list.
 
 | File | Needs | Holds |
 |---|---|---|
 | `01-question.md` | none | the question in one line and the decision it serves in one line |
 | `02-local.md` | question | what the local sources say, with paths |
-| `03-web.md` | question | the `web-search` run folder, or the reason no trigger below held; what the web says, with links to the sources that own the claims; the off-path ideas and the searches that found them |
+| `03-web.md` | question | the `web-search` run folder, or the reason no trigger below held; a `Fetched:` list of URLs whose page content was read; what the web says, with links to the sources that own the claims; the off-path ideas and the searches that found them |
 | `04-test.md` | local, web | for a tool pick, each candidate's install, task, time, and result; else `skipped: not a tool pick` |
 | `05-report.md` | local, web, test | the report path and the result of the link check |
 | `06-close.md` | report | the reply as sent |
@@ -46,6 +45,9 @@ do not establish correctness. If evidence is thin, name the gap instead of makin
 stronger; the user does not need to ask for a second, deeper pass.
 
 ## 03-web
+
+On continue, skip only URLs on the `Fetched:` list with saved evidence. Refresh a source when the
+question or final link check needs current content.
 
 Under a Fable chair, one `search.web` seat does the web part and writes its notes to
 a file; any other session uses its own search and fetch tools. Either way the web part follows the

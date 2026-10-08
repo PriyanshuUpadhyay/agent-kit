@@ -117,9 +117,12 @@ or an open objection, not a ritual.
 
 ### Rounds 2–3 — cross-examination
 
-Run only when the convergence check fails. Round 2 and 3 asks send only the other seats' latest
-position files and the list of points still split, never the brief again. After each round, the
-chair writes settled points as `Resolved:` lines in `03-cross.md`. Each next ask names them as
+Run only when the convergence check fails. Round 2 and 3 asks send only the brief path, the other
+seats' latest position files, and the list of points still split. The path lets a resumed seat
+re-read its coordinates. Do not resend the brief text. After each round, the
+chair writes settled points as `Resolved:` lines in `03-cross.md`. Each line cites the position
+file of each seat that agrees, or the user's decision. A point that any seat still contests stays
+in the split list. Each next ask names the resolved points as
 settled, not to be re-argued. Ask each voice to address the other positions by name, concede where
 they are right, refute with evidence where wrong, and restate its current verdict plus strongest
 reason. Every CONCEDED and REFUTED bullet must cite a file:line inside the pinned coordinates or a
