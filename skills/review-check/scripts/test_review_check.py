@@ -3,7 +3,10 @@ a unit with no row, a rule with no result, a made-up quote, a quote at the wrong
 proof blocks it; a language with no ctags support still gets units; a changed function that others
 call gets REF; the build gate owns the IDs the repo's lint config proves, and only for this head."""
 import json, os, shutil, subprocess, sys, tempfile
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -144,6 +147,7 @@ def test_answers():
             head = commit({"util.py": "def helper():\n    return 2\n"}, "answer change")
             rc.start(f"{base}..{head}")
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+            assert json.loads((run / "target.json").read_text())["patch"] is False
 
             def ask(run, quote):
                 checklist = json.loads((run / "checklist.json").read_text())
@@ -164,7 +168,36 @@ def test_answers():
             assert f"answers@{rc.revision(run / 'answers.md')}" in verdict.splitlines()[1], verdict
             approved_uses = verdict.splitlines()[1]
 
-            for text in ("ok", "fix: ok"):
+            review = run / "02-review.md"
+            escaped_problem = "\x1b[31mmay change a caller"
+            review.write_text(review.read_text().replace("may change a caller", escaped_problem))
+            output = StringIO()
+            with redirect_stdout(output):
+                assert rc.verdict(run.name) == 0
+            assert "\x1b" not in output.getvalue(), "terminal output must remove the ESC byte from a row"
+            assert "[31mmay change a caller" in output.getvalue()
+            assert escaped_problem in (run / "03-verdict.md").read_text(), "the verdict file must keep the exact row text"
+            ask(run, "return 2")
+
+            (run / "answers.md").write_text("- util.py `return 2`: user approved `helper`: returns 2\n")
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert verdict.splitlines()[2].startswith("Verdict: APPROVE"), "answer code followed by a colon must close the ask"
+            assert "Answered: util.py `return 2` closes 1 asks" in verdict, verdict
+
+            unicode_answer = "- util.py `return 2`: user approved the value — 合意\n"
+            (run / "answers.md").write_text(unicode_answer, encoding="utf-8")
+            read_text = Path.read_text
+
+            def ascii_default(path, *args, **kwargs):
+                kwargs.setdefault("encoding", "ascii")
+                return read_text(path, *args, **kwargs)
+
+            with patch.object(Path, "read_text", ascii_default):
+                assert rc.answers(run / "answers.md") == [("util.py", "return 2", "user approved the value — 合意")]
+                assert rc.revision(run / "answers.md") == rc.hashlib.sha1(unicode_answer.encode("utf-8")).hexdigest()[:12]
+
+            for text in ("ok", "fix: ok", "Fix: ok", "FIX: ok", "fix:ok", "fix:", "FIX:   ", " Fix: ok. "):
                 (run / "answers.md").write_text(f"- util.py `return 2`: {text}\n")
                 assert rc.verdict(run.name) == 1, "a bare ok is not an answer, even with fix:"
                 verdict = (run / "03-verdict.md").read_text()
@@ -195,6 +228,12 @@ def test_answers():
             verdict = (run / "03-verdict.md").read_text()
             assert verdict.splitlines()[2].startswith("Verdict: REQUEST CHANGES"), verdict
             assert f"- fix `util.py:2` fix: test_helper fails at {head[:7]} (proof: caller expects 1)" in verdict, verdict
+            for text in (f"Fix:test_helper fails at {head[:7]}", f"FIX: test_helper fails at {head[:7]}"):
+                (run / "answers.md").write_text(answer + f"- util.py `return 2`: {text}\n")
+                assert rc.verdict(run.name) == 0
+                verdict = (run / "03-verdict.md").read_text()
+                assert verdict.splitlines()[2].startswith("Verdict: REQUEST CHANGES"), verdict
+                assert f"- fix `util.py:2` {text} (proof: caller expects 1)" in verdict, verdict
 
             (run / "answers.md").write_text(answer)
             assert rc.verdict(run.name) == 0
@@ -207,6 +246,17 @@ def test_answers():
             assert verdict.splitlines()[2].startswith("Verdict: NEEDS DISCUSSION"), verdict
             assert "History: util.py `return 2`: user approved" in verdict, verdict
             changed = commit({"util.py": "def helper():\n    return 3\n"}, "answer line changed")
+            target_file = rerun / "target.json"
+            metadata = json.loads(target_file.read_text())
+            metadata["target"] += " — 合意"
+            target_file.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+            (rerun / "03-verdict.md").write_text((rerun / "03-verdict.md").read_text() + "— 合意\n", encoding="utf-8")
+            with patch.object(Path, "read_text", ascii_default):
+                try:
+                    rc.start(f"{head}..{changed}")
+                    raise AssertionError("UTF-8 predecessor files must still block an open ask")
+                except SystemExit as e:
+                    assert rerun.name in str(e), e
             Path("util.py").write_text("def helper():\n    return 4\n")
             folders = set(Path("tmp/review-check").iterdir())
             result = rerun / "03-verdict.md"
@@ -227,10 +277,12 @@ def test_answers():
             patch_file.write_text(sh("git", "diff", *rc.PLAIN, head, changed) + "\n")
             rc.start(f"{head}..{changed}", "--patch", str(patch_file))
             partial = Path("tmp/review-check") / f"range-{head[:7]}-{changed[:7]}-01"
+            assert json.loads((partial / "target.json").read_text())["patch"] is True
             assert not (partial / "answers-before.md").exists(), "--patch bypasses guard and carry-forward"
             ask(partial, "return 3")
             assert rc.verdict(partial.name) == 0
-            os.utime(partial, (1, 1))  # keep the active ancestor run newest by the contract's folder mtime
+            newer = partial.stat().st_mtime + 10
+            os.utime(partial, (newer, newer))
             latest_answer = "- util.py `return 2`: user approved the value in an earlier answer\n"
             (rerun / "answers.md").write_text(latest_answer)
             assert rc.verdict(rerun.name) == 0
@@ -244,6 +296,46 @@ def test_answers():
             assert verdict.splitlines()[2].startswith("Verdict: NEEDS DISCUSSION"), verdict
             assert "Answered: util.py `return 2` closes 0 asks" in verdict, verdict
             assert "History:" not in verdict, verdict
+            (rerun / "answers.md").unlink()
+            (rerun / "answers.md").write_text(latest_answer)
+            newer = new_run.stat().st_mtime + 10
+            os.utime(rerun, (newer, newer))
+            assert rerun.stat().st_mtime > new_run.stat().st_mtime
+            later = commit({"util.py": "def helper():\n    return 4\n"}, "after open patch ask")
+            folders = set(Path("tmp/review-check").iterdir())
+            try:
+                rc.start(f"{changed}..{later}")
+                raise AssertionError("the descendant run with an open ask must block a new range")
+            except SystemExit as e:
+                assert new_run.name in str(e), "the guard must choose the descendant run despite the older run's mtime"
+            assert set(Path("tmp/review-check").iterdir()) == folders
+            (new_run / "answers.md").write_text("- util.py `return 3`: user approved the value in the contract\n")
+            assert rc.verdict(new_run.name) == 0
+            rc.start(f"{changed}..{later}")
+            after_patch = Path("tmp/review-check") / f"range-{changed[:7]}-{later[:7]}-01"
+            assert (after_patch / "answers-before.md").read_text() == (new_run / "answers.md").read_text()
+            ask(after_patch, "return 4")
+            assert rc.verdict(after_patch.name) == 0
+            rc.start(f"{changed}..{later}")
+            same_head = Path("tmp/review-check") / f"range-{changed[:7]}-{later[:7]}-02"
+            ask(same_head, "return 4")
+            assert rc.verdict(same_head.name) == 0
+            assert "0 fix, 1 ask" in (same_head / "03-verdict.md").read_text()
+            Path("util.py").write_text("def helper():\n    return 5\n")
+            folders = set(Path("tmp/review-check").iterdir())
+            try:
+                rc.start("local")
+                raise AssertionError("local must refuse an open ask at the same head")
+            except SystemExit as e:
+                assert same_head.name in str(e) and "answers.md" in str(e), e
+            assert set(Path("tmp/review-check").iterdir()) == folders
+            same_head_answer = "- util.py `return 4`: user approved the value in the contract\n"
+            (same_head / "answers.md").write_text(same_head_answer)
+            assert rc.verdict(same_head.name) == 0
+            assert "Verdict: APPROVE" in (same_head / "03-verdict.md").read_text()
+            rc.start("local")
+            local = Path("tmp/review-check/local-01")
+            assert (local / "answers-before.md").read_text() == same_head_answer
         finally:
             os.chdir(previous)
 

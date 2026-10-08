@@ -167,7 +167,7 @@ def references(symbols, head, own, lang):
 
 
 def revision(path):
-    lines = path.read_text().splitlines(True)
+    lines = path.read_text(encoding="utf-8").splitlines(True)
     return hashlib.sha1("".join(lines if path.name == "answers.md" else lines[1:]).encode()).hexdigest()[:12]
 
 
@@ -247,21 +247,26 @@ def start(target, *opts):
         patch = git("diff", *PLAIN, base, head)
     else:
         raise SystemExit("target is `local` or `<base>..<head>`")
-    if opts[:1] == ("--patch",):
+    is_patch = opts[:1] == ("--patch",)
+    if is_patch:
         patch = Path(opts[1]).read_text()
 
     d = home()
     prior = []
-    if opts[:1] != ("--patch",):
-        for target_file in sorted(d.glob("*/target.json"), key=lambda f: f.parent.stat().st_mtime, reverse=True):
-            before = json.loads(target_file.read_text())["head"]
+    if not is_patch:
+        for target_file in d.glob("*/target.json"):
+            metadata = json.loads(target_file.read_text(encoding="utf-8"))
+            if metadata.get("patch"):
+                continue
+            before = metadata["head"]
             if before and (before == (head or base) or subprocess.run(
                     ["git", "merge-base", "--is-ancestor", before, head or base], capture_output=True).returncode == 0):
                 prior.append((target_file.parent, before))
-        previous = next((folder for folder, before in prior if before != (head or base)), None)
+        prior.sort(key=lambda item: (int(git("rev-list", "--count", item[1])), item[0].name), reverse=True)
+        previous = next((folder for folder, before in prior if target == "local" or before != head), None)
         if previous:
             result = previous / "03-verdict.md"
-            lines = result.read_text().splitlines() if result.exists() else []
+            lines = result.read_text(encoding="utf-8").splitlines() if result.exists() else []
             counts = re.search(r"; (\d+) fix, (\d+) ask", lines[2]) if len(lines) > 2 else None
             if not lines or not lines[0].startswith("Status: done ") or (counts and counts[1] == "0" and int(counts[2])):
                 raise SystemExit(f"start refused by {previous}: answer its asks in {previous / 'answers.md'} and run "
@@ -290,7 +295,8 @@ def start(target, *opts):
                          + ([rules] if rules.exists() else []))
     ci = ci_of(rules)
     cfg = lint_config(ci, head)
-    (d / "target.json").write_text(json.dumps({"target": target, "base": base, "head": head, "ci": ci}, indent=2) + "\n")
+    (d / "target.json").write_text(json.dumps({"target": target, "base": base, "head": head, "ci": ci,
+                                             "patch": is_patch}, indent=2) + "\n")
     diff = parse_diff(patch)
     checklist = {}
     for u in units:
@@ -384,8 +390,8 @@ def rows(d):
 
 
 def answers(path):
-    return [m.groups() for line in path.read_text().splitlines()
-            if (m := re.match(r"^\s*- (.+?) `(.+)`: ?(.*)$", line))] if path.exists() else []
+    return [m.groups() for line in path.read_text(encoding="utf-8").splitlines()
+            if (m := re.match(r"^\s*- (.+?) `(.+?)`: ?(.*)$", line))] if path.exists() else []
 
 
 def verdict(name):
@@ -399,8 +405,13 @@ def verdict(name):
     replied = answers(d / "answers.md")
     past, history = answers(d / "answers-before.md"), []
     closed = [0] * len(replied)
+    normalized = []
     for path, quote, answer in replied:
-        if answer.strip().removeprefix("fix: ").lower().strip(". ") in GENERIC:
+        text = answer.strip()
+        is_fix = text.lower().startswith("fix:")
+        body = text[4:].strip() if is_fix else text
+        normalized.append((text, is_fix))
+        if body.lower().strip(". ") in GENERIC:
             problems.append(f"answers.md {path} `{quote}`: an answer needs a record the user approved or a failing test")
     built = "none"
     if t["ci"]:  # the build must pass even with no tool IDs, because a missing import breaks no rule ID
@@ -462,9 +473,8 @@ def verdict(name):
             if kind == "ask" and matches:
                 for i in matches:
                     closed[i] += 1
-                answer = next((replied[i][2].strip() for i in matches if replied[i][2].strip().startswith("fix: ")),
-                              replied[matches[0]][2].strip())
-                kind = "fix" if answer.startswith("fix: ") else "answered"
+                answer, is_fix = next((normalized[i] for i in matches if normalized[i][1]), normalized[matches[0]])
+                kind = "fix" if is_fix else "answered"
                 if kind == "fix":
                     problem = answer
                 else:
@@ -493,7 +503,7 @@ def verdict(name):
     rest = f"Uses: {uses}\n" + "\n".join(body) + "\n"
     rev = f" {hashlib.sha1(rest.encode()).hexdigest()[:12]}" if status == "done" else ""
     (d / "03-verdict.md").write_text(f"Status: {status}{rev}\n{rest}")
-    print(*(line for line in body if line), sep="\n")
+    print(*(re.sub(r"[\x00-\x08\x0b-\x1f]", "", line) for line in body if line), sep="\n")
     return 1 if problems else 0
 
 

@@ -104,7 +104,10 @@ Anyone may turn an `ask` into a `fix` with a failing test. Write the answer as
 `fix: <test> fails at <head7>`.
 
 After answering, run `verdict <run>` again on the same run, with no new range.
-`start` refuses a new range on top of a run with open asks and names the next command.
+`start` refuses a new range, or `local`, above the newest ancestor run with no verdict, INCOMPLETE,
+or 0 fix and an open ask (same head too for `local`).
+`--patch` runs never block `start` or carry answers; runs whose heads are no longer ancestors after
+a rebase or amend are skipped.
 `answers-before.md` is history only; copy an answer into `answers.md` to use it in this run.
 
 ## Rule files
