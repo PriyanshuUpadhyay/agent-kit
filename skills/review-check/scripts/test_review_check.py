@@ -793,6 +793,15 @@ def test_cli_encoding():
             assert "return '合意'" in (next_run / "head/util.py").read_text(encoding="utf-8")
         finally:
             os.chdir(previous)
+def test_rust_function_range():
+    """universal-ctags gives a Rust fn no end line, so the unit must still span the whole body,
+    or a pass row that quotes a body line fails its quote check."""
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / "notice.rs"
+        src.write_text('fn waiting_notice(new: &str) -> Option<String> {\n'
+                       '    if new != "waiting" {\n        return None;\n    }\n'
+                       '    Some(format!("{} needs you", new))\n}\n\nfn other() {}\n')
+        assert ("waiting_notice", 1, 6) in rc.functions(src), rc.functions(src)
 
 
 def test_catalog():
@@ -827,6 +836,7 @@ def test_fixtures():
 
 
 if __name__ == "__main__":
+    test_rust_function_range()
     test_catalog()
     test_fixtures()
     with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as home:

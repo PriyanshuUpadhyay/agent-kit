@@ -57,6 +57,7 @@ the git common dir (`git rev-parse --git-common-dir`), not the worktree folder n
 The flow is a step run, so the kit's `references/step-run.md` owns the status line, the `Uses:`
 line, pick-up, close, and when a step waits for the user. The step table below is the step graph that
 the script reads. The revision of `05-build` is `HEAD`, so a new commit makes `06-review` stale.
+`start` marks `05-build.md` with the `Revision: HEAD` line that step-run.md describes.
 
 ## Steps
 

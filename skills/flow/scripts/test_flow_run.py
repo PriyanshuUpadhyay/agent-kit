@@ -39,6 +39,13 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "Branch: main" in (folder / "01-frame.md").read_text()
     assert "Take with:" in (folder / "05-build.md").read_text()
     assert "/tmp/" in (repo / ".git" / "info" / "exclude").read_text()
+    # The folder carries its step graph on each Uses line, and 05-build names its revision rule,
+    # so a reader without this script (the Swarm app) can draw the graph and judge stale.
+    uses = {p.stem: p.read_text().splitlines()[1] for p in folder.glob("0*.md")}
+    assert uses["01-frame"] == "Uses:" and uses["04-impact"] == "Uses: 03-contracts", uses
+    assert uses["05-build"] == "Uses: 04-impact, 02-design" and uses["07-close"] == "Uses: 06-review", uses
+    assert "\nRevision: HEAD\n" in (folder / "05-build.md").read_text()
+    assert "Revision:" not in (folder / "06-review.md").read_text()
 
     blocked = run("take", folder, "05-build")
     assert blocked.returncode != 0 and "needs 04-impact, 02-design" in blocked.stderr

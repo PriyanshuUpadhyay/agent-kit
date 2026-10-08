@@ -12,10 +12,11 @@ only a path often does not open it (Sonnet workers opened 0 of 4 pointer skills,
 2026-10-05), and every agent reads the step file it works on, on every provider. `take` prints them
 again.
 
-The step graph is the step table in ../SKILL.md, and the kit's references/step_run.py owns status,
-ready, stale, take, done, and events.log. This script adds the flow rules: the revision of 05-build is
-HEAD, take 04-impact lists the places that name the contracts' code names, and take 07-close needs the
-review-check run's own APPROVE verdict on HEAD.
+The step graph is the step table in ../SKILL.md. `start` writes the need names and marks 05-build.md
+with `Revision: HEAD`, as references/step-run.md describes. The kit's references/step_run.py
+owns status, ready, stale, take, done, and events.log. This script adds the flow rules: the revision
+of 05-build is HEAD, take 04-impact lists the places that name the contracts' code names, and take
+07-close needs the review-check run's own APPROVE verdict on HEAD.
 """
 
 import datetime
@@ -93,11 +94,13 @@ def start():
         print(f"note: could not add /tmp/ to {exclude}: {error}", file=sys.stderr)
     if not folder.exists():
         folder.mkdir(parents=True)
-        for step in graph():
+        for step, need in graph().items():
             extra = f"Worktree: {root}\nBranch: {branch}\n" if step == "01-frame" else ""
+            extra += "Revision: HEAD\n" if step == "05-build" else ""  # the rule in rev(), for readers without this script
+            uses = f"Uses: {', '.join(need)}".rstrip()
             paths = skill_paths(step)
             (folder / f"{step}.md").write_text(
-                f"Status: open\nUses:\n{extra}Take with: python3 {Path(__file__).resolve()} take {folder} {step} <agent>\n"
+                f"Status: open\n{uses}\n{extra}Take with: python3 {Path(__file__).resolve()} take {folder} {step} <agent>\n"
                 f"Skills read: {', '.join(paths) or 'none'}\n\n{RULES_HEAD}\n{skills_text(paths)}\n"
                 f"{TODO_HEAD}\n" + "".join(f"- [ ] {item}: \n" for item in TODOS[step]) + f"\n{RESULT_HEAD}\n")
     print(folder)
