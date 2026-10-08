@@ -144,17 +144,18 @@ def test_answers():
             sh("git", "config", "user.email", "t@t")
             sh("git", "config", "user.name", "t")
             base = commit({"util.py": "def helper():\n    return 1\n"}, "answer base")
-            head = commit({"util.py": "def helper():\n    return 2\n"}, "answer change")
+            source_with_separator = 'x = f("`: ", 1)'
+            head = commit({"util.py": f"def helper():\n    return 2\n    {source_with_separator}\n"}, "answer change")
             rc.start(f"{base}..{head}")
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
             assert json.loads((run / "target.json").read_text())["patch"] is False
 
-            def ask(run, quote):
+            def ask(run, quote, line=2):
                 checklist = json.loads((run / "checklist.json").read_text())
                 uid, checks = next(iter(checklist.items()))
                 rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `{quote}` | n/a | | "
                      "the test code has no case these rules name |",
-                     f"| {uid} | - | util.py:2 | `{quote}` | ask | may change a caller | caller expects 1 |")
+                     f"| {uid} | - | util.py:{line} | `{quote}` | ask | may change a caller | caller expects 1 |")
 
             ask(run, "return 2")
             answer = "- util.py `return 2`: user approved the return value in the contract\n"
@@ -178,6 +179,15 @@ def test_answers():
             assert "[31mmay change a caller" in output.getvalue()
             assert escaped_problem in (run / "03-verdict.md").read_text(), "the verdict file must keep the exact row text"
             ask(run, "return 2")
+            control_problem = "\x7fmay\x85 change a caller"
+            review.write_text(review.read_text().replace("may change a caller", control_problem))
+            output = StringIO()
+            with redirect_stdout(output):
+                assert rc.verdict(run.name) == 0, "C1 controls inside a row must not split the row"
+            assert "\x7f" not in output.getvalue() and "\x85" not in output.getvalue(), "terminal output must remove DEL and C1 controls"
+            assert "may change a caller" in output.getvalue()
+            assert control_problem in (run / "03-verdict.md").read_text(), "the verdict file must keep DEL and C1 controls"
+            ask(run, "return 2")
 
             (run / "answers.md").write_text("- util.py `return 2`: user approved `helper`: returns 2\n")
             assert rc.verdict(run.name) == 0
@@ -185,17 +195,76 @@ def test_answers():
             assert verdict.splitlines()[2].startswith("Verdict: APPROVE"), "answer code followed by a colon must close the ask"
             assert "Answered: util.py `return 2` closes 1 asks" in verdict, verdict
 
+            ask(run, source_with_separator, 3)
+            source_answer = f"- util.py `{source_with_separator}`: user approved the separator in the contract\n"
+            (run / "answers.md").write_text(source_answer)
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert "0 fix, 0 ask, 0 note, 1 answered" in verdict, "a source separator must not leave the ask open"
+            assert verdict.count("Answered:") == 1, "alternatives belong to one answer line"
+            assert f"Answered: util.py `{source_with_separator}` closes 1 asks" in verdict, verdict
+            (run / "answers.md").unlink()
+            (run / "answers-before.md").write_text(source_answer)
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert verdict.count("History:") == 1 and f"History: util.py `{source_with_separator}`: user approved" in verdict, verdict
+            (run / "answers-before.md").unlink()
+            ask(run, "return 2")
+            (run / "answers.md").write_text("- util.py `return 2`: user approved `helper`: ok\n")
+            assert rc.verdict(run.name) == 0, "only the matched answer text gets the GENERIC check"
+            verdict = (run / "03-verdict.md").read_text()
+            assert "answer: user approved `helper`: ok" in verdict, verdict
+            (run / "answers.md").write_text("- other.py `return 2`: user approved `helper`: ok\n")
+            assert rc.verdict(run.name) == 1, "an unmatched line checks its shortest answer text"
+            verdict = (run / "03-verdict.md").read_text()
+            assert "Answered: other.py `return 2` closes 0 asks" in verdict, "unmatched lines display the first quote"
+
             unicode_answer = "- util.py `return 2`: user approved the value — 合意\n"
             (run / "answers.md").write_text(unicode_answer, encoding="utf-8")
             read_text = Path.read_text
 
             def ascii_default(path, *args, **kwargs):
-                kwargs.setdefault("encoding", "ascii")
+                kwargs.setdefault("encoding", "utf-8" if path.is_relative_to(HERE.parent / "references") else "ascii")
                 return read_text(path, *args, **kwargs)
 
+            write_text = Path.write_text
+            written_encodings = {}
+
+            def ascii_write(path, text, *args, **kwargs):
+                written_encodings[path.name] = kwargs.get("encoding")
+                kwargs.setdefault("encoding", "ascii")
+                return write_text(path, text, *args, **kwargs)
+
             with patch.object(Path, "read_text", ascii_default):
-                assert rc.answers(run / "answers.md") == [("util.py", "return 2", "user approved the value — 合意")]
+                assert rc.answers(run / "answers.md") == [[("util.py", "return 2", "user approved the value — 合意")]]
                 assert rc.revision(run / "answers.md") == rc.hashlib.sha1(unicode_answer.encode("utf-8")).hexdigest()[:12]
+            originals = {}
+            for filename in ("01-units.md", "diff.patch", "02-review.md", "units.json", "checklist.json", "target.json"):
+                file = run / filename
+                originals[filename] = file.read_text(encoding="utf-8")
+                text = originals[filename]
+                if filename.endswith(".json"):
+                    value = json.loads(text)
+                    if filename == "units.json":
+                        value[0]["symbol"] += " — 合意"
+                    elif filename == "checklist.json":
+                        next(iter(value.values()))["note"] = "合意"
+                    else:
+                        value["note"] = "合意"
+                    text = json.dumps(value, ensure_ascii=False)
+                else:
+                    text += "# 合意\n"
+                file.write_text(text, encoding="utf-8")
+            original_source = Path("util.py").read_text()
+            Path("util.py").write_text("def helper():\n    return 3\n")
+            with patch.object(Path, "read_text", ascii_default), patch.object(Path, "write_text", ascii_write):
+                assert rc.verdict(run.name) == 0
+                assert "合意" in (run / "03-verdict.md").read_text(encoding="utf-8")
+                rc.start("local")
+            assert written_encodings["03-verdict.md"] == written_encodings["target.json"] == "utf-8"
+            Path("util.py").write_text(original_source)
+            for filename, text in originals.items():
+                (run / filename).write_text(text, encoding="utf-8")
 
             for text in ("ok", "fix: ok", "Fix: ok", "FIX: ok", "fix:ok", "fix:", "FIX:   ", " Fix: ok. "):
                 (run / "answers.md").write_text(f"- util.py `return 2`: {text}\n")
@@ -333,9 +402,135 @@ def test_answers():
             (same_head / "answers.md").write_text(same_head_answer)
             assert rc.verdict(same_head.name) == 0
             assert "Verdict: APPROVE" in (same_head / "03-verdict.md").read_text()
+            try:
+                rc.start("local")
+                raise AssertionError("local must also check an older run at the same head")
+            except SystemExit as e:
+                assert after_patch.name in str(e), e
+            (after_patch / "answers.md").write_text(same_head_answer)
+            assert rc.verdict(after_patch.name) == 0
+            rc.start("local")
+            local = Path("tmp/review-check/local-02")
+            assert (local / "answers-before.md").read_text() == same_head_answer
+        finally:
+            os.chdir(previous)
+
+
+def test_merge_guard():
+    """Every ancestor review must pass the guard, even when a deeper branch is approved."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "def helper():\n    return 1\n"}, "merge base")
+            sh("git", "switch", "-qc", "side")
+            side = commit({"util.py": "def helper():\n    return 2\n"}, "side change")
+            rc.start(f"{base}..{side}")
+            side_run = Path("tmp/review-check") / f"range-{base[:7]}-{side[:7]}-01"
+
+            def review(run, quote, *extra):
+                checklist = json.loads((run / "checklist.json").read_text())
+                rows(run, *(f"| {uid} | {', '.join(c['rules']) or '-'} | x | `{quote}` | n/a | | "
+                            "the test code has no case these rules name |" for uid, c in checklist.items()), *extra)
+                assert rc.verdict(run.name) == 0
+
+            review(side_run, "return 2", "| u1 | - | util.py:2 | `return 2` | ask | may change a caller | caller expects 1 |")
+            open_verdict = (side_run / "03-verdict.md").read_text()
+            assert "0 fix, 1 ask" in open_verdict
+            sh("git", "switch", "-q", "main")
+            commit({"main.py": "value = 1\n"}, "main first")
+            main_head = commit({"main.py": "value = 2\n"}, "main second")
+            rc.start(f"{base}..{main_head}")
+            main_run = Path("tmp/review-check") / f"range-{base[:7]}-{main_head[:7]}-01"
+            review(main_run, "value = 2")
+            assert "Verdict: APPROVE" in (main_run / "03-verdict.md").read_text()
+            carry = "- main.py `value = 2`: user approved the main value in the contract\n"
+            (main_run / "answers.md").write_text(carry)
+            sh("git", "merge", "--no-ff", "-qm", "merge side", "side")
+            merged = sh("git", "rev-parse", "HEAD")
+            folders = set(Path("tmp/review-check").iterdir())
+            for prior_verdict in (open_verdict, None, "Status: blocked gate failed\nUses:\nVerdict: INCOMPLETE\n"):
+                result = side_run / "03-verdict.md"
+                if prior_verdict is None:
+                    result.unlink()
+                else:
+                    result.write_text(prior_verdict)
+                for target in (f"{main_head}..{merged}", "local"):
+                    try:
+                        rc.start(target)
+                        raise AssertionError("the open side-branch run must block the merge review")
+                    except SystemExit as e:
+                        assert side_run.name in str(e), e
+                    assert set(Path("tmp/review-check").iterdir()) == folders
+            review(side_run, "return 2")
+            rc.start(f"{main_head}..{merged}")
+            merge_run = Path("tmp/review-check") / f"range-{main_head[:7]}-{merged[:7]}-01"
+            assert (merge_run / "answers-before.md").read_text() == carry, "the deepest run still owns carry-forward"
+        finally:
+            os.chdir(previous)
+
+
+def test_same_head_carry():
+    """Creation time selects carry-forward when different bases share one head."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            first = commit({"util.py": "def helper():\n    return 1\n"}, "carry base")
+            sh("git", "commit", "--allow-empty", "-qm", "second base")
+            second = sh("git", "rev-parse", "HEAD")
+            head = commit({"util.py": "def helper():\n    return 2\n"}, "carry head")
+            older_base, newer_base = sorted((first, second), reverse=True)
+
+            def run_for(base):
+                rc.start(f"{base}..{head}")
+                run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+                checklist = json.loads((run / "checklist.json").read_text())
+                uid, checks = next(iter(checklist.items()))
+                rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `return 2` | n/a | | "
+                     "the test code has no case these rules name |",
+                     f"| {uid} | - | util.py:2 | `return 2` | ask | may change a caller | caller expects 1 |")
+                assert rc.verdict(run.name) == 0
+                return run
+
+            older = run_for(older_base)
+            assert "0 fix, 1 ask" in (older / "03-verdict.md").read_text()
+            newer = run_for(newer_base)
+            newer_answer = "- util.py `return 2`: user approved the value in the newer review\n"
+            (newer / "answers.md").write_text(newer_answer)
+            assert rc.verdict(newer.name) == 0
+            (older / "answers.md").write_text("- util.py `return 2`: user approved the value in the older review\n")
+            assert rc.verdict(older.name) == 0
+            os.utime(older / "target.json", (1000, 1000))
+            os.utime(newer / "target.json", (2000, 2000))
+            os.utime(older, (3000, 3000))
+            Path("util.py").write_text("def helper():\n    return 3\n")
             rc.start("local")
             local = Path("tmp/review-check/local-01")
-            assert (local / "answers-before.md").read_text() == same_head_answer
+            assert (local / "answers-before.md").read_text() == newer_answer, "carry-forward must use the newer target.json"
+
+            Path("合意.py").write_text("value = 1\n", encoding="utf-8")
+            sh("git", "config", "core.quotepath", "false")
+            write_text = Path.write_text
+            encodings = {}
+
+            def ascii_write(path, text, *args, **kwargs):
+                encodings[path.name] = kwargs.get("encoding")
+                kwargs.setdefault("encoding", "ascii" if path.name in ("01-units.md", "02-review.md") else "utf-8")
+                return write_text(path, text, *args, **kwargs)
+
+            with patch.object(Path, "write_text", ascii_write):
+                rc.start("local")
+            assert encodings["01-units.md"] == encodings["02-review.md"] == "utf-8"
+            unicode_run = Path("tmp/review-check/local-02")
+            assert "合意.py" in (unicode_run / "01-units.md").read_text(encoding="utf-8")
+            assert rc.revision(unicode_run / "02-review.md")
         finally:
             os.chdir(previous)
 
@@ -383,4 +578,6 @@ if __name__ == "__main__":
         main()
         test_build_gate()
         test_answers()
+        test_merge_guard()
+        test_same_head_carry()
     print("ok")

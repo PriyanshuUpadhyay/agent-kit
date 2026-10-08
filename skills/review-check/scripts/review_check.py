@@ -262,9 +262,11 @@ def start(target, *opts):
             if before and (before == (head or base) or subprocess.run(
                     ["git", "merge-base", "--is-ancestor", before, head or base], capture_output=True).returncode == 0):
                 prior.append((target_file.parent, before))
-        prior.sort(key=lambda item: (int(git("rev-list", "--count", item[1])), item[0].name), reverse=True)
-        previous = next((folder for folder, before in prior if target == "local" or before != head), None)
-        if previous:
+        prior.sort(key=lambda item: (int(git("rev-list", "--count", item[1])),
+                                     (item[0] / "target.json").stat().st_mtime), reverse=True)
+        for previous, before in prior:
+            if target != "local" and before == head:
+                continue
             result = previous / "03-verdict.md"
             lines = result.read_text(encoding="utf-8").splitlines() if result.exists() else []
             counts = re.search(r"; (\d+) fix, (\d+) ask", lines[2]) if len(lines) > 2 else None
@@ -296,7 +298,7 @@ def start(target, *opts):
     ci = ci_of(rules)
     cfg = lint_config(ci, head)
     (d / "target.json").write_text(json.dumps({"target": target, "base": base, "head": head, "ci": ci,
-                                             "patch": is_patch}, indent=2) + "\n")
+                                             "patch": is_patch}, indent=2) + "\n", encoding="utf-8")
     diff = parse_diff(patch)
     checklist = {}
     for u in units:
@@ -331,10 +333,10 @@ def start(target, *opts):
             *(f"| {u['id']} | `{u['file']}` | `{u['symbol']}` | {u['range'][0]}-{u['range'][1]} | {len(u['lines'])} "
               f"| {len(checklist[u['id']]['rules'])} |" for u in units)]
     rest = "Uses:\n" + "\n".join(body) + "\n"
-    (d / "01-units.md").write_text(f"Status: done {hashlib.sha1(rest.encode()).hexdigest()[:12]}\n{rest}")
+    (d / "01-units.md").write_text(f"Status: done {hashlib.sha1(rest.encode()).hexdigest()[:12]}\n{rest}", encoding="utf-8")
     (d / "02-review.md").write_text(
         f"Status: open\nUses: 01-units@{revision(d / '01-units.md')}\n\n"
-        "| Unit | Rule | file:line | Quote | Kind | Problem | Proof |\n|---|---|---|---|---|---|---|\n")
+        "| Unit | Rule | file:line | Quote | Kind | Problem | Proof |\n|---|---|---|---|---|---|---|\n", encoding="utf-8")
     print(d)
 
 
@@ -382,7 +384,7 @@ def build(name, *opts):
 def rows(d):
     out = []
     for f in sorted(d.glob("02-review*.md")):
-        for line in f.read_text().splitlines():
+        for line in f.read_text(encoding="utf-8").split("\n"):
             if re.match(r"\|\s*u\d+\s*\|", line):
                 cells = [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", line)[1:-1]]
                 out.append((f.name, cells))
@@ -390,29 +392,29 @@ def rows(d):
 
 
 def answers(path):
-    return [m.groups() for line in path.read_text(encoding="utf-8").splitlines()
-            if (m := re.match(r"^\s*- (.+?) `(.+?)`: ?(.*)$", line))] if path.exists() else []
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
+        if m := re.match(r"^\s*- (.+?) `(.*)$", line):
+            file, text = m.groups()
+            alternatives = [(file, text[:split.start()], text[split.end():])
+                            for split in re.finditer(r"`: ?", text) if split.start()]
+            if alternatives:
+                out.append(alternatives)
+    return out
 
 
 def verdict(name):
     d = home() / name
-    units = {u["id"]: u for u in json.loads((d / "units.json").read_text())}
-    diff = parse_diff((d / "diff.patch").read_text())
-    rules = re.search(r"^Rules: (.*)$", (d / "01-units.md").read_text(), re.M).group(1)
-    checklist = json.loads((d / "checklist.json").read_text())
-    t = json.loads((d / "target.json").read_text()) if (d / "target.json").exists() else {"ci": None}
+    units = {u["id"]: u for u in json.loads((d / "units.json").read_text(encoding="utf-8"))}
+    diff = parse_diff((d / "diff.patch").read_text(encoding="utf-8"))
+    rules = re.search(r"^Rules: (.*)$", (d / "01-units.md").read_text(encoding="utf-8"), re.M).group(1)
+    checklist = json.loads((d / "checklist.json").read_text(encoding="utf-8"))
+    t = json.loads((d / "target.json").read_text(encoding="utf-8")) if (d / "target.json").exists() else {"ci": None}
     problems, seen, kept, done = [], set(), [], {uid: set() for uid in units}
     replied = answers(d / "answers.md")
     past, history = answers(d / "answers-before.md"), []
     closed = [0] * len(replied)
-    normalized = []
-    for path, quote, answer in replied:
-        text = answer.strip()
-        is_fix = text.lower().startswith("fix:")
-        body = text[4:].strip() if is_fix else text
-        normalized.append((text, is_fix))
-        if body.lower().strip(". ") in GENERIC:
-            problems.append(f"answers.md {path} `{quote}`: an answer needs a record the user approved or a failing test")
+    selected = [alternatives[0] for alternatives in replied]
     built = "none"
     if t["ci"]:  # the build must pass even with no tool IDs, because a missing import breaks no rule ID
         b = json.loads((d / "build.json").read_text()) if (d / "build.json").exists() else None
@@ -456,8 +458,9 @@ def verdict(name):
             at = re.search(r":(\d+)(?:-(\d+))?", loc)
             new = diff.get(path, {}).get("new", {})
             new_lines = [new[n] for n in range(int(at.group(1)), int(at.group(2) or at.group(1)) + 1) if n in new] if at else []
-            matches = [i for i, (file, line, _) in enumerate(replied)
-                       if file == path and any(line == source.strip() for source in new_lines)] if kind == "ask" else []
+            matches = [(i, match) for i, alternatives in enumerate(replied)
+                       if (match := next((alt for alt in alternatives if alt[0] == path
+                                          and any(alt[1] == source.strip() for source in new_lines)), None))] if kind == "ask" else []
             scope = new_lines + diff.get(path, {}).get("removed", [])
         if not any(quote in line for line in scope):
             where = "in the unit" if kind in ("pass", "n/a") else f"at {loc.strip('`')} or in code removed from {path}"
@@ -468,18 +471,32 @@ def verdict(name):
         if kind in ("fix", "ask", "note"):
             problem = f"{rule}: {problem}" if ids else problem
             if kind == "ask" and not matches:
-                history += [f"History: {file} `{line}`: {answer}" for file, line, answer in past
-                            if file == path and any(line == source.strip() for source in new_lines)]
+                for alternatives in past:
+                    match = next((alt for alt in alternatives if alt[0] == path
+                                  and any(alt[1] == source.strip() for source in new_lines)), None)
+                    if match:
+                        file, line, answer = match
+                        history.append(f"History: {file} `{line}`: {answer}")
             if kind == "ask" and matches:
-                for i in matches:
+                normalized = []
+                for i, match in matches:
                     closed[i] += 1
-                answer, is_fix = next((normalized[i] for i in matches if normalized[i][1]), normalized[matches[0]])
+                    selected[i] = match
+                    text = match[2].strip()
+                    normalized.append((text, text.lower().startswith("fix:")))
+                answer, is_fix = next((item for item in normalized if item[1]), normalized[0])
                 kind = "fix" if is_fix else "answered"
                 if kind == "fix":
                     problem = answer
                 else:
                     proof = answer
             kept.append((uid, loc, quote, kind, problem, proof))
+    for alternatives, match, n in zip(replied, selected, closed):
+        path, quote, answer = match if n else min(alternatives, key=lambda alt: len(alt[2]))
+        text = answer.strip()
+        body = text[4:].strip() if text.lower().startswith("fix:") else text
+        if body.lower().strip(". ") in GENERIC:
+            problems.append(f"answers.md {path} `{quote}`: an answer needs a record the user approved or a failing test")
     problems += [f"{uid}: no row ({u['file']} {u['symbol']})" for uid, u in units.items() if uid not in seen]
     missing = {uid: [r for r in checklist[uid]["rules"] if r not in done[uid]] for uid in units}
     problems += [f"{uid}: no result for {', '.join(m)}" for uid, m in missing.items() if m]
@@ -499,11 +516,11 @@ def verdict(name):
     body = [line3, "", *(f"- {p}" for p in problems),
             *(f"- {k} `{loc}` {problem} ({'answer' if k == 'answered' else 'proof'}: {proof})"
               for _, loc, _, k, problem, proof in kept),
-            *(f"Answered: {path} `{quote}` closes {n} asks" for (path, quote, _), n in zip(replied, closed)), *history]
+            *(f"Answered: {path} `{quote}` closes {n} asks" for (path, quote, _), n in zip(selected, closed)), *history]
     rest = f"Uses: {uses}\n" + "\n".join(body) + "\n"
     rev = f" {hashlib.sha1(rest.encode()).hexdigest()[:12]}" if status == "done" else ""
-    (d / "03-verdict.md").write_text(f"Status: {status}{rev}\n{rest}")
-    print(*(re.sub(r"[\x00-\x08\x0b-\x1f]", "", line) for line in body if line), sep="\n")
+    (d / "03-verdict.md").write_text(f"Status: {status}{rev}\n{rest}", encoding="utf-8")
+    print(*(re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "", line) for line in body if line), sep="\n")
     return 1 if problems else 0
 
 
