@@ -117,14 +117,17 @@ or an open objection, not a ritual.
 
 ### Rounds 2–3 — cross-examination
 
-Run only when the convergence check fails. Send each voice the other two voices' latest positions. Ask it to address them by name, concede where
+Run only when the convergence check fails. Round 2 and 3 asks send only the other seats' latest
+position files and the list of points still split, never the brief again. After each round, the
+chair writes settled points as `Resolved:` lines in `03-cross.md`. Each next ask names them as
+settled, not to be re-argued. Ask each voice to address the other positions by name, concede where
 they are right, refute with evidence where wrong, and restate its current verdict plus strongest
 reason. Every CONCEDED and REFUTED bullet must cite a file:line inside the pinned coordinates or a
 URL; the chair rejects an artifact whose concession or refutation has no citation and re-prompts
 the seat once for the citation. Preserve each provider's own thread/conversation continuity.
 
 Stop as soon as all three share a verdict bucket and no unresolved objection remains. After round 3,
-present the split and ask the user to break the tie. Do not manufacture consensus.
+present the split and ask the user to break the tie. Send no fourth round. Do not manufacture consensus.
 
 ## Output
 

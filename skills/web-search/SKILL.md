@@ -157,7 +157,9 @@ After collect accepts the artifacts:
 1. Apply the depth gate. Reject a report whose findings are all on the known list, that stops at
    "nothing found" without the searches tried, that is under the floor, that calls a site blocked
    without a blocked log, or whose matrix leaves a sub-question with no sources and no gap note. Send that seat back once with the Depth section
-   quoted, accept what it returns, and say so in the coverage table. Mark "(unverified)" and drop
+   quoted, accept what it returns, and say so in the coverage table. Record `sent back: <seat> 1`
+   in `03-gate.md` and read that line before any resend, so a seat is never sent back twice.
+   Mark "(unverified)" and drop
    from the answer any finding whose only evidence is a homepage or that repeats the brief's seed
    words without a page that says them.
 2. Check every link as the link check in `research` says. Mark a link only a seat could open as

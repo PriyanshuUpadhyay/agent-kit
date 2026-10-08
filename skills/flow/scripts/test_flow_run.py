@@ -80,12 +80,24 @@ with tempfile.TemporaryDirectory() as tmp:
     assert run("done", folder, "05-build").returncode == 0 and f.read_text().startswith(f"Status: done {head[:12]}\n")
 
     # Close needs the review-check run's own APPROVE verdict on the current head.
-    assert run("take", folder, "06-review", "a").returncode == 0
+    out = run("take", folder, "06-review", "a")
+    assert out.returncode == 0 and "bring the open rows" not in out.stdout
+    r = folder / "06-review.md"
+    review_text = r.read_text()
+    for count in (1, 2, 3):
+        r.write_text(review_text + "".join(f"Run: tmp/review-check/range-{i}\n" for i in range(count)))
+        out = run("take", folder, "06-review", "a")
+        assert out.returncode == 0, out.stderr
+        warning = f"06-review already lists {count} runs; bring the open rows to the user before a new range"
+        assert out.stdout.splitlines().count(warning) == (1 if count >= 2 else 0)
+        if count < 2:
+            assert "bring the open rows" not in out.stdout
+        assert r.read_text().startswith("Status: active a\n")
+    r.write_text(review_text)
     review = Path(repo, "tmp", "review-check", "range-1")
     review.mkdir(parents=True)
     (review / "target.json").write_text(json.dumps({"head": head}))
     (review / "03-verdict.md").write_text("Status: done x\nUses:\nVerdict: REQUEST CHANGES (1 of 1 units; 1 fix)\n")
-    r = folder / "06-review.md"
     fill(r)
     assert run("done", folder, "06-review").returncode == 0
     assert "needs a `Run:" in run("take", folder, "07-close", "a").stderr

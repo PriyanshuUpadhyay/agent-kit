@@ -14,6 +14,7 @@ Research is a step run, so the kit's `references/step-run.md` owns the status li
 close, and when a step waits for the user. "research <question>" starts a run in
 `~/.claude/reports/<YYYY-MM-DD>-<slug>/`. "research continue <folder>" picks it up. Make the folder with
 `python3 <kit>/references/step_run.py start <folder> <this SKILL.md>`, and close each step with `done`.
+The web step file keeps a `Fetched:` list of URLs. "research continue" skips URLs on that list.
 
 | File | Needs | Holds |
 |---|---|---|

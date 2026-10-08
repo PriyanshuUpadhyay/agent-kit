@@ -144,6 +144,10 @@ def take(folder, step, who="agent"):
     if not step_run.ready(folder, step, need):
         waiting = [u for u in need if status_of(folder, u).split()[0] not in ("done", "skipped")]
         raise SystemExit(f"{step} is not ready; it needs {', '.join(waiting)}")
+    if step == "06-review":
+        runs = len(re.findall(r"^Run:", (Path(folder) / "06-review.md").read_text(), re.M))
+        if runs >= 2:
+            print(f"06-review already lists {runs} runs; bring the open rows to the user before a new range")
     if step == "07-close":
         approved(folder)
     if step == "04-impact":

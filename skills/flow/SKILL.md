@@ -74,7 +74,8 @@ the script reads. The revision of `05-build` is `HEAD`, so a new commit makes `0
 and the run's head is `HEAD`. A NEEDS DISCUSSION verdict passes only after the user accepts it, with
 `User accepted: <their words>` in `06-review.md`. A REQUEST CHANGES verdict goes to the user, who starts a `pair` or `deliver` run for the
 findings. That run moves the build revision, so the review is stale and runs again on the new
-range.
+range. Answer each `ask` in the run's `answers.md` per review-check's Asks section, and stop
+and ask the user at the third run on this step.
 
 At close, move the folder to `<repo-root>/tmp/flow/_closed/<folder>/`. Release is a separate action
 that the user asks for.

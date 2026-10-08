@@ -37,7 +37,10 @@ only the user can give.
    `06-review.md`, because it covers the build range. Then print the flow's `Next:` line for the
    close step.
 6. Stop only when the predicate is met and the review has no `fix` row, or when blocked on
-   user input. A plateau is not a stop,
+   user input. After three review rounds that still return `fix` rows, stop and bring the rows
+   to the user with their weight (crash, wrong state, or hygiene), and let the user choose to
+   go on or to record them as known limits. Read earlier accepted limits from the run's
+   `answers-before.md`, never from prose. A plateau is not a stop,
    so change the approach. A genuine dead end is reported with the evidence, not spun on. Never
    relax the predicate to declare victory.
 
