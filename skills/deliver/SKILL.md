@@ -31,7 +31,9 @@ only the user can give.
    status block.
 5. When the predicate holds, run `review-check` on `<base>..HEAD`, where `<base>` is the commit
    before this run's first commit. Fix each `fix` row in one more iteration, then review the
-   new range. In a flow, you also hold the review step, and the last verdict goes in
+   new range. Handle each `ask` as review-check's Asks section says: answer-only work keeps
+   HEAD and the range fixed, then run `verdict` again on the same run. In a flow, you also hold
+   the review step, and the last verdict goes in
    `06-review.md`, because it covers the build range. Then print the flow's `Next:` line for the
    close step.
 6. Stop only when the predicate is met and the review has no `fix` row, or when blocked on
