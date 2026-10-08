@@ -111,6 +111,13 @@ Answers carry from the deepest ancestor run, newest first on a tie.
 a rebase or amend are skipped.
 `answers-before.md` is history only; copy an answer into `answers.md` to use it in this run.
 
+Known limits, accepted by the user on 2026-10-09 (review run range-01cdecf-f715957-01): the
+script assumes UTF-8 source and a UTF-8 host. `parse_diff`, `start`, and `verdict` still split
+source on form feed and U+0085, the ctags and CI subprocess output decode by locale, a local run
+reads a changed file as strict UTF-8, a non-ASCII file name needs `core.quotepath=false`, and a
+closed pipe on stdout is not caught. Answers carry only from the deepest ancestor run that has an
+`answers.md`.
+
 ## Rule files
 
 Each rule is one line: ``- `ID` flag → ask. Files: `<glob>, <glob>`. Applies: `<regex>`. Source: …``.
