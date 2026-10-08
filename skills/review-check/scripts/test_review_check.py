@@ -131,6 +131,123 @@ def test_build_gate():
     assert line3.startswith("Verdict: REQUEST CHANGES") and line3.endswith("build: fail)"), line3
 
 
+def test_answers():
+    """Only a whole new line at the ask's location lets an answer close it."""
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            os.chdir(d)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "def helper():\n    return 1\n"}, "answer base")
+            head = commit({"util.py": "def helper():\n    return 2\n"}, "answer change")
+            rc.start(f"{base}..{head}")
+            run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+
+            def ask(run, quote):
+                checklist = json.loads((run / "checklist.json").read_text())
+                uid, checks = next(iter(checklist.items()))
+                rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `{quote}` | n/a | | "
+                     "the test code has no case these rules name |",
+                     f"| {uid} | - | util.py:2 | `{quote}` | ask | may change a caller | caller expects 1 |")
+
+            ask(run, "return 2")
+            answer = "- util.py `return 2`: user approved the return value in the contract\n"
+            (run / "answers.md").write_text(answer)
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert verdict.splitlines()[2].startswith("Verdict: APPROVE"), verdict
+            assert "0 fix, 0 ask, 0 note, 1 answered" in verdict, verdict
+            assert "Answered: util.py `return 2` closes 1 asks" in verdict, verdict
+            assert "- answered `util.py:2` may change a caller (answer: user approved" in verdict, verdict
+            assert f"answers@{rc.revision(run / 'answers.md')}" in verdict.splitlines()[1], verdict
+            approved_uses = verdict.splitlines()[1]
+
+            for text in ("ok", "fix: ok"):
+                (run / "answers.md").write_text(f"- util.py `return 2`: {text}\n")
+                assert rc.verdict(run.name) == 1, "a bare ok is not an answer, even with fix:"
+                verdict = (run / "03-verdict.md").read_text()
+                assert "an answer needs" in verdict and "INCOMPLETE" in verdict, verdict
+                assert approved_uses != verdict.splitlines()[1], "an edit to the first answer line changes Uses"
+
+            for text in ("- util.py `return`: user approved this value\n",
+                         "- other.py `return 2`: user approved this value\n"):
+                (run / "answers.md").write_text(text)
+                assert rc.verdict(run.name) == 0
+                verdict = (run / "03-verdict.md").read_text()
+                assert "NEEDS DISCUSSION" in verdict and "closes 0 asks" in verdict, verdict
+            ask(run, "return 1")
+            (run / "answers.md").write_text("- util.py `return 1`: user approved the old value\n")
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert "NEEDS DISCUSSION" in verdict and "closes 0 asks" in verdict, "removed lines cannot close asks"
+            ask(run, "return 2")
+            with (run / "02-review.md").open("a") as f:
+                f.write("| u1 | - | util.py:2 | `return 2` | ask | another caller | second caller expects 1 |\n")
+            (run / "answers.md").write_text(answer)
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert "2 answered" in verdict and "closes 2 asks" in verdict, verdict
+            ask(run, "return 2")
+            (run / "answers.md").write_text("- util.py `return 2`: fix: test_helper fails at " + head[:7] + "\n")
+            assert rc.verdict(run.name) == 0
+            verdict = (run / "03-verdict.md").read_text()
+            assert verdict.splitlines()[2].startswith("Verdict: REQUEST CHANGES"), verdict
+            assert f"- fix `util.py:2` fix: test_helper fails at {head[:7]} (proof: caller expects 1)" in verdict, verdict
+
+            (run / "answers.md").write_text(answer)
+            assert rc.verdict(run.name) == 0
+            rc.start(f"{base}..{head}")
+            rerun = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-02"
+            assert (rerun / "answers-before.md").read_text() == answer
+            ask(rerun, "return 2")
+            assert rc.verdict(rerun.name) == 0
+            verdict = (rerun / "03-verdict.md").read_text()
+            assert verdict.splitlines()[2].startswith("Verdict: NEEDS DISCUSSION"), verdict
+            assert "History: util.py `return 2`: user approved" in verdict, verdict
+            changed = commit({"util.py": "def helper():\n    return 3\n"}, "answer line changed")
+            Path("util.py").write_text("def helper():\n    return 4\n")
+            folders = set(Path("tmp/review-check").iterdir())
+            result = rerun / "03-verdict.md"
+            open_verdict = result.read_text()
+            for prior_verdict in (None, "Status: blocked gate failed\nUses:\nVerdict: INCOMPLETE\n", open_verdict):
+                if prior_verdict is None:
+                    result.unlink()
+                else:
+                    result.write_text(prior_verdict)
+                for target in (f"{head}..{changed}", "local"):
+                    try:
+                        rc.start(target)
+                        raise AssertionError("a new range above an unfinished review must be refused")
+                    except SystemExit as e:
+                        assert rerun.name in str(e) and "answers.md" in str(e) and f"verdict {rerun.name}" in str(e), e
+                    assert set(Path("tmp/review-check").iterdir()) == folders, "a refused start creates no folder"
+            patch_file = Path("tmp/part.patch")
+            patch_file.write_text(sh("git", "diff", *rc.PLAIN, head, changed) + "\n")
+            rc.start(f"{head}..{changed}", "--patch", str(patch_file))
+            partial = Path("tmp/review-check") / f"range-{head[:7]}-{changed[:7]}-01"
+            assert not (partial / "answers-before.md").exists(), "--patch bypasses guard and carry-forward"
+            ask(partial, "return 3")
+            assert rc.verdict(partial.name) == 0
+            os.utime(partial, (1, 1))  # keep the active ancestor run newest by the contract's folder mtime
+            latest_answer = "- util.py `return 2`: user approved the value in an earlier answer\n"
+            (rerun / "answers.md").write_text(latest_answer)
+            assert rc.verdict(rerun.name) == 0
+            rc.start(f"{head}..{changed}")
+            new_run = Path("tmp/review-check") / f"range-{head[:7]}-{changed[:7]}-02"
+            assert (new_run / "answers-before.md").read_text() == latest_answer
+            ask(new_run, "return 3")
+            (new_run / "answers.md").write_text(answer)
+            assert rc.verdict(new_run.name) == 0
+            verdict = (new_run / "03-verdict.md").read_text()
+            assert verdict.splitlines()[2].startswith("Verdict: NEEDS DISCUSSION"), verdict
+            assert "Answered: util.py `return 2` closes 0 asks" in verdict, verdict
+            assert "History:" not in verdict, verdict
+        finally:
+            os.chdir(previous)
+
+
 def test_catalog():
     """Rule IDs are unique, every regex compiles, and every `Check:` has bad, good, and exception fixtures."""
     catalog = rc.load_rules(sorted((HERE.parent / "references").glob("lens*.md")))
@@ -173,4 +290,5 @@ if __name__ == "__main__":
         sh("git", "config", "user.name", "t")
         main()
         test_build_gate()
+        test_answers()
     print("ok")

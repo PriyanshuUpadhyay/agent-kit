@@ -52,7 +52,9 @@ is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` descr
 | `target.json` | script | base, head, and the repo's `CI:` line |
 | `build.json` | script | the CI result for the head, or the `--run` result for the tree |
 | `02-review.md` | reviewer | one or more rows for each unit |
-| `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix>, <ask>, <note>; rules: <file>; build: pass\|fail\|none)`, then each gap or kept row |
+| `answers.md` | chair or user | answers for this run, with a file and a whole trimmed source line |
+| `answers-before.md` | script | answers from a prior run, for history only |
+| `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix> fix, <ask> ask, <note> note, <answered> answered; rules: <file>; build: pass\|fail\|none)`, then each gap or kept row |
 
 `head/` holds the new version of each changed file. Read full functions there, not in a checkout
 that can move.
@@ -77,6 +79,7 @@ Write each row as `| unit | rule | file:line | quote | kind | problem | proof |`
   in this hunk"), `fix` (a proved defect or a rule break), `ask` (a question, or a defect that is
   not proved), or `note` (optional cleanup). An unproved defect is an `ask`, never a `fix`. Start
   its problem with "potential issue, not confirmed:" and name the input that would trigger it.
+  The script sets `answered` when an answer closes an `ask`; a seat never writes that kind.
 - `quote` is an exact part of one line. A `pass` or `n/a` quotes a line of its unit. Other kinds
   quote the new line that `file:line` names, or a line the diff removed from that file.
 - `proof` names the input, caller, or rule text that triggers the problem. For a `pass`, it names
@@ -84,8 +87,25 @@ Write each row as `| unit | rule | file:line | quote | kind | problem | proof |`
   says why the rule cannot apply. A bare "ok" fails the gate in every kind of row.
 - Escape a `|` inside a cell as `\|`.
 
-Any `fix`, or a failed build, gives REQUEST CHANGES. Else any `ask` gives NEEDS DISCUSSION. Else
-the verdict is APPROVE.
+`verdict` owns the verdict word and prints it.
+
+## Asks
+
+An `ask` is answered. Never change code for an `ask` inside a review loop. Write one answer per
+line in `<run>/answers.md` with this shape:
+
+```text
+- <file> `<whole trimmed source line>`: <answer>
+```
+
+The user closes an `ask`. The chair may close one only by citing a record the user approved,
+such as the frame's done-when, contracts, an ADR, or an earlier user answer.
+Anyone may turn an `ask` into a `fix` with a failing test. Write the answer as
+`fix: <test> fails at <head7>`.
+
+After answering, run `verdict <run>` again on the same run, with no new range.
+`start` refuses a new range on top of a run with open asks and names the next command.
+`answers-before.md` is history only; copy an answer into `answers.md` to use it in this run.
 
 ## Rule files
 
