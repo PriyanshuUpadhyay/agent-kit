@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -660,13 +661,19 @@ def assert_ascii_locale():
 
 
 def test_block_ascii_locale(tmp):
-    """start writes the UTF-8 block text (`…` in web-ui-basics) and catalog skill text under an ASCII locale."""
+    """start reads domains.md, profile.md, the block text (`…` in web-ui-basics), and catalog skill text as
+    UTF-8 under an ASCII locale."""
     assert_ascii_locale()
     skill = Path(tmp, "ascii-skill.md")
     skill.write_text("# skill\nRULE § 9\n", encoding="utf-8")
-    out, folder, _, _ = blocks_start(tmp, "ascii", f"- build: block:web-ui-basics, {skill}\n", env=ASCII_ENV)
+    out, folder, _, run = blocks_start(tmp, "ascii", f"# é note\n- build: block:web-ui-basics, {skill}\n", env=ASCII_ENV)
     assert out.returncode == 0, out.stderr
     assert "…" in step_text(folder, "05-build") and "RULE § 9" in step_text(folder, "05-build")
+    Path(tmp, "ascii", "home", ".flow", "app", "profile.md").write_text("# é note\nDomains: any\nRepo rules: none\n",
+                                                                       encoding="utf-8")
+    shutil.rmtree(folder)
+    out = run("start")
+    assert out.returncode == 0 and "RULE § 9" in step_text(folder, "05-build"), out.stderr
 
 
 def test_review_read_encoding(tmp):

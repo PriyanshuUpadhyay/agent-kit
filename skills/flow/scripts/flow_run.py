@@ -111,9 +111,9 @@ def start(profile="default"):
         print(f"note: could not add /tmp/ to {exclude}: {error}", file=sys.stderr)
     if not folder.exists():
         steps = graph()
-        catalog = {step: skill_paths(step) for step in steps}
         # Read every step's text before the folder exists, so a config or read error leaves no half-made run.
         try:
+            catalog = {step: skill_paths(step) for step in steps}
             blocks, judge = resolve_blocks(Path(root), {s.split("-", 1)[1]: ids for s, (_, ids) in catalog.items()}, profile)
             skills = {step: skills_text(catalog[step][0]) for step in steps}
         except SystemExit as error:  # its reasons quote table names, keys, and paths from the repo's .blocks.toml
@@ -152,7 +152,7 @@ def skill_paths(step):
     profile = flow_home() / repo_name() / "profile.md"
     domains, repo_rules = {"any"}, []
     if profile.exists():
-        text = profile.read_text()
+        text = read_utf8(profile)
         if m := re.search(r"^Domains:\s*(.+)$", text, re.M):
             domains |= {d.strip() for d in m.group(1).split(",") if d.strip()}
         if m := re.search(r"^Repo rules:\s*(.+)$", text, re.M):
@@ -160,7 +160,7 @@ def skill_paths(step):
     else:
         print(f"note: no profile at {profile}; the flow skill's start rule says what to do", file=sys.stderr)
     items, section = [], None
-    for line in (flow_home() / "domains.md").read_text().splitlines():
+    for line in read_utf8(flow_home() / "domains.md").splitlines():
         if line.startswith("## "):
             section = line[3:].strip()
         elif section in domains and line.startswith(f"- {key}:"):
