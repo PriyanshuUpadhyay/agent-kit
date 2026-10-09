@@ -385,6 +385,22 @@ def test_pid_helpers():
         kill_pid(pidfile)
 
 
+def test_build_child_signal_mask(run, verify):
+    import shlex
+    target = json.loads((run / "target.json").read_text(encoding="utf-8"))
+    code = "import json, signal; print(json.dumps(sorted(signal.pthread_sigmask(signal.SIG_BLOCK, ()))))"
+    command = f"{shlex.quote(sys.executable)} -I -c {shlex.quote(code)}"
+    (run / "target.json").write_text(json.dumps({**target, "ci": {**target["ci"], "cmd": command}}), encoding="utf-8")
+    try:
+        rc.build(run.name, "--run")
+        result = json.loads((run / "build.json").read_text(encoding="utf-8"))
+        assert result["conclusion"] == "success", result
+        blocked = set(json.loads(result["tail"][-1]))
+        assert not blocked.intersection((signal.SIGTERM, signal.SIGHUP, signal.SIGINT)), blocked
+    finally:
+        (run / "target.json").write_text(json.dumps(target), encoding="utf-8")
+
+
 def test_build_interrupt(run, verify, signum=signal.SIGINT):
     target = json.loads((run / "target.json").read_text(encoding="utf-8"))
     pidfile = verify / "interrupt-group.pid"
@@ -448,23 +464,38 @@ def test_build_ignored_hangup():
 
 
 def test_build_interrupt_ignored_hangup(run, verify):
-    previous = signal.getsignal(signal.SIGHUP)
-    signal.signal(signal.SIGHUP, signal.SIG_IGN)
-    try:
-        test_build_interrupt(run, verify, signal.SIGHUP)
-        assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN, "the parent must keep ignored SIGHUP"
-    finally:
-        signal.signal(signal.SIGHUP, previous)
+    code = """import os, signal, sys
+signal.signal(signal.SIGHUP, signal.SIG_IGN)
+sys.path.insert(0, sys.argv[1])
+import review_check as rc
+communicate = rc.subprocess.Popen.communicate
+hangups = []
+def hangup(process, *args, **kwargs):
+    if process.args[:2] == ['bash', '-c']:
+        hangups.append(True)
+        os.kill(os.getpid(), signal.SIGHUP)
+        assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+    return communicate(process, *args, **kwargs)
+rc.subprocess.Popen.communicate = hangup
+rc.build(sys.argv[2], '--run')
+assert hangups == [True]
+assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+print('ignored hangup survived')
+"""
+    child = subprocess.run([sys.executable, "-c", code, str(HERE), run.name],
+                           capture_output=True, text=True, timeout=5)
+    assert child.returncode == 0, child.stderr
+    assert "ignored hangup survived" in child.stdout, child.stdout
 
 
 def test_build_launch_deferred_signal(run, verify):
     original = (run / "build.json").read_text(encoding="utf-8")
     real_popen, real_killpg = subprocess.Popen, os.killpg
-    for signum in (signal.SIGTERM, signal.SIGHUP):
+    for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
         running = None
         previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, ())
         previous_handler = signal.getsignal(signum)
-        signal.signal(signum, signal.SIG_DFL)
+        signal.signal(signum, signal.default_int_handler if signum == signal.SIGINT else signal.SIG_DFL)
 
         def launch(args, **kwargs):
             nonlocal running
@@ -480,8 +511,11 @@ def test_build_launch_deferred_signal(run, verify):
                 try:
                     rc.build(run.name, "--run")
                     raise AssertionError("the deferred launch signal must escape")
-                except SystemExit as error:
-                    assert error.code == 128 + signum, error
+                except (SystemExit, KeyboardInterrupt) as error:
+                    if signum == signal.SIGINT:
+                        assert isinstance(error, KeyboardInterrupt), error
+                    else:
+                        assert isinstance(error, SystemExit) and error.code == 128 + signum, error
             killpg.assert_called_once_with(running.pid, signal.SIGKILL)
             assert running.poll() is not None, "the launched shell must be reaped"
             assert running.stdout.closed and running.stderr.closed
@@ -525,8 +559,9 @@ def test_build_after_launch_interrupt(run, verify):
     original = (run / "build.json").read_text(encoding="utf-8")
 
     def interrupt_after_launch(frame, event, arg):
-        if frame.f_code is rc.build.__code__ and event == "line" and frame.f_locals.get("process") is process:
-            # Deliver the interruption at the first line after Popen returns.
+        if (frame.f_code is rc.build.__code__ and event == "line" and frame.f_locals.get("process") is process
+                and signal.SIGTERM not in signal.pthread_sigmask(signal.SIG_BLOCK, ())):
+            # Deliver the interruption only after the parent restores its signal mask.
             sys.settrace(None)
             os.kill(os.getpid(), signal.SIGTERM)
         return interrupt_after_launch
@@ -714,6 +749,7 @@ def test_frozen_build():
             assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3, "verify was not reused"
             test_missing_verify_directory(run, verify, head)
             test_verify_build_lock(run, verify)
+            test_build_child_signal_mask(run, verify)
             test_build_launch_interrupt(run, verify)
             test_build_launch_deferred_signal(run, verify)
             test_build_after_launch_interrupt(run, verify)

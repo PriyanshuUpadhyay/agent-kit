@@ -256,6 +256,39 @@ def test_callers_large_output(folder):
         contracts.write_text(original_contracts, encoding="utf-8")
 
 
+def test_callers_long_line(folder):
+    import tracemalloc
+    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
+    original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
+    try:
+        contracts.write_text("`long_hit()`", encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            stub = Path(directory) / "git"
+            stub.write_text(f"#!{sys.executable}\nimport sys\n"
+                            "sys.stdout.buffer.write(b'bundle.js:1:long_hit() ')\n"
+                            "for _ in range(50):\n"
+                            "    sys.stdout.buffer.write(b'x' * 1024 * 1024)\n"
+                            "sys.stdout.buffer.write(b'\\n\\napp.py:2:long_hit()\\napp.py:3:long_hit()')\n", encoding="utf-8")
+            stub.chmod(0o755)
+            with patch.object(flow_run, "git", return_value=str(folder)), \
+                    patch.dict(os.environ, {"PATH": directory + os.pathsep + os.environ["PATH"]}):
+                tracemalloc.start()
+                try:
+                    flow_run.write_callers(folder)
+                    _, peak = tracemalloc.get_traced_memory()
+                finally:
+                    tracemalloc.stop()
+        text = file.read_text(encoding="utf-8")
+        assert "### long_hit (3 places)" in text, text
+        hits = [line for line in text.splitlines() if line.startswith(("bundle.js:", "app.py:"))]
+        assert len(hits) == 3 and len(hits[0]) == 160, hits
+        assert hits[1:] == ["app.py:2:long_hit()", "app.py:3:long_hit()"], hits
+        assert peak < 1_000_000, f"caller search held a whole line in memory: peak {peak} bytes"
+    finally:
+        file.write_text(original, encoding="utf-8")
+        contracts.write_text(original_contracts, encoding="utf-8")
+
+
 def test_callers_failure(folder):
     file = folder / "04-impact.md"
     original = file.read_text(encoding="utf-8")
@@ -449,6 +482,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_impact_utf8(repo, env, folder)
     test_callers_timeout(folder)
     test_callers_large_output(folder)
+    test_callers_long_line(folder)
     test_callers_failure(folder)
     test_callers_deadline(folder)
     test_callers_name_cap(folder)

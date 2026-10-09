@@ -476,10 +476,11 @@ def build(name, *opts):
             process = None
             try:
                 try:
-                    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, (signal.SIGTERM, signal.SIGHUP))
+                    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, (signal.SIGTERM, signal.SIGHUP, signal.SIGINT))
                     try:
                         process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
-                                                   stderr=subprocess.PIPE, text=True, start_new_session=True)
+                                                   stderr=subprocess.PIPE, text=True, start_new_session=True,
+                                                   preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask))
                     finally:
                         signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
                     stdout, stderr = process.communicate(timeout=BUILD_TIMEOUT)

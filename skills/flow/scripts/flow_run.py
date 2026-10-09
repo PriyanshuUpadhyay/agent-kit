@@ -239,8 +239,12 @@ def write_callers(folder):
                     continue
                 stdout.seek(0)
                 hits, count = [], 0
-                for line in stdout:
-                    hit = line.decode("utf-8", errors="backslashreplace").rstrip("\n")
+                while prefix := stdout.readline(4096):
+                    line = prefix
+                    # Drain long lines in chunks, retaining only their bounded prefix.
+                    while line and not line.endswith(b"\n"):
+                        line = stdout.readline(4096)
+                    hit = prefix.decode("utf-8", errors="backslashreplace").rstrip("\n")
                     if hit:
                         count += 1
                         if len(hits) < 10:
