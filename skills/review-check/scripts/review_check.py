@@ -524,8 +524,10 @@ def build(name, *opts):
                                  cwd=cwd, capture_output=True, text=True, timeout=BUILD_TIMEOUT)
         except subprocess.TimeoutExpired:
             raise SystemExit(f"gh: timed out after {BUILD_TIMEOUT} s") from None
-        except OSError:
+        except FileNotFoundError:
             raise SystemExit("gh: not found") from None
+        except OSError as error:
+            raise SystemExit(f"gh: {error.strerror or error}") from None
         if out.returncode != 0:
             raise SystemExit(f"gh: {out.stderr.strip()}")
         # skipped, cancelled, or running checks prove nothing; a re-run of the same head gets a higher id
