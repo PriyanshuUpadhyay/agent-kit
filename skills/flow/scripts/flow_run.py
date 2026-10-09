@@ -241,8 +241,9 @@ def resolve_blocks(root, wanted, profile_name):
             raw = read_utf8(files[block])
             if missing := [p for p in PARAM.findall(raw) if p not in params]:
                 raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
+            # Repo text goes to agents and to take's output: a param is one line, and no text keeps control bytes.
             loaded[block] = (hashlib.sha256(raw.encode()).hexdigest()[:8],
-                             sections(PARAM.sub(lambda m: str(params[m.group(1)]), raw)))
+                             sections(PARAM.sub(lambda m: one_line(str(params[m.group(1)])), plain(raw, keep_newlines=True))))
         return loaded[block]
 
     out, judge = {}, {}

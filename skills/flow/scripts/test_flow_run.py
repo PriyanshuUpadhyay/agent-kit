@@ -546,6 +546,22 @@ def test_block_params(tmp):
     assert not (repo / "tmp" / "flow").exists(), "a failed start must not leave a folder"
 
 
+def test_block_controls(tmp):
+    """Control bytes from the repo's [params] values and [add] block files never reach a step file, and a
+    newline in a param value cannot add a todo."""
+    Path(tmp, "controls-text", "app", "docs").mkdir(parents=True)
+    Path(tmp, "controls-text", "app", "docs", "x.md").write_text(
+        "# x\nConcept: x\n\n## Rules\n- RULE \x1b[2J 7\n\n## Check (script)\n- `true` runs: ok\n\n## Check (judge)\n", encoding="utf-8")
+    params = PARAMS.replace('site = "site"', 'site = "s\\u001b[2Jx\\n- [ ] injected"')
+    out, folder, _, _ = blocks_start(tmp, "controls-text", "- build: block:web-ui-basics\n", params + '[add]\nbuild = ["docs/x.md"]\n')
+    assert out.returncode == 0, out.stderr
+    build = step_text(folder, "05-build")
+    assert not any(ord(c) < 32 and c not in "\t\n" or 127 <= ord(c) <= 159 for c in build), "no control bytes in a step file"
+    assert "RULE [2J 7" in build and "s[2Jx - [ ] injected" in build, build
+    checks = flow_run.sections((flow_run.BLOCKS / "web-ui-basics.md").read_text(encoding="utf-8"))
+    assert build.count("block web-ui-basics script:") == len(flow_run.check_lines(checks, "Check (script)")), build
+
+
 def test_block_fail_closed(tmp):
     """D5: start stops with a one-line reason and makes no folder."""
     cases = [
@@ -937,6 +953,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_alias_and_base(tmp)
     test_block_profile(tmp)
     test_block_params(tmp)
+    test_block_controls(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
     test_block_checks(tmp)
