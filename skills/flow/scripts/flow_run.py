@@ -104,11 +104,10 @@ def start(profile="default"):
     exclude = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "info" / "exclude"
     try:  # a sandboxed agent may not write inside .git
         exclude.parent.mkdir(exist_ok=True)
-        # Only the /tmp/ line matters, so a byte that is not UTF-8 is replaced, not fatal.
-        if "/tmp/" not in (exclude.read_text(encoding="utf-8", errors="replace").splitlines() if exclude.exists() else []):
+        if "/tmp/" not in (exclude.read_text(encoding="utf-8").splitlines() if exclude.exists() else []):
             with exclude.open("a", encoding="utf-8") as f:
                 f.write("/tmp/\n")
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:  # an exclude file that is not UTF-8 gets this note too
         print(f"note: could not add /tmp/ to {exclude}: {error}", file=sys.stderr)
     if not folder.exists():
         steps = graph()
