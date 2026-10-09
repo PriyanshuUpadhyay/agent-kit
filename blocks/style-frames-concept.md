@@ -12,7 +12,7 @@ Source: skills/ink/SKILL.md:55-57 (step 4); skills/ink/references/site.md:69-73 
 - Never write "visually verified" unless you inspected pixels of the final page after the last fix.
 
 ## Example
-Initial state: `{{site}}/index.html` has the hero in real HTML and CSS, and `DESIGN.md` exists.
+Initial state: the site's `index.html` has the hero in real HTML and CSS, and `DESIGN.md` exists.
 Action: render `{{shots}}/home-1440.png`, `home-390.png`, and `flow-1440.png`, and make `compare-01.png` to `compare-03.png`, one per frame, beside the reference. Round 1: palette `match`, type scale `partial` (headline 3 lines at 390 px), density `miss` (twice the reference's whitespace). Fix the tokens and re-render. Round 2: all `match`.
 Result: `02-design.md` holds both score tables and the compare image paths. The build may start.
 

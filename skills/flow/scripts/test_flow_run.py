@@ -535,6 +535,21 @@ def test_block_profile(tmp):
     assert rule_lines(step_text(split_folder, "06-review")) == rule_lines(step_text(merged_folder, "06-review"))
 
 
+def test_block_example_params(tmp):
+    """A {{param}} only in a block's Example would make every run set it for nothing, so no kit block has
+    one; a repo with only source_of_truth starts a close step that names done-when-evidence."""
+    for path in sorted(flow_run.BLOCKS.glob("*.md")):
+        parts = flow_run.sections(path.read_text(encoding="utf-8"))
+        rest = {p for head, lines in parts if head != "Example" for p in flow_run.PARAM.findall("\n".join(lines))}
+        example = {p for head, lines in parts if head == "Example" for p in flow_run.PARAM.findall("\n".join(lines))}
+        assert example <= rest, (path.name, example - rest)
+    root = Path(tmp, "example-params")
+    root.mkdir()
+    (root / ".blocks.toml").write_text('[params]\nsource_of_truth = "README.md"\n', encoding="utf-8")
+    for profile in ("default", "merged"):
+        flow_run.resolve_blocks(root, {"close": ["done-when-evidence"]}, profile)
+
+
 def test_block_params(tmp):
     """D4: {{name}} takes its value from the repo's .blocks.toml; a missing one stops start and names it."""
     out, folder, _, _ = blocks_start(tmp, "d4", "- review: block:diagram-correctness\n")
@@ -998,6 +1013,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_in_step(tmp)
     test_block_alias_and_base(tmp)
     test_block_profile(tmp)
+    test_block_example_params(tmp)
     test_block_params(tmp)
     test_block_controls(tmp)
     test_block_headings(tmp)
