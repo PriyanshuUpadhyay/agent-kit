@@ -248,8 +248,12 @@ def resolve_blocks(root, wanted, profile_name):
             text = plain(raw, keep_newlines=True)
             if missing := [p for p in PARAM.findall(text) if p not in params]:
                 raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
-            loaded[block] = (hashlib.sha256(raw.encode()).hexdigest()[:8],
-                             sections(PARAM.sub(lambda m: one_line(str(params[m.group(1)])), text)))
+            parts = sections(PARAM.sub(lambda m: one_line(str(params[m.group(1)])), text))
+            # A misspelled check heading would drop its checks without a word.
+            if bad := [h for h, _ in parts[1:] if h.lower().startswith("check") and h not in CHECKS]:
+                raise SystemExit(f"block {block} has the section heading ## {bad[0]}; a check section is "
+                                 f"## {CHECKS[0]} or ## {CHECKS[1]}")
+            loaded[block] = (hashlib.sha256(raw.encode()).hexdigest()[:8], parts)
         return loaded[block]
 
     out, judge = {}, {}

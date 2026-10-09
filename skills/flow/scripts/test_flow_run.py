@@ -679,6 +679,11 @@ def test_block_fail_closed(tmp):
     for name, file in (("add-id-controls", "x\x1b[2Jy\n- [ ] injected.md"), ("add-id-space", "my block.md")):
         Path(tmp, name, "app", "docs").mkdir(parents=True)
         Path(tmp, name, "app", "docs", file).write_text("# x\n\n## Rules\n- r\n", encoding="utf-8")
+    # A misspelled check heading would drop the block's checks without a word, so start refuses it.
+    for name, head in (("check-case", "Check (Script)"), ("check-space", "Check(script)")):
+        Path(tmp, name, "app", "docs").mkdir(parents=True)
+        Path(tmp, name, "app", "docs", "c.md").write_text(f"# c\n\n## Rules\n- r\n\n## {head}\n- `true` runs: ok\n", encoding="utf-8")
+        cases.append((name, RED_BUILD, PARAMS + '[add]\nbuild = ["docs/c.md"]\n', (), f"block c has the section heading ## {head}"))
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
