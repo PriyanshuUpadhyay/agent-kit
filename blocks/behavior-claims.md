@@ -33,4 +33,6 @@ Result: read aloud, the three claims tell the whole page.
 - Is each level-1 claim one sentence that can be false, in 12 words or fewer? Quote each claim with its word count.
 - Do the level-1 claims, read alone, tell the whole change, and is no claim a file, a layer, or a step? Quote the claims.
 - Does each done-when name the evidence that will prove it (a command, a screenshot, a `file:line`)? Quote each done-when.
-- Does the pre-mortem list at least one Tiger, does each launch-blocking Tiger have a mitigation, and does each Elephant have an investigation step? Quote each Tiger and its mitigation, and each Elephant and its step.
+- Does the pre-mortem list at least one Tiger? Quote each Tiger.
+- Does each launch-blocking Tiger have one concrete mitigation? Quote each launch-blocking Tiger and its mitigation.
+- Does each Elephant have a step that investigates it before launch? Quote each Elephant and its step, or write "no Elephant".
