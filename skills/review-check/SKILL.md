@@ -9,7 +9,7 @@ Example. deliver finishes on `feat-x` and runs `review-check a1b2c3d..HEAD`. The
 units in 6 files. For `index.ts` `hunk 2365-2380` it lists 23 checks: the lens rules whose `Files:`
 glob and `Applies:` regex match the hunk, among them `C-7` (magic number), the TypeScript and
 Cloudflare rules that match, the repo's `T-` rules, and `REF`, with the 3 places that call the
-changed method. Four seats work at the same time, one for each aspect. `verdict` prints
+changed method. `start` prints the seats and their check counts. `verdict` prints
 `INCOMPLETE (14 of 14 units, 301 of 305 checks ...)` and names the four missing IDs. The seats
 answer them, and the result is `REQUEST CHANGES`, because `C-7` found `bytes / 32000` next to a
 helper that already does that math.
@@ -35,12 +35,15 @@ helper that already does that math.
 C=<skill-dir>/scripts/review_check.py
 python3 $C start <base>..<head>     # or `local` for uncommitted changes; --patch FILE for a part
 python3 $C build <run>              # when 01-units.md has a Build line: the CI check for the head
-python3 $C build <run> --run        # or run the CI command here, only on a clean checkout of the head
+python3 $C build <run> --run        # or run the CI command in the frozen verify worktree
 python3 $C verdict <run>            # exits 1 with the gaps, or writes 03-verdict.md
 ```
 
-Use `build <run>` for a pushed head. Use `--run` for an unpushed head or `local`. `--run` refuses a
-checkout that is not exactly the head, so check the head out, or wait for CI.
+Use `build <run>` for a pushed head. Use `--run` for an unpushed head or `local`. A range build
+uses a persistent detached worktree at `<repo>/tmp/review-check/verify`, checked out at the
+reviewed head. The live checkout can move while the build runs. A dirty verify worktree blocks
+the build. A `local` build uses the live tree and prints that limit.
+Build may run while seats work, because seats never judge build-gate IDs.
 
 Run it from the repo root. The run folder is `<repo-root>/tmp/review-check/<run>/`, where `<run>`
 is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` describes.
@@ -48,10 +51,10 @@ is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` descr
 | File | Who | Holds |
 |---|---|---|
 | `01-units.md` | script | target, rules file or `none`, and every unit with its file, symbol, range, and count of checks |
-| `checklist.json` | script | for each unit, the seat's rule IDs under `rules`, the build gate's IDs under `tool`, and, under `refs`, the places that name a symbol the unit defines or removes |
+| `checklist.json` | script | unit entries hold `rules`, build-gate IDs under `tool`, references under `refs`, and one owner seat for each rule under `owners`; `seats` maps each seat name to its unit IDs, check count, and route |
 | `target.json` | script | base, head, and the repo's `CI:` line |
 | `build.json` | script | the CI result for the head, or the `--run` result for the tree |
-| `02-review.md` | reviewer | one or more rows for each unit |
+| `02-review-<seat>.md` | seat | results for the unit-rule pairs it owns; a single reviewer uses `02-review.md` |
 | `answers.md` | chair or user | answers for this run, with a file and a whole trimmed source line |
 | `answers-before.md` | script | answers from a prior run, for history only |
 | `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix> fix, <ask> ask, <note> note, <answered> answered, <limit> limit; rules: <file>; build: pass\|fail\|none)`, then each gap or kept row |
@@ -149,23 +152,32 @@ files have none. `scripts/test_review_check.py` runs them with the oxlint on PAT
 
 ## Seats
 
-With seats, start one seat for each aspect on the route the table gives, as
-[orchestration.json](orchestration.json) declares. The seats work at the same time, and each seat
-answers its own IDs under `rules` for every unit, never an ID under `tool`. A `pass` or `n/a` row may list many IDs with one quote and one
-proof, so write one row for each group of IDs, not one row for each ID.
+Use every seat in `checklist.json` on its listed route, as
+[orchestration.json](orchestration.json) declares. Each seat answers only the unit-rule pairs
+whose `owners` entry names it, never an ID under `tool`. A `pass` or `n/a` row may list many IDs
+with one quote and one proof, so write one row for each group of IDs.
+
+Dispatch and gap follow-ups follow [references/fan-out.md](../../references/fan-out.md).
+
+`start` splits each `review.check` aspect by assigned unit-rule pairs, with one shard per
+150 checks rounded up, at most three. Units stay whole and in order. The split balances check
+counts. One shard keeps the aspect name; more shards use `<aspect>-1`, `<aspect>-2`, and
+`<aspect>-3`. Each seat writes `02-review-<seat>.md`.
 
 | Seat | Route | IDs | Writes |
 |---|---|---|---|
 | lens | `review.check` | `C-`, `L-` | `02-review-lens.md` |
-| language | `review.check` | the IDs from `lens-<name>.md` | `02-review-lang.md` |
+| lang | `review.check` | the IDs from `lens-<name>.md` | `02-review-lang.md` |
 | repo | `review.check` | the IDs from the repo's rules file | `02-review-repo.md` |
 | refs | `review.deep` | `REF`, and any finding it meets | `02-review-refs.md` |
 
 REF stays on `review.deep`, because it judges a changed signature, return shape, or meaning at
 each caller, and it must search past the first 20 references on its own.
 
-`verdict` reads every `02-review*.md`. With one session and no seats, write `02-review.md` alone,
-but only when that session did not write the change.
+`verdict` reads each named seat file in the map and checks every result against its owner.
+It lists missing results together for each seat. With one session and no seat files, write
+`02-review.md` alone, but only when that session did not write the change.
+Older runs without a seat map still use `02-review*.md`.
 
 ## Rules for each repo
 

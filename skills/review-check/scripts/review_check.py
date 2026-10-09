@@ -13,7 +13,7 @@ the unit's file. `build` records the CI result for the run's head, and `verdict`
 only from it.
 
   start <local|base..head> [--patch FILE]   make <repo>/tmp/review-check/<run>/ with 01-units.md
-  build <run> [--run]                        record the CI result for the head, or run the CI command here
+  build <run> [--run]                        record CI for the head, or run its command in the verify worktree
   verdict <run>                              gate the rows of 02-review*.md and write 03-verdict.md
 
 `--patch` reviews that patch instead of the whole range, for example review-walk's diff since view.
@@ -252,6 +252,47 @@ def units_of(path, info, source):
     return units
 
 
+def seat_map(checklist, catalog):
+    """Assign whole units to contiguous shards, minimizing the largest check count."""
+    aspects = {r["id"]: "lens" if r["source"] == "lens.md" else
+               "lang" if r["source"].startswith("lens-") else "repo" for r in catalog}
+    aspects["REF"] = "refs"
+    seats = {}
+    for aspect in ("lens", "lang", "repo", "refs"):
+        work = [(uid, [r for r in c["rules"] if aspects[r] == aspect]) for uid, c in checklist.items()]
+        work = [(uid, ids) for uid, ids in work if ids]
+        if not work:
+            continue
+        total = sum(len(ids) for _, ids in work)
+        count = 1 if aspect == "refs" else min(3, (total + 149) // 150, len(work))
+        low, high = max(len(ids) for _, ids in work), total
+        while low < high:
+            limit, groups, size = (low + high) // 2, 1, 0
+            for _, ids in work:
+                if size + len(ids) > limit:
+                    groups, size = groups + 1, 0
+                size += len(ids)
+            if groups <= count:
+                high = limit
+            else:
+                low = limit + 1
+        shards, end, size = [], len(work), 0
+        for i in range(len(work) - 1, -1, -1):
+            if size + len(work[i][1]) > low or i + 1 < count - len(shards):
+                shards.append(work[i + 1:end])
+                end, size = i + 1, 0
+            size += len(work[i][1])
+        shards.append(work[:end])
+        for n, shard in enumerate(reversed(shards), 1):
+            seat = aspect if count == 1 else f"{aspect}-{n}"
+            seats[seat] = {"units": [uid for uid, _ in shard],
+                           "checks": sum(len(ids) for _, ids in shard),
+                           "route": "review.deep" if aspect == "refs" else "review.check"}
+            for uid, ids in shard:
+                checklist[uid].setdefault("owners", {}).update({r: seat for r in ids})
+    return seats
+
+
 def start(target, *opts):
     if target == "local":
         prefix, base, head = "local", git("rev-parse", "HEAD").strip(), None
@@ -345,7 +386,8 @@ def start(target, *opts):
         if refs:
             ids.append("REF")
         checklist[u["id"]] = {"rules": ids, "tool": tool, "refs": refs}
-    (d / "checklist.json").write_text(json.dumps(checklist, indent=2) + "\n", encoding="utf-8")
+    seats = seat_map(checklist, catalog)
+    (d / "checklist.json").write_text(json.dumps(checklist | {"seats": seats}, indent=2) + "\n", encoding="utf-8")
     owned = sum(len(c["tool"]) for c in checklist.values())
     body = [f"Target: {target}", f"Base: {base}", f"Head: {head or 'working tree'}",
             f"Rules: {rules if rules.exists() else 'none'}", "",
@@ -364,25 +406,41 @@ def start(target, *opts):
         f"Status: open\nUses: 01-units@{revision(d / '01-units.md')}\n\n"
         "| Unit | Rule | file:line | Quote | Kind | Problem | Proof |\n|---|---|---|---|---|---|---|\n", encoding="utf-8")
     print(d)
+    for seat, plan in seats.items():
+        print(f"{seat}: {len(plan['units'])} units, {plan['checks']} checks")
 
 
 def tree_digest():
     return hashlib.sha1(local_patch().encode()).hexdigest()[:12]
 
 
+def verify_tree(head):
+    """Keep range builds apart from the live checkout, at the reviewed commit."""
+    verify = home() / "verify"
+    if not verify.exists():
+        git("worktree", "add", "--detach", str(verify), head)
+    else:
+        root = git("-C", str(verify), "rev-parse", "--show-toplevel", check=False).strip()
+        if not root or Path(root).resolve() != verify.resolve():
+            raise SystemExit(f"verify path is not its own git worktree: {verify}")
+        if git("-C", str(verify), "status", "--porcelain"):
+            raise SystemExit(f"verify worktree is not clean: {verify}; keep its changes before running build again")
+        git("-C", str(verify), "checkout", "--detach", head)
+    return verify
+
+
 def build(name, *opts):
-    """Write build.json: the named CI check's result for the run's head, or with --run the CI command's
-    result in this checkout. --run refuses a checkout that is not exactly the head, so the result
-    cannot come from other code."""
+    """Write build.json from CI or a command on the reviewed commit's verify worktree."""
     d = home() / name
     t = json.loads((d / "target.json").read_text(encoding="utf-8"))
     ci, head = t["ci"], t["head"]
     if not ci:
         raise SystemExit("the repo rules file has no `CI:` line, so this run has no build gate")
+    cwd = verify_tree(head) if head else Path.cwd()
     if opts[:1] == ("--run",):
-        if head and (git("rev-parse", "HEAD").strip() != head or git("status", "--porcelain")):
-            raise SystemExit(f"--run needs a clean checkout at {head[:7]}; check it out, or record the CI result instead")
-        r = subprocess.run(["bash", "-c", ci["cmd"]], capture_output=True, text=True)
+        if not head:
+            print("build: local target; proof is from the live tree")
+        r = subprocess.run(["bash", "-c", ci["cmd"]], cwd=cwd, capture_output=True, text=True)
         result = {"source": "command", "name": ci["cmd"], "conclusion": "success" if r.returncode == 0 else "failure",
                   "tail": (r.stdout + r.stderr).splitlines()[-40:]}
     elif not head:
@@ -390,7 +448,7 @@ def build(name, *opts):
     else:
         q = urllib.parse.quote(ci["name"])
         out = subprocess.run(["gh", "api", f"repos/{{owner}}/{{repo}}/commits/{head}/check-runs?check_name={q}"],
-                             capture_output=True, text=True)
+                             cwd=cwd, capture_output=True, text=True)
         if out.returncode != 0:
             raise SystemExit(f"gh: {out.stderr.strip()}")
         # skipped, cancelled, or running checks prove nothing; a re-run of the same head gets a higher id
@@ -407,9 +465,17 @@ def build(name, *opts):
     print(f"build: {result['conclusion']} ({result['source']} `{result['name']}`)")
 
 
-def rows(d):
+def review_files(d, seats):
+    files = [d / f"02-review-{seat}.md" for seat in seats]
+    named = [f for f in files if f.exists()]
+    return named if named else [d / "02-review.md"] if seats else sorted(d.glob("02-review*.md"))
+
+
+def rows(d, seats=None):
     out = []
-    for f in sorted(d.glob("02-review*.md")):
+    for f in review_files(d, seats or {}):
+        if not f.exists():
+            continue
         for line in f.read_text(encoding="utf-8").split("\n"):
             if re.match(r"\|\s*u\d+\s*\|", line):
                 cells = [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", line)[1:-1]]
@@ -435,6 +501,7 @@ def verdict(name):
     diff = parse_diff((d / "diff.patch").read_text(encoding="utf-8"))
     rules = re.search(r"^Rules: (.*)$", (d / "01-units.md").read_text(encoding="utf-8"), re.M).group(1)
     checklist = json.loads((d / "checklist.json").read_text(encoding="utf-8"))
+    seats = checklist.pop("seats", {})
     t = json.loads((d / "target.json").read_text(encoding="utf-8")) if (d / "target.json").exists() else {"ci": None}
     problems, seen, kept, done = [], set(), [], {uid: set() for uid in units}
     replied = answers(d / "answers.md")
@@ -455,7 +522,7 @@ def verdict(name):
             if built == "fail":
                 kept.append(("build", f"build {b['name']}", "", "fix", f"build `{b['name']}` failed at "
                              f"{(t['head'] or 'working tree')[:7]}", b["tail"][-1] if b["tail"] else "no output"))
-    for src, cells in rows(d):
+    for src, cells in rows(d, seats):
         if len(cells) != 7:
             problems.append(f"{src}: a row has {len(cells)} cells, not 7: {' | '.join(cells)}")
             continue
@@ -472,6 +539,12 @@ def verdict(name):
         if ids & set(checklist[uid].get("tool", [])):
             problems.append(f"{uid}: {', '.join(sorted(ids & set(checklist[uid]['tool'])))} belongs to the build gate, not a seat")
             continue
+        if seats and src != "02-review.md":
+            seat = src.removeprefix("02-review-").removesuffix(".md")
+            wrong = {r for r in ids if checklist[uid].get("owners", {}).get(r) != seat}
+            if wrong or uid not in seats[seat]["units"]:
+                problems.append(f"seat {seat}: {uid}: row includes checks owned by another seat: {', '.join(sorted(wrong))}")
+                continue
         if proof.lower().strip(". ") in GENERIC:
             problems.append(f"{uid} {rule}: a {kind} needs a proof that names the case, the input, or why the rule cannot apply")
             continue
@@ -526,9 +599,16 @@ def verdict(name):
         body = re.sub(r"^(?:fix|limit):\s*", "", text, flags=re.I)
         if body.lower().strip(". ") in GENERIC:
             problems.append(f"answers.md {path} `{quote}`: an answer needs a record the user approved or a failing test")
-    problems += [f"{uid}: no row ({u['file']} {u['symbol']})" for uid, u in units.items() if uid not in seen]
     missing = {uid: [r for r in checklist[uid]["rules"] if r not in done[uid]] for uid in units}
-    problems += [f"{uid}: no result for {', '.join(m)}" for uid, m in missing.items() if m]
+    if seats:
+        for seat, plan in seats.items():
+            for uid in plan["units"]:
+                gaps = [r for r in missing[uid] if checklist[uid]["owners"][r] == seat]
+                if gaps:
+                    problems.append(f"seat {seat}: {uid}: no result for {', '.join(gaps)}")
+    else:
+        problems += [f"{uid}: no result for {', '.join(m)}" for uid, m in missing.items() if m]
+    problems += [f"{uid}: no row ({u['file']} {u['symbol']})" for uid, u in units.items() if uid not in seen]
     checks = sum(len(c["rules"]) + len(c.get("tool", [])) for c in checklist.values())
     checked = sum(len(done[uid] & set(c["rules"] + c.get("tool", []))) for uid, c in checklist.items())
 

@@ -33,6 +33,12 @@ def rows(run, *lines):
     (run / "02-review.md").write_text("Status: done x\nUses: 01-units@x\n\n" + "".join(l + "\n" for l in lines))
 
 
+def load_checklist(run):
+    value = json.loads((run / "checklist.json").read_text(encoding="utf-8"))
+    value.pop("seats", None)
+    return value
+
+
 def main():
     base = commit({"pane.swift": "func resize() {\n  a()\n}\n", "gone.py": "def guard():\n    return 1\n",
                    "util.py": "def helper():\n    return 1\n", "app.py": "from util import helper\nhelper()\n"}, "base")
@@ -41,7 +47,7 @@ def main():
     rc.start(f"{base}..{head}")
     run = next(Path("tmp/review-check").iterdir())
     units = {u["file"]: u for u in json.loads((run / "units.json").read_text())}
-    checklist = json.loads((run / "checklist.json").read_text())
+    checklist = load_checklist(run)
     assert set(units) == {"pane.swift", "gone.py", "util.py"}, units  # swift has no ctags parser here
     assert units["gone.py"]["symbol"] == "deleted file"
     s, g, h = units["pane.swift"]["id"], units["gone.py"]["id"], units["util.py"]["id"]
@@ -96,7 +102,7 @@ def test_build_gate():
     rc.start(f"{base}..{head}")
     run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
     units = {u["file"]: u["id"] for u in json.loads((run / "units.json").read_text())}
-    checklist = json.loads((run / "checklist.json").read_text())
+    checklist = load_checklist(run)
     a, v = checklist[units["a.ts"]], checklist[units["vendor/b.ts"]]
     assert set(a["tool"]) == {"TS-1", "TS-24"} and not {"TS-1", "TS-24"} & set(a["rules"]), a
     assert "TS-6" not in a["rules"], "Scope: added, and the `!` is on a line the change did not add"
@@ -119,19 +125,143 @@ def test_build_gate():
     assert rc.verdict(run.name) == 0
     assert (run / "03-verdict.md").read_text().splitlines()[2].startswith("Verdict: APPROVE"), "build pass counts tool IDs"
     Path("a.ts").write_text("dirty\n")
-    try:
-        rc.build(run.name, "--run")
-        raise AssertionError("--run on a dirty tree")
-    except SystemExit as e:
-        assert "clean checkout" in str(e), e
+    rc.build(run.name, "--run")  # the live tree can move while the frozen head is checked
+    verify = Path("tmp/review-check/verify").resolve()
+    assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
+    assert (verify / "a.ts").read_text() != "dirty\n"
+    assert Path("a.ts").read_text() == "dirty\n", "build changed the live tree"
     sh("git", "checkout", "--", "a.ts")
-    rc.build(run.name, "--run")  # the CI command is `true`
+    rc.build(run.name, "--run")  # the persistent worktree is reused
     assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
     (run / "build.json").write_text(json.dumps({"head": head, "digest": None, "source": "command", "name": "true",
                                                 "conclusion": "failure", "tail": ["a.ts(3,30): error TS2304"]}))
     assert rc.verdict(run.name) == 0
     line3 = (run / "03-verdict.md").read_text().splitlines()[2]
     assert line3.startswith("Verdict: REQUEST CHANGES") and line3.endswith("build: fail)"), line3
+
+
+def test_shards():
+    catalog = [{"id": f"C-{n}", "source": "lens.md"} for n in range(1, 501)]
+    catalog += [{"id": "PY-1", "source": "lens-python.md"}, {"id": "T-1", "source": "project.md"}]
+    checklist = {f"u{i}": {"rules": [f"C-{n}" for n in range(1, size + 1)], "tool": [], "refs": {}}
+                 for i, size in enumerate([80, 70, 70, 70, 70, 70, 70], 1)}
+    checklist["u1"]["rules"] += ["PY-1", "T-1", "REF"]
+    seats = rc.seat_map(checklist, catalog)
+    shards = [p for seat, p in seats.items() if seat.startswith("lens-")]
+    assert len(shards) == 3 and sum(p["checks"] for p in shards) == 500, seats
+    assert [uid for p in shards for uid in p["units"]] == list(checklist), "units split or out of order"
+    assert max(p["checks"] for p in shards) == 210, "whole-unit ranges are not balanced"
+    for uid, entry in checklist.items():
+        assert set(entry["owners"]) == set(entry["rules"]), "a pair has no owner"
+        for rule, owner in entry["owners"].items():
+            assert uid in seats[owner]["units"]
+            aspect = "lens" if rule.startswith("C-") else {"PY-1": "lang", "T-1": "repo", "REF": "refs"}[rule]
+            assert sum(uid in p["units"] for seat, p in seats.items() if seat.split("-")[0] == aspect) == 1
+    assert seats["refs"]["route"] == "review.deep", seats
+    small = {"u1": {"rules": [f"C-{n}" for n in range(1, 101)]}}
+    assert list(rc.seat_map(small, catalog)) == ["lens"], "a single shard must keep its old name"
+    large_unit = {"u1": {"rules": [f"C-{n}" for n in range(1, 501)]}}
+    assert list(rc.seat_map(large_unit, catalog)) == ["lens"], "a whole unit cannot be split"
+
+
+def test_seat_gaps():
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as folder:
+        try:
+            os.chdir(folder)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"util.py": "value = 1\n"}, "base")
+            head = commit({"util.py": "value = 2\n"}, "head")
+            catalog = [{"id": f"C-{n}", "source": "lens.md", "files": ["**/*"], "applies": None,
+                        "check": [], "scope": None} for n in range(1, 6)]
+            with patch.object(rc, "load_rules", return_value=catalog):
+                rc.start(f"{base}..{head}")
+            run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+            checklist = load_checklist(run)
+            uid = next(iter(checklist))
+            # Keep this test small, with two named owners and one foreign answer.
+            checklist[uid]["rules"] = ["C-1", "PY-1"]
+            checklist[uid]["owners"] = {"C-1": "lens-1", "PY-1": "lang"}
+            seats = {"lens-1": {"units": [uid], "checks": 1}, "lang": {"units": [uid], "checks": 1}}
+            (run / "checklist.json").write_text(json.dumps(checklist | {"seats": seats}))
+            row = f"| {uid} | PY-1 | util.py:1 | `value = 2` | pass | | the value has no caller |\n"
+            (run / "02-review-lens-1.md").write_text(row)
+            # Neither a stray seat nor the solo file can fill a named owner's gap.
+            (run / "02-review-stray.md").write_text(row)
+            rows(run, row)
+            with redirect_stdout(StringIO()) as out:
+                assert rc.verdict(run.name) == 1
+            text = out.getvalue()
+            assert "seat lens-1:" in text and "checks owned by another seat" in text, text
+            assert f"seat lens-1: {uid}: no result for C-1" in text, text
+            assert f"seat lang: {uid}: no result for PY-1" in text, text
+            assert text.index("no result for C-1") < text.index("no result for PY-1"), text
+            (run / "02-review-lens-1.md").write_text(row.replace("PY-1", "C-1"))
+            (run / "02-review-lang.md").write_text(row)
+            with redirect_stdout(StringIO()):
+                assert rc.verdict(run.name) == 0
+            assert "Verdict: APPROVE" in (run / "03-verdict.md").read_text()
+        finally:
+            os.chdir(previous)
+
+
+def test_frozen_build():
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as folder:
+        try:
+            os.chdir(folder)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"value.txt": "base\n"}, "base")
+            head = commit({"value.txt": "reviewed\n"}, "reviewed")
+            command = "test $(cat value.txt) = reviewed && pwd && git rev-parse HEAD"
+            ci = {"name": "Check", "cmd": command, "config": None}
+            with patch.object(rc, "ci_of", return_value=ci):
+                rc.start(f"{base}..{head}")
+            run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+            verify = Path("tmp/review-check/verify").resolve()
+            verify.mkdir()
+            try:
+                rc.build(run.name, "--run")
+                raise AssertionError("an ordinary directory was used as a verify worktree")
+            except SystemExit as e:
+                assert "verify path is not its own git worktree" in str(e), e
+            assert sh("git", "symbolic-ref", "--short", "HEAD") == "main", "the live branch was detached"
+            verify.rmdir()
+            moved = commit({"value.txt": "later\n"}, "later")
+            Path("value.txt").write_text("dirty live tree\n")
+            rc.build(run.name, "--run")
+            result = json.loads((run / "build.json").read_text())
+            assert result["conclusion"] == "success" and result["tail"] == [str(verify), head], result
+            assert sh("git", "rev-parse", "HEAD") == moved and Path("value.txt").read_text() == "dirty live tree\n"
+            assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3
+            rc.build(run.name, "--run")
+            assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3, "verify was not reused"
+            target = json.loads((run / "target.json").read_text())
+            target["head"] = moved
+            target["ci"]["cmd"] = "test $(cat value.txt) = later"
+            (run / "target.json").write_text(json.dumps(target))
+            rc.build(run.name, "--run")
+            assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == moved, "verify did not move to the next head"
+            Path(verify / "value.txt").write_text("dirty verify tree\n")
+            try:
+                rc.build(run.name, "--run")
+                raise AssertionError("a dirty verify tree gave proof")
+            except SystemExit as e:
+                assert "verify worktree is not clean" in str(e), e
+            target["head"] = None
+            target["ci"]["cmd"] = 'test "$(cat value.txt)" = "dirty live tree"'
+            (run / "target.json").write_text(json.dumps(target))
+            with redirect_stdout(StringIO()) as out:
+                rc.build(run.name, "--run")
+            assert "proof is from the live tree" in out.getvalue()
+            local = json.loads((run / "build.json").read_text())
+            assert local["conclusion"] == "success" and local["head"] is None and local["digest"] == rc.tree_digest(), local
+        finally:
+            os.chdir(previous)
 
 
 def test_answers():
@@ -151,7 +281,7 @@ def test_answers():
             assert json.loads((run / "target.json").read_text())["patch"] is False
 
             def ask(run, quote, line=2):
-                checklist = json.loads((run / "checklist.json").read_text())
+                checklist = load_checklist(run)
                 uid, checks = next(iter(checklist.items()))
                 rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `{quote}` | n/a | | "
                      "the test code has no case these rules name |",
@@ -429,7 +559,7 @@ def test_limits():
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
 
             def review(run, quote="return 2", kind="fix", *extra):
-                checklist = json.loads((run / "checklist.json").read_text())
+                checklist = load_checklist(run)
                 uid, checks = next(iter(checklist.items()))
                 rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `{quote}` | n/a | | "
                      "the test code has no case these rules name |",
@@ -510,7 +640,7 @@ def test_stale_verdict_guard():
             head = commit({"util.py": "def helper():\n    return 2\n"}, "stale change")
             rc.start(f"{base}..{head}")
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
-            checklist = json.loads((run / "checklist.json").read_text())
+            checklist = load_checklist(run)
             uid, checks = next(iter(checklist.items()))
             rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `return 2` | n/a | | "
                  "the test code has no case these rules name |",
@@ -558,7 +688,7 @@ def test_merge_guard():
             side_run = Path("tmp/review-check") / f"range-{base[:7]}-{side[:7]}-01"
 
             def review(run, quote, *extra):
-                checklist = json.loads((run / "checklist.json").read_text())
+                checklist = load_checklist(run)
                 rows(run, *(f"| {uid} | {', '.join(c['rules']) or '-'} | x | `{quote}` | n/a | | "
                             "the test code has no case these rules name |" for uid, c in checklist.items()), *extra)
                 assert rc.verdict(run.name) == 0
@@ -617,7 +747,7 @@ def test_same_head_carry():
             def run_for(base):
                 rc.start(f"{base}..{head}")
                 run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
-                checklist = json.loads((run / "checklist.json").read_text())
+                checklist = load_checklist(run)
                 uid, checks = next(iter(checklist.items()))
                 rows(run, f"| {uid} | {', '.join(checks['rules']) or '-'} | x | `return 2` | n/a | | "
                      "the test code has no case these rules name |",
@@ -696,7 +826,7 @@ def test_superseded_run():
             newer = Path("tmp/review-check") / f"{prefix}-02"
 
             def review(run, ask=False):
-                checklist = json.loads((run / "checklist.json").read_text(encoding="utf-8"))
+                checklist = load_checklist(run)
                 extra = ["| u1 | - | util.py:2 | `return 2` | ask | may change a caller | caller expects 1 |"] if ask else []
                 rows(run, *(f"| {uid} | {', '.join(c['rules']) or '-'} | x | `return 2` | n/a | | "
                             "the test code has no case these rules name |" for uid, c in checklist.items()), *extra)
@@ -760,7 +890,7 @@ def test_cli_encoding():
             target = f"{base}..{head}"
             rc.start(target)
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
-            checklist = json.loads((run / "checklist.json").read_text(encoding="utf-8"))
+            checklist = load_checklist(run)
             rows(run, *(f"| {uid} | {', '.join(c['rules']) or '-'} | x | `return '合意'` | n/a | | "
                         "the test code has no case these rules name |" for uid, c in checklist.items()),
                  "| u1 | - | util.py:2 | `return '合意'` | note | helper → 合意 | caller logs the helper result |")
@@ -836,6 +966,7 @@ def test_fixtures():
 
 
 if __name__ == "__main__":
+    test_shards()
     test_rust_function_range()
     test_catalog()
     test_fixtures()
@@ -847,6 +978,8 @@ if __name__ == "__main__":
         sh("git", "config", "user.name", "t")
         main()
         test_build_gate()
+        test_seat_gaps()
+        test_frozen_build()
         test_cli_encoding()
         test_superseded_run()
         test_answers()
