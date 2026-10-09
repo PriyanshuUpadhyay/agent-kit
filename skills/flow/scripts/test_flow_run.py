@@ -894,6 +894,18 @@ def test_diagram_shot_check(tmp):
     assert sh() == 0, "two diagrams and two shots must pass"
 
 
+def test_look_grammar_dashes(tmp):
+    """The look-grammar dash check finds an em or en dash as a character, a named entity, or a numeric
+    entity, and passes a page with only hyphens and other entities."""
+    site = Path(tmp, "dash-site")
+    site.mkdir()
+    dashes = ("—", "–", "&mdash;", "&ndash;", "&#8212;", "&#8211;", "&#x2014;", "&#X2013;")
+    for text, found in [(d, True) for d in dashes] + [("a - b &amp; &#8210; &#821;", False), ("", False)]:
+        (site / "index.html").write_text(f"<p>tool {text} text</p>\n", encoding="utf-8")
+        out = block_rg("look-grammar", site)[1]
+        assert (out.stdout.strip() != "") == found, (text, out)
+
+
 def test_web_ui_basics_checks(tmp):
     """The web-ui-basics rg checks read the page files, not DESIGN.md prose beside them."""
     site = Path(tmp, "basics-site")
@@ -1084,6 +1096,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_html_diagram_check(tmp)
     test_look_grammar_colors(tmp)
     test_diagram_shot_check(tmp)
+    test_look_grammar_dashes(tmp)
     test_web_ui_basics_checks(tmp)
     test_block_ascii_locale(tmp)
     test_review_read_encoding(tmp)
