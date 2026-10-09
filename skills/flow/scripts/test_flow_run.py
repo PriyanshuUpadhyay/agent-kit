@@ -696,7 +696,7 @@ def test_review_read_encoding(tmp):
         mark(step)
     out = run("take", folder, "06-review", "a")
     assert out.returncode == 0, out.stderr
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
     review = repo / "tmp" / "review-check" / "range-1"
     review.mkdir(parents=True)
     (review / "03-verdict.md").write_text("Status: done x\nUses:\nVerdict: APPROVE (1 of 1 units; 0 fix)\n- note: …\n", encoding="utf-8")
