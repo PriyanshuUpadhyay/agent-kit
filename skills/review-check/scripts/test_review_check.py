@@ -737,6 +737,28 @@ def test_pushed_build_timeout(run):
     assert (run / "build.json").read_text(encoding="utf-8") == original
 
 
+def test_pushed_build_missing_gh(run):
+    original = (run / "build.json").read_text(encoding="utf-8")
+    real_run = subprocess.run
+    calls = []
+
+    def missing_gh(args, **kwargs):
+        if args[0] == "gh":
+            calls.append(args)
+            raise FileNotFoundError("gh")
+        return real_run(args, **kwargs)
+
+    with patch.object(rc.subprocess, "run", missing_gh):
+        try:
+            rc.build(run.name)
+            raise AssertionError("a missing gh must refuse build proof")
+        except SystemExit as error:
+            assert str(error) == "gh: not found", error
+            assert error.__cause__ is None and error.__suppress_context__, "missing gh must suppress exception context"
+    assert len(calls) == 1
+    assert (run / "build.json").read_text(encoding="utf-8") == original
+
+
 def test_frozen_build():
     previous = Path.cwd()
     with tempfile.TemporaryDirectory() as folder:
@@ -754,6 +776,7 @@ def test_frozen_build():
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
             verify = Path("tmp/review-check/verify").resolve()
             (run / "build.json").write_text("{}\n", encoding="utf-8")
+            test_pushed_build_missing_gh(run)
             test_pushed_build_timeout(run)
             test_pushed_build_without_verify(run, verify, head)
             try:
