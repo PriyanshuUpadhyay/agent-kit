@@ -1,0 +1,35 @@
+# look-grammar
+Concept: The look is measured from references, written once as tokens in `DESIGN.md`, and the page code reads only those tokens.
+Serves: design
+Source: skills/ink/SKILL.md:23-27, :30; skills/ink/references/references.md:79, :89, :94-95, :113-143 (grammar template), :147-155 (evidence); skills/ink/references/site.md:42-53, :58-59; impeccable pack: plugin/skills/impeccable/SKILL.md:35-40 (modes); taste-skill pack: skills/taste-skill/SKILL.md:25-26, :38-39, :186, :217, :236, :531-535, :601, :687
+
+## Rules
+- Before code, write one line: "Reading this as: <page kind> for <audience>, with a <vibe> language, leaning toward <aesthetic family>."
+- A tool's landing page is Persuade mode: the visitor decides and acts. Choose the mode from the surface, not the product.
+- Match a look only from pixels you inspected. If the brief has no references, find them from the brief first.
+- Mark each fact `visible`, `stated`, `inferred`, or `unknown`. Never upgrade `stated` or `inferred` to `visible`.
+- Measure, do not only describe. A number measured from a reference becomes a rule in the grammar.
+- Give colors roles, not samples: background, dominant fill, secondary fill, highlight, shadow, contour, accent.
+- Borrow techniques and high-level traits. Never copy logos, exact compositions, or a living artist's exact style.
+- Write `DESIGN.md` beside the page code: colors, typography, spacing, rounded, and components as YAML tokens, then prose. Lint it with `npx @google/design.md lint DESIGN.md`. It exits 0 and gives low contrast only as a warning, so read the findings. Any error or `contrast-ratio` finding is a `miss`.
+- `DESIGN.md` owns color, type, and spacing. `02-design.md` keeps only what `DESIGN.md` cannot hold, such as the motion grammar, and names `DESIGN.md` for the rest. Each value has one home.
+- Page code has no color literals. CSS reads the tokens as custom properties.
+- One accent color, saturation below 80%, used the same on the whole page. One corner-radius scale for the page. No pure black `#000000`.
+- Do not default to AI-purple gradients, a centered hero over a dark mesh, three equal feature cards, or Inter + slate-900.
+- Design light and dark modes from the start. Respect `prefers-color-scheme`.
+- The hero fits the first viewport: headline 2 lines at most on desktop, subtext 20 words at most, the call to action visible with no scroll.
+- Zero em-dashes (`—`) and en-dash separators (`–`) in visible text.
+
+## Example
+Initial state: the user links the `htmx.org` home page as the reference.
+Action: write the design read ("dev-tool landing for backend engineers, plain technical language, native CSS"). Measure: body 18 px, max width 65ch, one accent `#3b5bdb`. Write `site/DESIGN.md` with those tokens and lint it.
+Result: lint shows one `contrast-ratio` warning on the muted text, so the grammar marks it `miss` and darkens the token before style frames.
+
+## Check (script)
+- `npx @google/design.md lint site/DESIGN.md` output has no error and no `contrast-ratio` finding: the tokens pass lint.
+- `rg -n '#[0-9a-fA-F]{3,8}\b|rgb\(' site --glob '!DESIGN.md'` finds color literals only in the one `:root` token block: page code reads only tokens.
+- `rg -c '—|–' site/index.html` prints nothing: visible text has no dash separators.
+
+## Check (judge)
+- Does `02-design.md` have the design-read line and a reference list with an evidence label on each fact? Quote the line and the labels.
+- Does the hero screenshot at 1440 px show the call to action with no scroll? Quote the screenshot path.

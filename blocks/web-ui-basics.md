@@ -1,0 +1,43 @@
+# web-ui-basics
+Concept: The floor every static one-page site must meet: structure, focus, contrast, layout at each width, and motion.
+Serves: build
+Source: web-interface-guidelines pack: command.md:16-26, :31-35, :53-60, :64, :80, :119-120, :143-146, :153; skills/ink/references/site.md:25, :85-88; skills/ink/references/qa.md:57-58, :110-111; skills/ink/references/story-and-motion.md:59-60; taste-skill pack: skills/taste-skill/SKILL.md:153-154, :225, :260, :522, :529; emilkowalski pack: skills/emil-design-eng/SKILL.md:95-135, :527-531; task brief (375 px)
+
+## Rules
+Structure
+- Semantic HTML before ARIA. `<button>` for actions, `<a>` for navigation, never a `<div>` with a click handler.
+- Headings go in order, `<h1>` to `<h6>`. Add a skip link to the main content. Heading anchors get `scroll-margin-top`.
+- Images need `alt` (`alt=""` if decorative) and explicit `width` and `height`. Decorative icons get `aria-hidden="true"`. Icon-only buttons get `aria-label`. Meaningful media, such as a diagram, needs a text description.
+Focus
+- Every link and control takes focus with Tab and shows a ring. Use `:focus-visible`. Never `outline: none` without a replacement. A sticky header must not cover the focused element.
+Contrast
+- Text meets WCAG AA: 4.5:1 for body, 3:1 for large text (18 px and up). Text over an image passes in the screenshot, not only in `DESIGN.md`.
+Layout
+- Check widths are 1440 px, 390 px, and 375 px.
+- No sideways scroll at any check width: `document.documentElement.scrollWidth <= innerWidth`.
+- Each multi-column layout declares its below-768 px fallback. Use CSS Grid, not flex percentage math. A full-height hero uses `min-height: 100dvh`, not `100vh`.
+- Never disable zoom (`user-scalable=no`, `maximum-scale=1`). Set `color-scheme` and a `<meta name="theme-color">` that matches the background.
+Motion
+- Animate only `transform` and `opacity`. Never `transition: all`.
+- UI animations stay under 300 ms. Use ease-out to enter. Never ease-in.
+- Honor `prefers-reduced-motion: reduce`: fewer and gentler, not zero. Keep opacity and color fades; remove movement. Loops and parallax become static.
+- Every key fact shows in a settled state and under reduced motion. Content that waits at opacity 0 is blank in full-page screenshots and skipped by checkers, so check with reduced motion on.
+Copy
+- `…` not `...`. Active voice. Specific button labels: "Copy install command", not "Continue".
+
+## Example
+Initial state: the hero `h1`, three sections, and a copy button exist.
+Action: run `checks/basics.mjs` at 1440, 390, and 375 px. It reports `scrollWidth 412 > 375` from a diagram. Make the diagram fit its column at that width. Run again: all widths pass.
+Result: the evidence line shows the FAIL and then the PASS for each width.
+
+## Check (script)
+- At 1440, 390, and 375 px, a headless-Chrome script prints `scrollWidth <= innerWidth` as true: no sideways scroll.
+- `rg -n 'outline:\s*none|transition:\s*all|user-scalable=no|maximum-scale=1|ease-in[^-]' site` prints nothing, or each `outline: none` has a `:focus-visible` rule beside it: no banned pattern.
+- `rg -n 'prefers-reduced-motion' site` finds a block: reduced motion is handled.
+- `rg -o '<h[1-6]' site/index.html` lists the headings with no skipped level: heading order holds.
+- `rg -n '<img' site` shows `alt`, `width`, and `height` on each image: images are described and sized.
+
+## Check (judge)
+- With reduced motion emulated, does a screenshot show every key fact? Quote the path and the facts.
+- Does a Tab walk show a visible ring on each link and button, with the skip link first? Quote the screenshot paths.
+- Does each diagram have a text description? Quote it.

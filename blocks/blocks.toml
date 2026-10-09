@@ -1,0 +1,49 @@
+# Block catalog for the flow skill. This file owns the format; skills/flow/SKILL.md points here.
+#
+# A block is one file in this folder: `# <id>`, `Concept:`, `Serves:`, `Source:`, then `## Rules`,
+# `## Example`, `## Check (script)`, and `## Check (judge)`. A script check is a runnable command and
+# what it proves. A judge check is one precise question and the evidence its answer must quote.
+# Form goes to script, meaning goes to judge. `{{name}}` is filled from `[params]` in the repo's
+# `.blocks.toml`.
+#
+# A step line in ~/.flow/domains.md names a block or an alias as `block:<id>` next to its paths.
+# `flow_run.py start --profile <name>` expands aliases, adds `base` once to each step of a run that
+# names a block, drops duplicates, and applies the profile. A profile changes packaging only, never
+# which rule or check lines appear: `Check (script)` lines become step todos, and `Check (judge)`
+# lines go to 06-review.md.
+#
+# The repo file `<repo>/.blocks.toml` has three tables:
+#   [params]  name = "value"                fills {{name}}; a missing one stops start
+#   [add]     build = ["path/in/repo.md"]   adds repo blocks to a step; the id is the file stem
+#   [off]     block-id = "reason"           drops a block and prints `Off: <id>: <reason>` where it would join
+
+base = ["first-principles"]
+
+[blocks]  # id = file in this folder
+behavior-claims = "behavior-claims.md"
+call-tree = "call-tree.md"
+decision-with-default = "decision-with-default.md"
+diagram-correctness = "diagram-correctness.md"
+done-when-evidence = "done-when-evidence.md"
+first-principles = "first-principles.md"
+headless-shot = "headless-shot.md"
+html-diagram = "html-diagram.md"
+look-grammar = "look-grammar.md"
+red-first-check = "red-first-check.md"
+style-frames-concept = "style-frames-concept.md"
+tech-diagram-concept = "tech-diagram-concept.md"
+web-ui-basics = "web-ui-basics.md"
+
+[aliases]  # name = [block ids]; split or rename a block here, and no catalog line changes
+tech-diagram = ["tech-diagram-concept", "html-diagram"]
+style-frames = ["style-frames-concept", "headless-shot"]
+
+[profiles.default]  # one block per section, with examples
+merge = []           # alias names whose members are written as one merged block
+examples = true      # false drops each ## Example section
+merge_base = false   # true folds the base blocks into the step's first block
+
+[profiles.merged]  # fewer, larger blocks; ranked most consistent for Codex in the 2026-10-09 trial
+merge = ["tech-diagram", "style-frames"]
+examples = false
+merge_base = true

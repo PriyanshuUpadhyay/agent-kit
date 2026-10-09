@@ -1,0 +1,25 @@
+# style-frames-concept
+Concept: Prove the look before the full build with frames rendered from the real page code, scored beside the reference; a miss blocks.
+Serves: design
+Source: skills/ink/SKILL.md:55-57 (step 4); skills/ink/references/site.md:69-73 (site frames); skills/ink/references/qa.md:28-47 (reference match, rounds), :128-129 (visually verified)
+
+## Rules
+- Render three frames from the real page code with the screenshot tool the workflow names: the hero at 1440 px, the hero at 390 px, and one middle section at 1440 px.
+- Score every line of the look grammar as `match`, `partial`, or `miss`, each with pixel evidence. Compare one crop of the whole frame and one crop at 100 % zoom.
+- A `miss` on any trait blocks the build step.
+- Do at least two rounds of fix and re-render. Record the scores of each round in `02-design.md`.
+- After round 3 with the same `miss`, stop and show the user the frame and the miss. Write `accepted miss: <trait>, user: <their words>` only after the user has seen the frame. Later rounds still score every trait. A miss that changes asks again.
+- Never write "visually verified" unless you inspected pixels of the final page after the last fix.
+
+## Example
+Initial state: `site/index.html` has the hero in real HTML and CSS, and `DESIGN.md` exists.
+Action: render `hero-1440.png`, `hero-390.png`, `flow-1440.png`, and make `compare-01.png` beside the reference. Round 1: palette `match`, type scale `partial` (headline 3 lines at 390 px), density `miss` (twice the reference's whitespace). Fix the tokens and re-render. Round 2: all `match`.
+Result: `02-design.md` holds both score tables and the compare image paths. The build may start.
+
+## Check (script)
+- `ls shots/` shows the three frames and one `compare-NN.png` per frame for the last round: the frames exist.
+- `rg -c -i 'round [0-9]' <flow-folder>/02-design.md` prints 2 or more: at least two rounds are recorded.
+
+## Check (judge)
+- Does `02-design.md` have a score table per round, one row per grammar line, each with pixel evidence? Quote one table.
+- Does the last round have no `miss`, or does each remaining one have an `accepted miss:` line with the user's words? Quote them.
