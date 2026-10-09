@@ -662,7 +662,7 @@ def assert_ascii_locale():
 
 
 def test_block_ascii_locale(tmp):
-    """start reads domains.md, profile.md, the block text (`…` in web-ui-basics), and catalog skill text as
+    """start reads .git/info/exclude, domains.md, profile.md, the block text (`…` in web-ui-basics), and catalog skill text as
     UTF-8 under an ASCII locale."""
     assert_ascii_locale()
     skill = Path(tmp, "ascii-skill.md")
@@ -672,6 +672,8 @@ def test_block_ascii_locale(tmp):
     assert "…" in step_text(folder, "05-build") and "RULE § 9" in step_text(folder, "05-build")
     Path(tmp, "ascii", "home", ".flow", "app", "profile.md").write_text("# é note\nDomains: any\nRepo rules: none\n",
                                                                        encoding="utf-8")
+    exclude = Path(tmp, "ascii", "app", ".git", "info", "exclude")
+    exclude.write_text("# café note\n" + exclude.read_text(encoding="utf-8"), encoding="utf-8")
     shutil.rmtree(folder)
     out = run("start")
     assert out.returncode == 0 and "RULE § 9" in step_text(folder, "05-build"), out.stderr
