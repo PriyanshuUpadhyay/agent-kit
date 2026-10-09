@@ -13,12 +13,12 @@ Source: html-plan pack: skills/html-plan/SKILL.md:80 (rule 6), :162-165 (answer 
 - An unanswered choice is never treated as accepted.
 
 ## Example
-Initial state: claim 2 says "A visitor sees how one request flows through `tracer`." The diagram could be static or step through on scroll.
+Initial state: claim 2 says "A visitor sees how one request flows through `tracer`." The diagram could be static or step through on scroll. The fork is important: the scroll form adds a reduced-motion variant and its own checks to the build.
 Action: put on claim 2:
 "Should the request diagram animate on scroll?"
 - (x) No, one static diagram (suggested)
 - ( ) Yes, highlight each step on scroll. Adds a reduced-motion variant.
-Result: the user answers "kept as proposed". The builder draws one static diagram. Had the line read "not opened; default kept", the builder asks once in chat before build.
+Result: the user answers "kept as proposed". The builder draws one static diagram. Had the line read "not opened; default kept", the builder asks once in chat before build, because the fork is important.
 
 ## Check (script)
 - none: the decisions live only in the step file, which holds this block's own Example decision.
