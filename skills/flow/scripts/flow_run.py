@@ -277,7 +277,8 @@ def sections(text):
 
 
 def check_lines(parts, heading):
-    return [line[2:] for head, lines in parts if head == heading for line in lines if line.startswith("- ")]
+    return [line[2:] for head, lines in parts if head == heading for line in lines
+            if line.startswith("- ") and not line.startswith("- none:")]
 
 
 def render(name, members, examples):

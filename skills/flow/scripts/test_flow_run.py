@@ -614,7 +614,8 @@ def test_block_checks(tmp):
     todo = build.split(flow_run.TODO_HEAD)[1]
     script = "- [ ] block html-diagram script: `rg -n '<svg|<canvas|position:\\s*absolute' site` shows nothing inside a diagram: the diagrams reflow.: "
     assert script + "\n" in todo, todo
-    judge = "At 375 px, does each arrow still point from its source to its target?"
+    assert "script: none:" not in todo, "a `- none:` line says why a block has no script check; it is no todo"
+    judge ="At 375 px, does each arrow still point from its source to its target?"
     assert judge not in build, "a judge check must not be a build todo"
     assert "## Judge checks of blocks that ran" in review and judge in review.split("## Judge checks of blocks that ran")[1]
     assert "block first-principles judge: Does every fact in the result trace to a line in docs/spec.md?" in review, review
