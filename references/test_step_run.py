@@ -311,6 +311,19 @@ def test_old_todo_head(folder):
             path.unlink(missing_ok=True)
 
 
+def test_rules_todo_heading(folder):
+    """Rules text above the step's own todo head may hold a `## Todo (` and a `## Results` heading."""
+    file = folder / "09-rules.md"
+    file.write_text(f"Status: open\n\n## Rules\n## Todo (later)\n- later item\n## Results\n\n"
+                    f"{step_run.TODO_HEAD}\n- [ ] real item: \n\n{step_run.RESULT_HEAD}\n", encoding="utf-8")
+    try:
+        out = run("done", folder, "09-rules")
+        assert out.returncode == 1 and "real item" in out.stderr, "done must read the step's own todo list"
+    finally:
+        for path in (file, folder / "09-rules.lock"):
+            path.unlink(missing_ok=True)
+
+
 def test_step_mode(folder):
     file = folder / "01-ask.md"
     original = file.read_text(encoding="utf-8")
@@ -354,6 +367,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_claim_failure_log_one_line(folder)
     test_step_mode(folder)
     test_old_todo_head(folder)
+    test_rules_todo_heading(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)
     test_atomic_step_writes(folder)

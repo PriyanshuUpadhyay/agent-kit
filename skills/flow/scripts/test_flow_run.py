@@ -365,6 +365,21 @@ def test_callers_name_cap(folder):
         contracts.write_text(original_contracts, encoding="utf-8")
 
 
+def test_callers_below_rules(folder):
+    """Rules text may hold a `## Todo (` heading; callers come only from below the step's own todo head."""
+    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
+    original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
+    try:
+        contracts.write_text(f"## Todo (later)\n`rule_name()`\n{flow_run.TODO_HEAD}\n`real_name()`\n", encoding="utf-8")
+        with patch.object(flow_run, "git", return_value=str(folder)), \
+                patch.object(flow_run.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"", b"")) as search:
+            flow_run.write_callers(folder)
+        assert [call.args[0][6] for call in search.call_args_list] == ["real_name"], search.call_args_list
+    finally:
+        file.write_text(original, encoding="utf-8")
+        contracts.write_text(original_contracts, encoding="utf-8")
+
+
 def test_callers_controls(repo, run, folder):
     file, app = folder / "04-impact.md", repo / "app.py"
     original, source = file.read_text(encoding="utf-8"), app.read_bytes()
@@ -724,6 +739,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_callers_failure(folder)
     test_callers_deadline(folder)
     test_callers_name_cap(folder)
+    test_callers_below_rules(folder)
     test_callers_controls(repo, run, folder)
     out = run("take", folder, "04-impact", "a")
     assert out.returncode == 0, out.stderr

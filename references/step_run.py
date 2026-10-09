@@ -28,6 +28,13 @@ TODO_MARK = "## Todo ("
 RESULT_HEAD = "## Result"
 
 
+def todo_start(text):
+    """Where the step's own todo list starts, or -1. The rules above it may quote any heading, so this
+    is the last line that starts with TODO_MARK."""
+    heads = list(re.finditer(rf"^{re.escape(TODO_MARK)}", text, re.M))
+    return heads[-1].start() if heads else -1
+
+
 def plain(text, *, keep_newlines=False):
     text = text.replace("\u2028", "\n").replace("\u2029", "\n")
     return "".join(c for c in text if c == "\t" or (keep_newlines and c == "\n")
@@ -170,7 +177,8 @@ def done(folder, step, rev=None):
     with step_lock(folder, step, command="done"):
         file = Path(folder) / f"{step}.md"
         text = file.read_text(encoding="utf-8")
-        todo = text.split(TODO_MARK, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_MARK in text else ""
+        start = todo_start(text)
+        todo = text[start:].split(RESULT_HEAD, 1)[0] if start >= 0 else ""
         open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
         empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.rsplit(":", 1)[-1].strip()]
         if open_items or empty:
