@@ -11,6 +11,16 @@ SCRIPT = Path(__file__).with_name("step_run.py")
 run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], capture_output=True, text=True)
 
 
+def test_command_wrong_count():
+    for command, count in (("start", 2), ("status", 1), ("take", 3), ("done", 2)):
+        usage = next(line.strip() for line in step_run.__doc__.splitlines()
+                     if line.strip().split()[:1] == [command])
+        for args in ((), ("unused",) * (count - 1), ("unused",) * (count + 1)):
+            out = run(command, *args)
+            assert out.returncode == 1 and usage in out.stderr, out.stderr
+            assert "Traceback" not in out.stderr, out.stderr
+
+
 def lock_holder(folder, step):
     code = """import sys
 sys.path.insert(0, sys.argv[1])
@@ -58,12 +68,6 @@ def test_done_rejects_force(folder):
 
 def test_lock_holder_failed_handshake(folder):
     code = 'import sys; print("lock failed", file=sys.stderr, flush=True); print("not held", flush=True); sys.stdin.read()'
-    # Pause after stdout is visible so the parent can kill before any later stderr write.
-    code = ("import builtins,time\noriginal_print=builtins.print\n"
-            "def delayed_print(*args, **kwargs):\n"
-            "    original_print(*args, **kwargs)\n"
-            "    if args == ('not held',): time.sleep(0.1)\n"
-            "builtins.print=delayed_print\nexec(" + repr(code) + ")")
     child = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
@@ -325,6 +329,7 @@ with tempfile.TemporaryDirectory() as tmp:
     f.write_text(f.read_text(encoding="utf-8").replace("- [ ] the question: ", "- [x] the question: why is the sky blue"), encoding="utf-8")
     assert run("done", folder, "01-ask").returncode == 0 and f.read_text(encoding="utf-8").startswith("Status: done ")
     test_explicit_text_encoding()
+    test_command_wrong_count()
     test_plain_controls()
     test_done_wrong_count(folder)
     test_done_rejects_force(folder)

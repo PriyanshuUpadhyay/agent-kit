@@ -21,9 +21,22 @@ def test_skip_text_encoding():
     missing = [call.lineno for node in tree.body if isinstance(node, ast.FunctionDef)
                and node.name in ("test_skip_lock", "test_skip_rejects_force")
                for call in ast.walk(node) if isinstance(call, ast.Call)
-               and isinstance(call.func, ast.Attribute) and call.func.attr == "read_text"
+               and isinstance(call.func, ast.Attribute) and call.func.attr in ("read_text", "write_text")
                and not any(kw.arg == "encoding" for kw in call.keywords)]
-    assert not missing, f"skip test reads without UTF-8 encoding at {missing}"
+    assert not missing, f"skip test reads or writes without UTF-8 encoding at {missing}"
+
+
+def test_command_wrong_count(run, folder):
+    for command, args in (("start", ("extra",)), ("status", (folder, "extra")),
+                          ("take", ()), ("take", (folder, "01-frame", "a", "extra")),
+                          ("done", ()), ("skip", ()), ("skip", (folder,)),
+                          ("skip", (folder, "02-design"))):
+        out = run(command, *args)
+        usage = next(line.strip() for line in flow_run.__doc__.splitlines()
+                     if line.strip().split()[:1] == [command])
+        assert out.returncode == 1 and usage in out.stderr, out.stderr
+        assert "Traceback" not in out.stderr, out.stderr
+    assert run("status").returncode == 0, "status without a folder must use the latest run"
 
 
 def test_done_wrong_count(run, folder):
@@ -148,14 +161,14 @@ def test_skip_rejects_force(run, folder):
     try:
         for args in ((folder, "02-design", "no", "UI", "--force"),
                      ("--force", folder, "02-design", "no", "UI")):
-            file.write_text(original.replace("Status: open", "Status: active dead-owner"))
+            file.write_text(original.replace("Status: open", "Status: active dead-owner"), encoding="utf-8")
             out = run("skip", *args)
             assert out.returncode == 1, "skip must refuse --force"
             assert "skip accepts no --force" in out.stderr and "Traceback" not in out.stderr, out.stderr
             assert file.read_text(encoding="utf-8") == original.replace("Status: open", "Status: active dead-owner")
             assert (folder / "events.log").read_text(encoding="utf-8") == events
     finally:
-        file.write_text(original)
+        file.write_text(original, encoding="utf-8")
         (folder / "events.log").write_text(events, encoding="utf-8")
 
 
@@ -195,7 +208,8 @@ def test_callers_timeout(folder):
             calls.append((args, kwargs))
             if len(calls) == 1:
                 raise subprocess.TimeoutExpired(args, flow_run.SEARCH_EACH_SECONDS)
-            return subprocess.CompletedProcess(args, 0, b"app.py:1:other_name()\n", b"")
+            kwargs["stdout"].write(b"app.py:1:other_name()\n")
+            return subprocess.CompletedProcess(args, 0)
         return real_run(args, **kwargs)
 
     try:
@@ -211,13 +225,46 @@ def test_callers_timeout(folder):
         contracts.write_text(original_contracts, encoding="utf-8")
 
 
+def test_callers_large_output(folder):
+    import tracemalloc
+    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
+    original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
+    try:
+        contracts.write_text("`many_hits()`", encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            stub = Path(directory) / "git"
+            stub.write_text(f"#!{sys.executable}\nimport sys\n"
+                            "for index in range(10000):\n"
+                            "    print(f'app.py:{index + 1}:many_hits() ' + 'x' * 500)\n", encoding="utf-8")
+            stub.chmod(0o755)
+            with patch.object(flow_run, "git", return_value=str(folder)), \
+                    patch.dict(os.environ, {"PATH": directory + os.pathsep + os.environ["PATH"]}):
+                tracemalloc.start()
+                try:
+                    flow_run.write_callers(folder)
+                    _, peak = tracemalloc.get_traced_memory()
+                finally:
+                    tracemalloc.stop()
+        text = file.read_text(encoding="utf-8")
+        assert "### many_hits (10000 places)" in text and "... and 9990 more" in text, text
+        hits = [line for line in text.splitlines() if line.startswith("app.py:")]
+        assert len(hits) == 10 and hits[-1].startswith("app.py:10:")
+        assert all(len(hit) <= 160 for hit in hits)
+        assert peak < 1_000_000, f"caller search held the full output in memory: peak {peak} bytes"
+    finally:
+        file.write_text(original, encoding="utf-8")
+        contracts.write_text(original_contracts, encoding="utf-8")
+
+
 def test_callers_failure(folder):
     file = folder / "04-impact.md"
     original = file.read_text(encoding="utf-8")
-    result = subprocess.CompletedProcess(["git"], 128, b"", b"\x1b[31mcorrupt index\nextra detail")
+    def failed_grep(args, **kwargs):
+        kwargs["stderr"].write(b"\x1b[31mcorrupt index\nextra detail")
+        return subprocess.CompletedProcess(args, 128)
     try:
         with patch.object(flow_run, "git", return_value=str(folder)), \
-                patch.object(flow_run.subprocess, "run", return_value=result):
+                patch.object(flow_run.subprocess, "run", side_effect=failed_grep):
             flow_run.write_callers(folder)
         text = file.read_text(encoding="utf-8")
         assert "callers: git grep failed: [31mcorrupt index" in text, text
@@ -369,6 +416,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "Revision:" not in (folder / "06-review.md").read_text()
 
     test_skip_text_encoding()
+    test_command_wrong_count(run, folder)
     test_done_wrong_count(run, folder)
     test_take_force(run, folder)
     test_take_requires_who(run, folder)
@@ -380,7 +428,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # Only design, contracts, and impact can be skipped, and only with a reason.
     assert "cannot be skipped" in run("skip", folder, "05-build", "small").stderr
-    assert "needs a reason" in run("skip", folder, "02-design").stderr
+    assert "skip <folder> <step> <why>" in run("skip", folder, "02-design").stderr
     test_skip_plain_reason(run, folder)
     test_skip_lock(run, folder)
     test_skip_rejects_force(run, folder)
@@ -400,6 +448,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_impact_closed_stdout(repo, env, folder)
     test_impact_utf8(repo, env, folder)
     test_callers_timeout(folder)
+    test_callers_large_output(folder)
     test_callers_failure(folder)
     test_callers_deadline(folder)
     test_callers_name_cap(folder)

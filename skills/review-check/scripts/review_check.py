@@ -448,6 +448,7 @@ def build_signals():
     previous = {signum: signal.getsignal(signum) for signum in (signal.SIGTERM, signal.SIGHUP)}
     try:
         for signum, handler in previous.items():
+            # A signal ignored at entry stays ignored, so a nohup build survives a hangup.
             if handler != signal.SIG_IGN:
                 signal.signal(signum, stop)
         yield
@@ -475,8 +476,12 @@ def build(name, *opts):
             process = None
             try:
                 try:
-                    process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
-                                               stderr=subprocess.PIPE, text=True, start_new_session=True)
+                    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, (signal.SIGTERM, signal.SIGHUP))
+                    try:
+                        process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
+                                                   stderr=subprocess.PIPE, text=True, start_new_session=True)
+                    finally:
+                        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
                     stdout, stderr = process.communicate(timeout=BUILD_TIMEOUT)
                     conclusion, tail = ("success" if process.returncode == 0 else "failure"), (stdout + stderr).splitlines()[-40:]
                 except (subprocess.TimeoutExpired, KeyboardInterrupt, SystemExit) as error:

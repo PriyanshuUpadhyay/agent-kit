@@ -184,20 +184,22 @@ if __name__ == "__main__":
         # Escape non-ASCII output when the console uses an ASCII encoding.
         sys.stdout.reconfigure(errors="backslashreplace")
     commands = {"start": start, "status": status, "take": take, "done": done}
-    if len(sys.argv) < 3 or sys.argv[1] not in commands:
+    arity = {"start": (2, 2), "status": (1, 1), "take": (3, 3), "done": (2, 2)}
+    if len(sys.argv) < 2 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
     try:
         args = sys.argv[2:]
-        if sys.argv[1] == "take":
-            force = "--force" in args
-            commands[sys.argv[1]](*(arg for arg in args if arg != "--force"), force=force)
-        else:
-            if sys.argv[1] == "done":
-                if "--force" in args:
-                    raise SystemExit("done <folder> <step> accepts no --force")
-                if len(args) != 2:
-                    raise SystemExit("done <folder> <step>")
-            commands[sys.argv[1]](*args)
+        command = sys.argv[1]
+        force = command == "take" and "--force" in args
+        if command == "take":
+            args = [arg for arg in args if arg != "--force"]
+        if command == "done" and "--force" in args:
+            raise SystemExit("done <folder> <step> accepts no --force")
+        minimum, maximum = arity[command]
+        if len(args) < minimum or len(args) > maximum:
+            raise SystemExit(next(line.strip() for line in __doc__.splitlines()
+                                  if line.strip().split()[:1] == [command]))
+        commands[command](*args, **({"force": force} if command == "take" else {}))
         sys.stdout.flush()
     except BrokenPipeError:
         fd = os.open(os.devnull, os.O_WRONLY)

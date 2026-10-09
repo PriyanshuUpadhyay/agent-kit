@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -228,18 +229,27 @@ def write_callers(folder):
             parts.append(f"callers: search stopped after {SEARCH_SECONDS} s, {len(names) - index} names not searched")
             break
         try:
-            result = subprocess.run(["git", "grep", "-n", "-w", "-F", "-e", name, "--", ".", ":!tmp"],
-                                    cwd=root, capture_output=True, timeout=min(SEARCH_EACH_SECONDS, remaining))
+            with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+                result = subprocess.run(["git", "grep", "-n", "-w", "-F", "-e", name, "--", ".", ":!tmp"],
+                                        cwd=root, stdout=stdout, stderr=stderr, timeout=min(SEARCH_EACH_SECONDS, remaining))
+                if result.returncode not in (0, 1):
+                    stderr.seek(0)
+                    error = stderr.readline().decode("utf-8", errors="backslashreplace").rstrip("\n")
+                    parts.append(f"### {name}\ncallers: git grep failed: {plain(error)}")
+                    continue
+                stdout.seek(0)
+                hits, count = [], 0
+                for line in stdout:
+                    hit = line.decode("utf-8", errors="backslashreplace").rstrip("\n")
+                    if hit:
+                        count += 1
+                        if len(hits) < 10:
+                            hits.append(plain(hit)[:160])
         except subprocess.TimeoutExpired:
             parts.append(f"### {name}\ncallers: git grep timed out")
             continue
-        if result.returncode not in (0, 1):
-            error = result.stderr.decode("utf-8", errors="backslashreplace").split("\n", 1)[0]
-            parts.append(f"### {name}\ncallers: git grep failed: {plain(error)}")
-            continue
-        hits = [plain(hit) for hit in result.stdout.decode("utf-8", errors="backslashreplace").split("\n") if hit]
-        more = f"\n... and {len(hits) - 10} more" if len(hits) > 10 else ""
-        parts.append(f"### {name} ({len(hits)} places)\n" + "\n".join(h[:160] for h in hits[:10]) + more)
+        more = f"\n... and {count - 10} more" if count > 10 else ""
+        parts.append(f"### {name} ({count} places)\n" + "\n".join(hits) + more)
     if omitted:
         parts.append(f"... and {omitted} more names not searched")
     body = "\n\n".join(parts) or "No code names in backticks in 03-contracts.md. Search by hand and say so."
@@ -269,25 +279,22 @@ if __name__ == "__main__":
         # Escape non-ASCII output when the console uses an ASCII encoding.
         sys.stdout.reconfigure(errors="backslashreplace")
     commands = {"start": start, "status": status, "take": take, "done": done, "skip": skip}
+    arity = {"start": (0, 0), "status": (0, 1), "take": (3, 3), "done": (2, 2), "skip": (3, None)}
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
     try:
         args = sys.argv[2:]
-        if sys.argv[1] == "take":
-            force = "--force" in args
+        command = sys.argv[1]
+        force = command == "take" and "--force" in args
+        if command == "take":
             args = [arg for arg in args if arg != "--force"]
-            if sys.argv[1] == "take" and len(args) != 3:
-                raise SystemExit("take needs <folder> <step> <who> [--force]; who is required")
-            commands[sys.argv[1]](*args, force=force)
-        else:
-            if sys.argv[1] == "done":
-                if "--force" in args:
-                    raise SystemExit("done <folder> <step> accepts no --force")
-                if len(args) != 2:
-                    raise SystemExit("done <folder> <step>")
-            if sys.argv[1] == "skip" and "--force" in args:
-                raise SystemExit("skip accepts no --force")
-            commands[sys.argv[1]](*args)
+        if command in ("done", "skip") and "--force" in args:
+            raise SystemExit("done <folder> <step> accepts no --force" if command == "done" else "skip accepts no --force")
+        minimum, maximum = arity[command]
+        if len(args) < minimum or maximum is not None and len(args) > maximum:
+            raise SystemExit(next(line.strip() for line in __doc__.splitlines()
+                                  if line.strip().split()[:1] == [command]))
+        commands[command](*args, **({"force": force} if command == "take" else {}))
         sys.stdout.flush()
     except BrokenPipeError:
         fd = os.open(os.devnull, os.O_WRONLY)

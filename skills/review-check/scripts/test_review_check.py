@@ -393,6 +393,8 @@ def test_build_interrupt(run, verify, signum=signal.SIGINT):
     (run / "target.json").write_text(json.dumps({**target, "ci": {**target["ci"], "cmd": command}}), encoding="utf-8")
     code = """import signal, sys
 signal.signal(signal.SIGINT, signal.default_int_handler)
+signal.signal(signal.SIGTERM, signal.SIG_DFL)
+signal.signal(signal.SIGHUP, signal.SIG_DFL)
 print('CI 合意', file=sys.stderr, flush=True)
 sys.path.insert(0, sys.argv[1])
 import review_check as rc
@@ -445,6 +447,57 @@ def test_build_ignored_hangup():
         signal.signal(signal.SIGHUP, previous)
 
 
+def test_build_interrupt_ignored_hangup(run, verify):
+    previous = signal.getsignal(signal.SIGHUP)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    try:
+        test_build_interrupt(run, verify, signal.SIGHUP)
+        assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN, "the parent must keep ignored SIGHUP"
+    finally:
+        signal.signal(signal.SIGHUP, previous)
+
+
+def test_build_launch_deferred_signal(run, verify):
+    original = (run / "build.json").read_text(encoding="utf-8")
+    real_popen, real_killpg = subprocess.Popen, os.killpg
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        running = None
+        previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, ())
+        previous_handler = signal.getsignal(signum)
+        signal.signal(signum, signal.SIG_DFL)
+
+        def launch(args, **kwargs):
+            nonlocal running
+            running = real_popen(["bash", "-c", "exec sleep 30"], **kwargs)
+            os.kill(os.getpid(), signum)
+            return running
+
+        try:
+            with patch.object(rc, "home", return_value=verify.parent), \
+                    patch.object(rc, "verify_tree", return_value=verify), \
+                    patch.object(rc.subprocess, "Popen", side_effect=launch), \
+                    patch.object(rc.os, "killpg", wraps=real_killpg) as killpg:
+                try:
+                    rc.build(run.name, "--run")
+                    raise AssertionError("the deferred launch signal must escape")
+                except SystemExit as error:
+                    assert error.code == 128 + signum, error
+            killpg.assert_called_once_with(running.pid, signal.SIGKILL)
+            assert running.poll() is not None, "the launched shell must be reaped"
+            assert running.stdout.closed and running.stderr.closed
+            assert signal.pthread_sigmask(signal.SIG_BLOCK, ()) == previous_mask, "the launch must restore its signal mask"
+            assert (run / "build.json").read_text(encoding="utf-8") == original
+            with rc.step_run.step_lock(verify.parent, "verify", command="build --run"):
+                pass
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+            signal.signal(signum, previous_handler)
+            if running is not None:
+                if running.poll() is None:
+                    real_killpg(running.pid, signal.SIGKILL)
+                running.communicate(timeout=5)
+
+
 def test_build_launch_interrupt(run, verify):
     original = (run / "build.json").read_text(encoding="utf-8")
     previous = signal.getsignal(signal.SIGTERM)
@@ -475,7 +528,7 @@ def test_build_after_launch_interrupt(run, verify):
         if frame.f_code is rc.build.__code__ and event == "line" and frame.f_locals.get("process") is process:
             # Deliver the interruption at the first line after Popen returns.
             sys.settrace(None)
-            raise SystemExit(128 + signal.SIGTERM)
+            os.kill(os.getpid(), signal.SIGTERM)
         return interrupt_after_launch
 
     previous_trace = sys.gettrace()
@@ -662,9 +715,11 @@ def test_frozen_build():
             test_missing_verify_directory(run, verify, head)
             test_verify_build_lock(run, verify)
             test_build_launch_interrupt(run, verify)
+            test_build_launch_deferred_signal(run, verify)
             test_build_after_launch_interrupt(run, verify)
             for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
                 test_build_interrupt(run, verify, signum)
+            test_build_interrupt_ignored_hangup(run, verify)
             test_build_timeout_bounded_cleanup(run, verify)
             test_build_timeout_escaped_child(run, verify)
             test_build_timeout(run, verify)
