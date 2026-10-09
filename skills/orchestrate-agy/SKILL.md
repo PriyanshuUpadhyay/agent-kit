@@ -31,6 +31,8 @@ requirements and fails closed when the active host cannot satisfy them.
 
 ## Bind the environment
 
+Follow `references/fan-out.md` for dispatch and chair work while seats run.
+
 1. Require an injected `[agent-host: ...]` contract before creating workers.
    If none exists, continue serially only when the workflow permits it;
    otherwise report the missing orchestration capability and stop.

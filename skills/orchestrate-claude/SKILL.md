@@ -71,12 +71,9 @@ wider sandbox.
 5. Accept only results validated by the host's durable completion channel. The
    expected artifact is the workflow's durable store path. Result acceptance is
    the swarm inbox message. Close only workers created by this run.
-6. Dispatch returns after worker uptake, never on completion. There is no
-   doorbell to arm, a child's finish rings the chair pane. Check the seat at
-   spawn and once within the first two minutes (uptake, then `pane process-info`),
-   then end the turn. A seat that is not `working` after that check is inspected
-   and re-prompted in the same turn (the host reference "Uptake rule"). Run
-   the sweep as the `swarm-orchestrator` skill says.
+6. Dispatch returns after worker uptake, never on completion. The host owns
+   uptake and the child's finish rings the chair pane.
+   Follow `references/fan-out.md` for dispatch and chair work while seats run.
 
 Native background subagents are allowed unless the host contract or the
 workflow requires a visible pane. Never use a headless CLI. Every Workflow

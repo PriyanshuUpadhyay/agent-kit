@@ -12,6 +12,8 @@ swarm session new lane
 
 ## Seats
 
+Follow the kit's `references/fan-out.md` for seat launches, asks, and chair work.
+
 Spawn each seat with `swarm launch`.
 
 ```sh

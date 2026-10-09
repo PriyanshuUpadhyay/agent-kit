@@ -3,7 +3,7 @@
 
   start <folder> <SKILL.md>    make one step file per table row, each with a todo and a result section
   status <folder>              print each step's status, whether it is ready, and whether it is stale
-  take <folder> <step> <who>   mark the step active and print its file
+  take <folder> <step> <who> [--force]   claim the step and print its file; force takes a stale claim
   done <folder> <step>         set the step done, only when every todo is checked with evidence
 
 take and done add one line to <folder>/events.log, so the path of a run stays readable after it ends.
@@ -13,6 +13,7 @@ and `rev`.
 
 import datetime
 import hashlib
+import os
 import re
 import sys
 from pathlib import Path
@@ -101,16 +102,29 @@ def status(folder, need_of=None, rev=revision):
         print(f"{step}: {s}{note}")
 
 
-def take(folder, step, who, need=None, rev=revision):
-    need = needs(folder, step) if need is None else need
-    if not ready(folder, step, need):
-        raise SystemExit(f"{step} is not ready; it needs {', '.join(need)}")
-    file = Path(folder) / f"{step}.md"
-    lines = file.read_text().split("\n")
-    uses = ", ".join(f"{n}@{rev(folder, n)}" for n in need)
-    file.write_text("\n".join([f"Status: active {who}", f"Uses: {uses}", *lines[2:]]))
+def take(folder, step, who, need=None, rev=revision, force=False):
+    lock = Path(folder) / f"{step}.lock"
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        raise SystemExit(f"{step} is being claimed; try again")
+    try:
+        os.close(fd)
+        file = Path(folder) / f"{step}.md"
+        lines = file.read_text().split("\n")
+        owner = lines[0].removeprefix("Status: ")
+        if owner.startswith("active ") and owner != f"active {who}" and not force:
+            raise SystemExit(f"{step} is active for {owner.removeprefix('active ')}; use --force if that run is gone")
+        need = needs(folder, step) if need is None else need
+        if not ready(folder, step, need):
+            raise SystemExit(f"{step} is not ready; it needs {', '.join(need)}")
+        uses = ", ".join(f"{n}@{rev(folder, n)}" for n in need)
+        text = "\n".join([f"Status: active {who}", f"Uses: {uses}", *lines[2:]])
+        file.write_text(text)
+    finally:
+        lock.unlink()
     log(folder, step, f"take {who}")
-    print(file.read_text())
+    print(text)
 
 
 def done(folder, step, rev=None):
@@ -131,4 +145,9 @@ if __name__ == "__main__":
     commands = {"start": start, "status": status, "take": take, "done": done}
     if len(sys.argv) < 3 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
-    commands[sys.argv[1]](*sys.argv[2:])
+    args = sys.argv[2:]
+    if sys.argv[1] == "take":
+        force = "--force" in args
+        take(*(arg for arg in args if arg != "--force"), force=force)
+    else:
+        commands[sys.argv[1]](*args)

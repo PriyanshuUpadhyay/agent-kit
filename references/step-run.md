@@ -5,7 +5,7 @@ description: Owner contract for a step run, a skill's work split into step files
 # Step run
 
 A step run keeps a skill's work in files, one file per step, so that any agent on any provider can
-read the folder, finish the next ready step, and move on. A chat holds no state that a step needs.
+read the folder, finish every ready step, and move on. A chat holds no state that a step needs.
 
 Example. A `research` run stops after `02-local.md` because the session ends. Next day a Codex
 session gets "research continue <reports>/2026-10-05-browser-tool/". It reads the folder,
@@ -26,6 +26,7 @@ names its own script. `start <folder> <SKILL.md>` writes one file per table row,
 the row holds and a `## Result` section. `take <folder> <step> <agent>` marks a step active and fills
 its `Uses:` line. `done <folder> <step>` sets the step done only when every todo is checked with its
 evidence after the colon. `status <folder>` also names each stale step. Never set a step done by hand.
+`take` refuses a step active for another agent; use `--force` after confirming that run is gone.
 `take` and `done` add one line to `<folder>/events.log` with the time, the step, and the event, so the
 path of a run, and not only its last state, stays readable. A skill script with its own step graph
 or revision, such as flow's `flow_run.py`, imports these functions and passes its own.
@@ -51,22 +52,23 @@ Line 1 of each step file is its status:
 
 ## Pick up
 
-1. Read every step file's line 1. Take the step that the user named, or else the first ready step.
-2. If a step is `active <agent>` and that agent is still running, stop and tell the user. An
-   `active` step left by an earlier chat is open again after you check what its files hold.
-3. Set your step to `active <agent>` and read only what its row in the skill's step table names.
+1. Read every step file's line 1. Take the step that the user named, or else every ready step.
+   When the skill routes steps to seats, give each ready step to its seat in the same turn by
+   `references/fan-out.md`.
+2. `take` enforces the active owner. Check what a stale run's files hold before using `--force`.
+3. Run `take <folder> <step> <agent>` and read only what its row in the skill's step table names.
 
 ## Close and move on
 
 1. Write the step's result and its evidence below line 2, then set line 1 to `done <revision>`.
-2. Go on to the next ready step in the same turn. Stop only for one of the reasons below.
+2. Go on to every step now ready in the same turn, by `references/fan-out.md`.
 
 ## When a step waits for the user
 
 A step waits only for a choice that `AGENTS.md` says to ask about, a diff approval that the
 skill's mode requires, or an external write or irreversible action. Set its status to
-`waiting <question>`, put the question and the options in the reply, and stop. Every other step
-closes and the run moves on.
+`waiting <question>` and put the question and the options in the reply. A waiting or blocked step
+stops only itself; the other ready steps go on.
 
 A step that cannot go on because an input is missing or two inputs disagree is `blocked <reason>`.
 Name the missing input in the reply.
