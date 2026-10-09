@@ -1,5 +1,6 @@
 """Run: python3 test_flow_run.py  (uses a temporary repo and a temporary HOME)."""
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -487,8 +488,8 @@ def test_block_in_step(tmp):
     assert "===== block:red-first-check =====" in build and "Rank each claim on the ladder" in build, build
     skills = next(line for line in build.splitlines() if line.startswith("Skills read:"))
     assert "profile default" in skills, skills
-    assert any(item.strip().startswith("block:red-first-check@") and len(item.strip().split("@")[1]) == 8
-               for item in skills.split(",")), skills
+    digest = hashlib.sha256((flow_run.BLOCKS / "red-first-check.md").read_bytes()).hexdigest()[:8]
+    assert f"block:red-first-check@{digest}" in [item.strip() for item in skills.removeprefix("Skills read:").split(",")], skills
     assert "Rank each claim on the ladder" not in step_text(folder, "02-design")
     # A second start on the folder writes nothing, even when the catalog now fails.
     (repo.parent / "home" / ".flow" / "domains.md").write_text("## any\n- build: block:nope\n", encoding="utf-8")
