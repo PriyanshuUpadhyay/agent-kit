@@ -211,6 +211,10 @@ def resolve_blocks(root, wanted, profile_name):
             if Path(path).is_absolute() or not (root / path).resolve().is_relative_to(root.resolve()):
                 raise SystemExit(f"[add] {path} leaves the repo; {repo_file} takes repo-relative paths")
             block = Path(path).stem
+            # The id goes into the step file and take's output, so it is one plain word.
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", block):
+                raise SystemExit(f"[add] {path} in {repo_file} has id {block}, which is not only letters, digits, "
+                                 "dots, dashes, and underscores; rename the file")
             if block in aliases:
                 raise SystemExit(f"[add] {path} in {repo_file} has id {block}, which is an alias in {kit_file}; rename the file")
             if files.get(block, root / path) != root / path:

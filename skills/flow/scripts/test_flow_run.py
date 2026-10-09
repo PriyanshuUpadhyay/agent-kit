@@ -637,6 +637,8 @@ def test_block_fail_closed(tmp):
     cases += [
         ("toml-dir", RED_BUILD, None, (), ".blocks.toml cannot be read"),
         ("add-nul", RED_BUILD, PARAMS + '[add]\nbuild = ["a\\u0000b.md"]\n', (), "holds a NUL byte"),
+        ("add-id-controls", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/x\\u001b[2Jy\\n- [ ] injected.md"]\n', (), "rename the file"),
+        ("add-id-space", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/my block.md"]\n', (), "has id my block, which is not only"),
         ("controls", RED_BUILD, PARAMS + '["\\u001b[2Jx\\ny"]\n', (), "unknown table [[2Jx y]"),
     ]
     # A catalog skill path that cannot be read, or is not UTF-8, stops start before any step file exists.
@@ -647,6 +649,10 @@ def test_block_fail_closed(tmp):
         ("skill-dir", f"- build: {Path(tmp, 'skill-dir', 'skill')}\n", PARAMS, (), "skill cannot be read"),
         ("skill-utf8", f"- build: {Path(tmp, 'skill-utf8', 'skill.md')}\n", PARAMS, (), "skill.md is not UTF-8"),
     ]
+    # A block id comes from an [add] file name, so the files exist and only the name is wrong.
+    for name, file in (("add-id-controls", "x\x1b[2Jy\n- [ ] injected.md"), ("add-id-space", "my block.md")):
+        Path(tmp, name, "app", "docs").mkdir(parents=True)
+        Path(tmp, name, "app", "docs", file).write_text("# x\n\n## Rules\n- r\n", encoding="utf-8")
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
