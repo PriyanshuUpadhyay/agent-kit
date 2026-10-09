@@ -8,7 +8,7 @@ Source: html-plan pack: skills/html-plan/references/blocks.md:101-106 (doc-calls
 - One call per line. Column 0 is the mark: `+` new, `-` removed, `~` changed entrypoint, `?` proposed (the reader can strike it), a space for context.
 - An entrypoint starts at column 2. Each level adds 2 spaces. A blank line starts a new entrypoint.
 - `**bold**` marks a new symbol. A `+` row without bold is a new call to something that exists.
-- End each line with `@ path:line` and, if needed, `-- one clause`. For a new function in a file that exists, cite the line it goes after.
+- Cite `@ path:line` on each line. Only an optional `-- one clause` may follow it. For a new function in a file that exists, cite the line it goes after.
 - Keep one tree at 15 rows or fewer.
 - The step names the existing features that change, or says "independent".
 
@@ -29,6 +29,6 @@ Result: the reader sees two new symbols, two changed entrypoints, and one option
 - none: the tree lives only in the step file, which holds this block's own example tree; impact runs before any commit.
 
 ## Check (judge)
-- Does each tree row have a mark in column 0 and end with `@ path:line`, and does each tree have 15 rows or fewer? Quote each tree.
+- Does each tree row have a mark in column 0 and `@ path:line`, followed by nothing or by one `-- clause`, and does each tree have 15 rows or fewer? Quote each tree.
 - For a row on code that exists, is its symbol at the cited line, and for a `+` row of a new function, is the cited line the one it goes after? Quote each row and the source line.
 - Does `04-impact.md` name the existing features that change, or say "independent"? Quote the line.

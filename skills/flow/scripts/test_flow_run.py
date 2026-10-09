@@ -681,7 +681,10 @@ def test_block_checks(tmp):
     assert out.returncode == 0, out.stderr
     build, review = step_text(folder, "05-build"), step_text(folder, "06-review")
     todo = build.split(flow_run.TODO_HEAD)[1]
-    script = "- [ ] block html-diagram script: `rg -o '<figure[ >]' site | wc -l` and `rg -o '<figcaption' site | wc -l` print the same number: each figure has a caption.: "
+    script = ("- [ ] block html-diagram script: `rg -c '<figure[ >]' site` prints a count of 1 or more, and "
+              r"`rg -U --pcre2 -n '<figure[ >](?:(?!</figure>|<figcaption)[\s\S])*</figure>|<figure[ >](?:(?!</figure>)[\s\S])*?"
+              r"<figcaption(?:(?!</figure>)[\s\S])*?<figcaption' site` prints nothing and exits 1: the page has a figure, "
+              "and each figure has exactly one caption.: ")
     assert script + "\n" in todo, todo
     assert "script: none:" not in todo, "a `- none:` line says why a block has no script check; it is no todo"
     judge ="At 375 px, does each arrow still point from its source to its target?"

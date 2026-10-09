@@ -26,7 +26,7 @@ Action: write the design read ("dev-tool landing for backend engineers, plain te
 Result: lint shows one `contrast-ratio` warning on the muted text, so the grammar marks it `miss` and darkens the token before style frames.
 
 ## Check (script)
-- `npx @google/design.md lint {{site}}/DESIGN.md 2>&1 | rg '"severity": "error"|"rule": "contrast-ratio"'` prints nothing: the tokens pass lint with no contrast finding.
+- `npx @google/design.md lint {{site}}/DESIGN.md | jq -e '([.findings[] | select(.rule == "token-summary")] | length > 0) and ([.findings[] | select(.severity == "error" or .rule == "contrast-ratio")] | length == 0)'` prints `true`: `DESIGN.md` exists, its tokens parse, and lint has no error and no contrast finding. A missing file prints nothing and a file that does not parse prints `false`.
 - `rg -n --glob '*.css' '#[0-9a-fA-F]{3,8}\b[^{,]*(;|\}|$)|\b(rgba?|hsla?|oklch|oklab)\(' {{site}}` finds color literals only in the one `:root` token block: the CSS reads only tokens.
 - `rg -c '—|–' {{site}}/index.html` prints nothing: visible text has no dash separators.
 

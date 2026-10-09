@@ -4,7 +4,7 @@ Serves: design, build, review
 Source: skills/ink/references/build.md:156-158 (chrome-headless-shell, Playwright cache); skills/ink/references/qa.md:30-38 (compare image at the same scale, 100 % crop)
 
 ## Rules
-- Command: `<chrome-headless-shell> --headless --screenshot="$PWD/{{shots}}/<name>-<W>.png" --window-size=W,H "file://$PWD/{{site}}/index.html"`, run from the repo root. Widths are 1440,900 and 390,844 and 375,812.
+- Command: `mkdir -p {{shots}} && <chrome-headless-shell> --headless --screenshot="$PWD/{{shots}}/<name>-<W>.png" --window-size=W,H "file://$PWD/{{site}}/index.html"`, run from the repo root; the shell does not make the folder. Widths are 1440,900 and 390,844 and 375,812. `<name>` is the page, such as `home`, or `diagram-<diagram>` for a shot of one diagram.
 - Find `<chrome-headless-shell>` with `npx playwright install chromium-headless-shell`, which prints the folder it downloads to; the binary is inside it.
 - Put a frame beside the reference at the same scale with `magick ref.png frame.png -resize x900 +append {{shots}}/compare-NN.png`.
 - Limit: the screenshot is one viewport tall. For a long page, also shoot with a taller window (for example 1440,4000) or scroll with an anchor URL.
