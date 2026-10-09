@@ -874,11 +874,13 @@ def test_look_grammar_colors(tmp):
         "e { color: color-mix(in srgb, #fff 50%, red); }",  # 13
         "f { color: lab(50% 0 0); }",  # 14
         "@media (min-width: 40em) { #dead { color: var(--fg); } }",  # 15 selector inside a block
+        ".card { color: #fff; &:hover { color: var(--fg); } }",  # 16 a hex before a nested rule
+        ".card { &#fff-id { color: var(--fg); } }",  # 17 a nested selector that looks like a hex
     ]) + "\n", encoding="utf-8")
     colors = block_rg("look-grammar", site)[0]
     assert colors.returncode == 0, colors.stderr
     lines = sorted(int(line.split(":")[1]) for line in colors.stdout.splitlines())
-    assert lines == [1, 5, 6, 9, 12, 13, 14], (lines, colors.stdout)
+    assert lines == [1, 5, 6, 9, 12, 13, 14, 16], (lines, colors.stdout)
 
 
 def test_diagram_shot_check(tmp):
