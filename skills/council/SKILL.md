@@ -152,7 +152,7 @@ the per-model trail go below `Reference below`.
 
 ## Decision log
 
-Before Round 0, search `~/dotfiles/docs/council/` and the older `~/.claude/council-log/` for a prior
+Before Round 0, search `~/dotfiles/docs/council/` for a prior
 log for the topic and reuse still-valid resolved constraints.
 The caller may pin one exact decision-log path outside the inspected product repository. Use that
 path when it is present, include it in every seat's pinned brief, and do not also create a repository
