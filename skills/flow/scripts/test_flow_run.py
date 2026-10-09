@@ -508,7 +508,7 @@ def test_block_alias_and_base(tmp):
     skills = next(line for line in design.splitlines() if line.startswith("Skills read: "))
     assert skills.count("block:html-diagram@") == 1, skills
     assert len(set(rule_lines(design))) == len(rule_lines(design)), rule_lines(design)
-    for step in ("01-frame", "04-impact", "05-build", "07-close"):
+    for step in ("01-frame", "02-design", "03-contracts", "04-impact", "05-build", "06-review", "07-close"):
         assert step_text(folder, step).count("===== block:first-principles =====") == 1, step
 
 
