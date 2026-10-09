@@ -619,7 +619,7 @@ def test_block_checks(tmp):
     assert out.returncode == 0, out.stderr
     build, review = step_text(folder, "05-build"), step_text(folder, "06-review")
     todo = build.split(flow_run.TODO_HEAD)[1]
-    script = "- [ ] block html-diagram script: `rg -n '<svg|<canvas|position:\\s*absolute' site` shows nothing inside a diagram: the diagrams reflow.: "
+    script = "- [ ] block html-diagram script: `rg -o '<figure[ >]' site | wc -l` and `rg -o '<figcaption' site | wc -l` print the same number: each figure has a caption.: "
     assert script + "\n" in todo, todo
     assert "script: none:" not in todo, "a `- none:` line says why a block has no script check; it is no todo"
     judge ="At 375 px, does each arrow still point from its source to its target?"

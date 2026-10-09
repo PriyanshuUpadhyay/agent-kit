@@ -26,10 +26,11 @@ Action: write the design read ("dev-tool landing for backend engineers, plain te
 Result: lint shows one `contrast-ratio` warning on the muted text, so the grammar marks it `miss` and darkens the token before style frames.
 
 ## Check (script)
-- `npx @google/design.md lint {{site}}/DESIGN.md 2>&1 | rg -i 'error|contrast-ratio'` prints nothing: the tokens pass lint with no contrast finding.
-- `rg -n '#[0-9a-fA-F]{3,8}\b|rgb\(' {{site}} --glob '!DESIGN.md'` finds color literals only in the one `:root` token block: page code reads only tokens.
+- `npx @google/design.md lint {{site}}/DESIGN.md 2>&1 | rg '"severity": "error"|"rule": "contrast-ratio"'` prints nothing: the tokens pass lint with no contrast finding.
+- `rg -n --glob '*.css' '#[0-9a-fA-F]{3,8}\b[^{,]*(;|\}|$)|\b(rgba?|hsla?|oklch|oklab)\(' {{site}}` finds color literals only in the one `:root` token block: the CSS reads only tokens.
 - `rg -c '—|–' {{site}}/index.html` prints nothing: visible text has no dash separators.
 
 ## Check (judge)
 - Does `02-design.md` have the design-read line and a reference list with an evidence label on each fact? Quote the line and the labels.
+- Do the HTML's `<style>` blocks and `style=` attributes, and the CSS outside `:root`, use no named color (`black`, `white`, `red`) or other color literal? Quote each color value found.
 - Does the hero screenshot at 1440 px show the call to action with no scroll? Quote the screenshot path.
