@@ -434,7 +434,7 @@ def test_closed_stdout(repo, env, folder):
 PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\n'
 
 
-def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args):
+def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None):
     """Start a flow in a new repo whose catalog `any` section has the given step lines, with the kit's blocks."""
     home, repo = Path(tmp, name, "home"), Path(tmp, name, "app")
     (home / ".flow" / "app").mkdir(parents=True)
@@ -445,7 +445,7 @@ def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args):
     if repo_toml is not None:
         (repo / ".blocks.toml").write_text(repo_toml, encoding="utf-8")
     run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], cwd=repo,
-                                    env={**os.environ, "HOME": str(home)}, capture_output=True, text=True)
+                                    env={**os.environ, "HOME": str(home), **(env or {})}, capture_output=True, text=True)
     out = run("start", *args)
     folder = Path(out.stdout.splitlines()[0]) if out.returncode == 0 else None
     return out, folder, repo, run
@@ -590,6 +590,14 @@ def test_block_repo_file(tmp):
     assert "block html-diagram" not in design and "block html-diagram" not in step_text(folder, "06-review")
 
 
+def test_block_ascii_locale(tmp):
+    """start writes the UTF-8 block text (`…` in web-ui-basics) under an ASCII locale."""
+    ascii_env = {"LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    out, folder, _, _ = blocks_start(tmp, "ascii", "- build: block:web-ui-basics\n", env=ascii_env)
+    assert out.returncode == 0, out.stderr
+    assert "…" in step_text(folder, "05-build")
+
+
 def test_block_checks(tmp):
     """D6: Check (script) lines become step todos; Check (judge) lines go to 06-review only, and done
     refuses a checked block todo with no evidence even when its command holds a colon."""
@@ -644,7 +652,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "\nRevision: HEAD\n" in (folder / "05-build.md").read_text()
     assert "Revision:" not in (folder / "06-review.md").read_text()
     # A catalog with no block item writes no block, no profile, and no judge section (old behaviour).
-    assert all("block:" not in p.read_text() and "Judge checks" not in p.read_text() for p in folder.glob("0*.md"))
+    assert all("block:" not in text and "Judge checks" not in text
+               for text in (p.read_text(encoding="utf-8") for p in folder.glob("0*.md")))
 
     test_skip_text_encoding()
     test_command_wrong_count(run, folder)
@@ -764,4 +773,5 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
     test_block_checks(tmp)
+    test_block_ascii_locale(tmp)
     print("ok")
