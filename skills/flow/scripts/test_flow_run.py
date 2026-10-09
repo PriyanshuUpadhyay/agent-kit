@@ -579,8 +579,10 @@ def test_block_controls(tmp):
     out, _, repo, _ = blocks_start(tmp, "controls-param", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/y.md"]\n')
     assert out.returncode == 1 and "block y needs {{nope}}" in out.stderr and "Traceback" not in out.stderr, out.stderr
     assert not (repo / "tmp" / "flow").exists()
-    checks = flow_run.sections((flow_run.BLOCKS / "web-ui-basics.md").read_text(encoding="utf-8"))
-    assert build.count("block web-ui-basics script:") == len(flow_run.check_lines(checks, "Check (script)")), build
+    # Count the block's script checks with a plain read, not with the code that writes the todos.
+    section = (flow_run.BLOCKS / "web-ui-basics.md").read_text(encoding="utf-8").split("\n## Check (script)\n", 1)[1].split("\n## ", 1)[0]
+    expected = [line for line in section.splitlines() if line.startswith("- ") and not line.startswith("- none:")]
+    assert len(expected) >= 2 and build.count("block web-ui-basics script:") == len(expected), build
 
 
 def test_block_headings(tmp):
