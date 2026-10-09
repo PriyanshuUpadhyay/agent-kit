@@ -152,12 +152,14 @@ the per-model trail go below `Reference below`.
 
 ## Decision log
 
-Before Round 0, search for a prior log for the topic and reuse still-valid resolved constraints.
+Before Round 0, search `~/dotfiles/docs/council/` and the older `~/.claude/council-log/` for a prior
+log for the topic and reuse still-valid resolved constraints.
 The caller may pin one exact decision-log path outside the inspected product repository. Use that
 path when it is present, include it in every seat's pinned brief, and do not also create a repository
 log. An internally triggered planning Council must receive such an external path. Otherwise, write
-runs invoked directly by the user to `docs/council/<YYYY-MM-DD>-<slug>.md` in a repo, or to
-`~/.claude/council-log/<YYYY-MM-DD>-<slug>.md` when no repo exists. Include the artifact pointer,
+runs invoked directly by the user to `~/dotfiles/docs/council/<YYYY-MM-DD>-<slug>.md`, from any repo
+or none. Never write the log into the inspected repository, because a public repository would
+publish its private paths. Include the artifact pointer,
 Round-0 Q&A, models actually used, final verdict, required changes, dissent, per-model trail, the round
 at which the council converged, and each round's wall time.
 

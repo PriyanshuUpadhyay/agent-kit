@@ -37,7 +37,7 @@ the following order.
 1. the repository at hand;
 2. its docs;
 3. prior reports under `~/.claude/reports/`;
-4. council logs under `~/.claude/council-log/`.
+4. council logs under `~/dotfiles/docs/council/` and the older `~/.claude/council-log/`.
 
 For each decision, track the open question, primary evidence, contrary evidence, and remaining
 gap in the report. Inspect the source's actual method or code before accepting its headline.
