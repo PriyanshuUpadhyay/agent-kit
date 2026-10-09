@@ -860,10 +860,14 @@ def test_html_diagram_check(tmp):
 
 
 def block_rg(name, site):
-    """Run each `rg` command of a block's Check (script) section on `site`, as written."""
+    """Run each `rg` command of a block's Check (script) section on `site`, as written. An rg error (exit 2)
+    fails the test, so a row that must stay clean cannot pass on an error."""
     text = (flow_run.BLOCKS / f"{name}.md").read_text(encoding="utf-8").split("## Check (script)\n", 1)[1].split("\n## ")[0]
-    return [subprocess.run(c.replace("{{site}}", shlex.quote(str(site))), shell=True, capture_output=True, text=True)
+    runs = [subprocess.run(c.replace("{{site}}", shlex.quote(str(site))), shell=True, capture_output=True, text=True)
             for c in re.findall(r"`([^`]+)`", text) if c.startswith("rg ")]
+    for out in runs:
+        assert out.returncode in (0, 1), (out.args, out.stderr)
+    return runs
 
 
 def test_look_grammar_colors(tmp):
@@ -871,6 +875,7 @@ def test_look_grammar_colors(tmp):
     later line of a value) and in :root, and not a selector that looks like a hex color."""
     site = Path(tmp, "colors-site")
     site.mkdir()
+    (site / "index.html").write_text("<p>colors</p>\n", encoding="utf-8")  # the block's other checks read it
     (site / "a.css").write_text("\n".join([
         ":root { --bg: #fff; --fg: oklch(0.2 0 0); }",  # 1
         "#face .x { color: var(--fg); }",  # 2 selector
