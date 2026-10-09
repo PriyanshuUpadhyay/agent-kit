@@ -13,7 +13,7 @@ Source: skills/ink/SKILL.md:23-27, :30; skills/ink/references/references.md:79, 
 - Borrow techniques and high-level traits. Never copy logos, exact compositions, or a living artist's exact style.
 - Write `DESIGN.md` beside the page code: colors, typography, spacing, rounded, and components as YAML tokens, then prose. Lint it with `npx @google/design.md lint DESIGN.md`. It exits 0 and gives low contrast only as a warning, so read the findings. Any error or `contrast-ratio` finding is a `miss`.
 - `DESIGN.md` owns color, type, and spacing. `02-design.md` keeps only what `DESIGN.md` cannot hold, such as the motion grammar, and names `DESIGN.md` for the rest. Each value has one home.
-- Page code has no color literals. CSS reads the tokens as custom properties.
+- Color literals live only in the one `:root` token block. All other CSS and page code read the tokens as custom properties.
 - One accent color, saturation below 80%, used the same on the whole page. One corner-radius scale for the page. No pure black `#000000`.
 - Do not default to AI-purple gradients, a centered hero over a dark mesh, three equal feature cards, or Inter + slate-900.
 - Design light and dark modes from the start. Respect `prefers-color-scheme`.
