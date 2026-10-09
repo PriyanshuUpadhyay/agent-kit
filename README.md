@@ -78,6 +78,7 @@ that needs them, instead of linking them all into every session.
 | [zaxified/zig-skills](https://github.com/zaxified/zig-skills) | `be65603` | `skills/zig/` | Zig 0.16.0 |
 | [cursor/plugins](https://github.com/cursor/plugins) | `d7cde2b` | `pstack/skills/typescript-best-practices/` | TypeScript rules |
 | [Glitch-Cat-Club/glitch-skills](https://github.com/Glitch-Cat-Club/glitch-skills) | `8a9a2df` | `glitch-walk/` and `LICENSE`, with a local patch | a walk page: one action as real screens and real code lines |
+| [morluto/rea](https://github.com/morluto/rea) | `rea-agents-6.1.0` | `skill-src/reverse-engineer-anything/` and `LICENSE`, CLI pinned, no MCP | reverse engineering shipped apps, Electron, web, .NET |
 
 Tools, not skill files: `xcrun mcpbridge` (Xcode), the sosumi MCP (`https://sosumi.ai/mcp`), Mobbin
 through Composio (`composio link mobbin_mcp`, paid Mobbin plan), `npx @google/design.md lint`, the
