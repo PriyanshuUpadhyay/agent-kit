@@ -46,6 +46,12 @@ its Mermaid with the library from `cdn.jsdelivr.net`, and give its path in one l
 The page is extra. The reply still carries the whole result, and the agent never publishes the page
 or opens it.
 
+A walk is the one exception. A walk from the borrowed `glitch-walk` skill
+(https://github.com/Glitch-Cat-Club/glitch-skills) shows one action as real screens, each with the
+real code lines behind it, and text cannot hold that. So its page is the main result. The reply gives
+the page's path and two or three lines on what it covers and what was not checked. The agent still
+never publishes or opens the page.
+
 ## Not yet
 
 An explainer video is an open item. It waits for a test of the tools against the `ink` skill.
