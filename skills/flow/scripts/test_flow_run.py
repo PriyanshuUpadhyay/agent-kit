@@ -498,6 +498,10 @@ def test_block_alias_and_base(tmp):
     design = step_text(folder, "02-design")
     for block in ("first-principles", "tech-diagram-concept", "html-diagram"):
         assert design.count(f"===== block:{block} =====") == 1, (block, design)
+    # html-diagram comes twice, through the alias and alone; a merged group prints one header either way.
+    skills = next(line for line in design.splitlines() if line.startswith("Skills read: "))
+    assert skills.count("block:html-diagram@") == 1, skills
+    assert len(set(rule_lines(design))) == len(rule_lines(design)), rule_lines(design)
     for step in ("01-frame", "04-impact", "05-build", "07-close"):
         assert step_text(folder, step).count("===== block:first-principles =====") == 1, step
 
