@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 import tempfile
-import time
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -33,7 +32,7 @@ def test_take_force(run, folder):
         out = run("take", *args)
         assert out.returncode == 0, out.stderr
         assert file.read_text().startswith(f"Status: active {who}\n")
-        assert not (folder / "01-frame.lock").exists()
+        assert (folder / "01-frame.lock").exists()
         assert (folder / "events.log").read_text().splitlines()[-1].endswith(f"\t01-frame\ttake {who}")
     file.write_text(original)
 
@@ -48,7 +47,6 @@ def test_take_requires_who(run, folder):
         assert "who" in out.stderr and "Traceback" not in out.stderr, out.stderr
         assert file.read_text() == original
         assert (folder / "events.log").read_text() == events
-        assert not (folder / "01-frame.lock").exists()
 
 
 def test_atomic_skip(folder):
@@ -75,67 +73,95 @@ def test_skip_lock(run, folder):
     file = folder / "02-design.md"
     original = file.read_text()
     events = (folder / "events.log").read_text()
-    lock = folder / "02-design.lock"
-    lock.write_text("")
-    try:
-        out = run("skip", folder, "02-design", "no", "UI")
-        assert out.returncode == 1 and "is being claimed; try again" in out.stderr, out
-        assert f"use skip --force after {flow_run.step_run.STALE_LOCK_SECONDS} s" in out.stderr
-        assert file.read_text() == original and lock.exists()
+    with flow_run.step_run.step_lock(folder, "02-design"):
+        for force in ((), ("--force",)):
+            out = run("skip", folder, "02-design", "no", "UI", *force)
+            assert out.returncode == 1 and "02-design is locked by a running skip; wait for it" in out.stderr, out
+        assert file.read_text() == original
         assert (folder / "events.log").read_text() == events
-    finally:
-        lock.unlink()
 
 
 def test_skip_force(run, folder):
     file = folder / "02-design.md"
     original = file.read_text()
-    lock = folder / "02-design.lock"
     try:
         for args in ((folder, "02-design", "no", "UI", "--force"),
                      ("--force", folder, "02-design", "no", "UI")):
-            file.write_text(original)
-            lock.write_text("")
-            out = run("skip", *args)
-            assert out.returncode == 1 and lock.exists(), "skip must preserve a fresh lock"
-            old = time.time() - flow_run.step_run.STALE_LOCK_SECONDS - 1
-            os.utime(lock, (old, old))
+            file.write_text(original.replace("Status: open", "Status: active dead-owner"))
             out = run("skip", *args)
             assert out.returncode == 0, out.stderr
             assert file.read_text().startswith("Status: skipped no UI\n"), "the reason must exclude --force"
-            assert not lock.exists()
+            with flow_run.step_run.step_lock(folder, "02-design"):
+                pass
     finally:
-        lock.unlink(missing_ok=True)
         file.write_text(original)
 
 
 def test_callers_after_claim(run, folder):
     file = folder / "04-impact.md"
     original = file.read_text()
-    lock = folder / "04-impact.lock"
-    lock.write_text("")
-    try:
+    with flow_run.step_run.step_lock(folder, "04-impact"):
         out = run("take", folder, "04-impact", "a")
-        assert out.returncode == 1 and "is being claimed; try again" in out.stderr, out
+        assert out.returncode == 1 and "is locked by a running take" in out.stderr, out
         assert file.read_text() == original, "a refused claim must not write callers"
-    finally:
-        lock.unlink()
     seen = []
 
     def write_callers(path):
         assert file.read_text().startswith("Status: active a\n"), "the claim must finish before callers are written"
-        assert lock.exists(), "callers must be written inside the claim lock"
         try:
             flow_run.skip(folder, "04-impact", "racing skip")
             raise AssertionError("skip must refuse during the callers write")
         except SystemExit as error:
-            assert "is being claimed" in str(error), error
+            assert "is locked by a running skip" in str(error), error
         seen.append(path)
 
     with redirect_stdout(StringIO()), patch.object(flow_run, "write_callers", write_callers):
         flow_run.take(folder, "04-impact", "a")
     assert seen == [folder]
     file.write_text(original)
+
+
+def test_callers_timeout(folder):
+    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
+    original = file.read_text(encoding="utf-8")
+    original_contracts = contracts.read_text(encoding="utf-8")
+    calls = []
+    real_run = subprocess.run
+
+    def slow_grep(args, **kwargs):
+        if args[:2] == ["git", "grep"]:
+            calls.append((args, kwargs))
+            if len(calls) == 1:
+                raise subprocess.TimeoutExpired(args, 60)
+            return subprocess.CompletedProcess(args, 0, b"app.py:1:other_name()\n", b"")
+        return real_run(args, **kwargs)
+
+    try:
+        contracts.write_text(original_contracts + "`other_name()`\n", encoding="utf-8")
+        with patch.object(flow_run.subprocess, "run", slow_grep):
+            flow_run.write_callers(folder)
+        assert len(calls) >= 2, "a timed out search must not stop later names"
+        assert all(options.get("timeout") == 60 and not options.get("text") for _, options in calls)
+        text = file.read_text(encoding="utf-8")
+        assert "callers: git grep timed out" in text and "app.py:1:other_name()" in text
+    finally:
+        file.write_text(original, encoding="utf-8")
+        contracts.write_text(original_contracts, encoding="utf-8")
+
+
+def test_callers_controls(repo, run, folder):
+    file, app = folder / "04-impact.md", repo / "app.py"
+    original, source = file.read_text(encoding="utf-8"), app.read_bytes()
+    try:
+        app.write_bytes(b"# \x1b]0;title\x07 \x7f \xc2\x80 parse_phone()\n")
+        out = run("take", folder, "04-impact", "a")
+        assert out.returncode == 0, out.stderr
+        assert "]0;title" in out.stdout
+        assert not any(ord(c) < 32 and c not in "\n\t" or 127 <= ord(c) <= 159 for c in out.stdout), repr(out.stdout)
+        assert "parse_phone" in file.read_text(encoding="utf-8")
+    finally:
+        app.write_bytes(source)
+        file.write_text(original, encoding="utf-8")
 
 
 def test_impact_closed_stdout(repo, env, folder):
@@ -161,20 +187,25 @@ def test_impact_utf8(repo, env, folder):
     contracts = folder / "03-contracts.md"
     original = file.read_text(encoding="utf-8")
     original_contracts = contracts.read_text(encoding="utf-8")
+    app = repo / "app.py"
+    original_app = app.read_bytes()
+    # Disable C-locale coercion, UTF-8 mode, and UTF-8 stream output independently.
     ascii_env = {**env, "LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0", "PYTHONIOENCODING": "ascii"}
     try:
+        app.write_bytes(original_app + "# 合意 parse_phone\n".encode("utf-8") + b"# \xff parse_phone\n")
         for note in ("", "合意\n"):
             file.write_text(original, encoding="utf-8")
             contracts.write_text(original_contracts + note, encoding="utf-8")
-            out = subprocess.run([sys.executable, SCRIPT, "take", str(folder), "04-impact", "合意"],
+            out = subprocess.run([sys.executable, SCRIPT, "take", str(folder), "04-impact", "ascii-owner"],
                                  cwd=repo, env=ascii_env, capture_output=True, text=True)
             assert out.returncode == 0, out.stderr
-            assert "active \\u5408\\u610f" in out.stdout and flow_run.CALLERS_HEAD in out.stdout
-            assert file.read_text(encoding="utf-8").startswith("Status: active 合意\n")
+            assert "\\u5408\\u610f" in out.stdout and "\\xff" in out.stdout and flow_run.CALLERS_HEAD in out.stdout
+            assert file.read_text(encoding="utf-8").startswith("Status: active ascii-owner\n")
             assert flow_run.CALLERS_HEAD in file.read_text(encoding="utf-8")
     finally:
         file.write_text(original, encoding="utf-8")
         contracts.write_text(original_contracts, encoding="utf-8")
+        app.write_bytes(original_app)
 
 
 def test_closed_stdout(repo, env, folder):
@@ -253,6 +284,8 @@ with tempfile.TemporaryDirectory() as tmp:
     test_callers_after_claim(run, folder)
     test_impact_closed_stdout(repo, env, folder)
     test_impact_utf8(repo, env, folder)
+    test_callers_timeout(folder)
+    test_callers_controls(repo, run, folder)
     out = run("take", folder, "04-impact", "a")
     assert out.returncode == 0, out.stderr
     assert flow_run.CALLERS_HEAD in out.stdout, "take must print the complete impact file"

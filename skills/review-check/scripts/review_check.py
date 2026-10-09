@@ -13,7 +13,7 @@ the unit's file. `build` records the CI result for the run's head, and `verdict`
 only from it.
 
   start <local|base..head> [--patch FILE]   make <repo>/tmp/review-check/<run>/ with 01-units.md
-  build <run> [--run [--force]]               record CI for the head, or run its command in the verify worktree
+  build <run> [--run]                        record CI for the head, or run its command in the verify worktree
   verdict <run>                              gate the rows of 02-review*.md and write 03-verdict.md
 
 `--patch` reviews that patch instead of the whole range, for example review-walk's diff since view.
@@ -441,6 +441,8 @@ def verify_tree(head):
 
 def build(name, *opts):
     """Write build.json from CI or a command on the reviewed commit's verify worktree."""
+    if opts not in ((), ("--run",)):
+        raise SystemExit("build accepts only --run; --force cannot override a running build")
     d = home() / name
     t = json.loads((d / "target.json").read_text(encoding="utf-8"))
     ci, head = t["ci"], t["head"]
@@ -450,24 +452,39 @@ def build(name, *opts):
     if opts[:1] == ("--run",):
         if not head:
             print("build: local target; proof is from the live tree")
-        lock = home() / "verify.lock" if head else None
-        busy = (f"verify worktree busy; wait for the other build. If the run is gone, "
-                f"delete {lock} or use build --run --force after {step_run.STALE_LOCK_SECONDS} s")
-        with step_run.step_lock(lock.parent, "verify", force="--force" in opts[1:], command="build --run", busy=busy) if lock else nullcontext():
+        with step_run.step_lock(home(), "verify", command="build --run") if head else nullcontext():
             if head:
                 cwd = verify_tree(head)
-            with subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE, text=True, start_new_session=True) as process:
+            process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, text=True, start_new_session=True)
+            try:
                 try:
                     stdout, stderr = process.communicate(timeout=BUILD_TIMEOUT)
                     conclusion, tail = ("success" if process.returncode == 0 else "failure"), (stdout + stderr).splitlines()[-40:]
-                except subprocess.TimeoutExpired:
+                except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
                     try:
-                        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                        os.killpg(process.pid, signal.SIGKILL)
                     except ProcessLookupError:
                         pass
-                    process.communicate()
+                    try:
+                        process.communicate(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        # A child in another session may still hold the output pipes open.
+                        process.stdout.close()
+                        process.stderr.close()
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            pass
+                    if isinstance(error, KeyboardInterrupt):
+                        raise
                     conclusion, tail = "failure", [f"timed out after {BUILD_TIMEOUT} s"]
+            finally:
+                if not process.stdout.closed:
+                    process.stdout.close()
+                if not process.stderr.closed:
+                    process.stderr.close()
         result = {"source": "command", "name": ci["cmd"], "conclusion": conclusion, "tail": tail}
     elif not head:
         raise SystemExit("uncommitted changes have no CI result; use `build <run> --run`")

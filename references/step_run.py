@@ -12,19 +12,18 @@ and `rev`.
 """
 
 import datetime
+import fcntl
 import hashlib
 import os
 import re
 import stat
 import sys
 import tempfile
-import time
 from contextlib import contextmanager
 from pathlib import Path
 
 TODO_HEAD = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
 RESULT_HEAD = "## Result"
-STALE_LOCK_SECONDS = 60
 
 
 def table(skill_md):
@@ -121,39 +120,21 @@ def status(folder, need_of=None, rev=revision):
 
 
 @contextmanager
-def step_lock(folder, step, force=False, command="take", busy=None):
+def step_lock(folder, step, command="take"):
     lock = Path(folder) / f"{step}.lock"
-    busy = busy or (f"{step} is being claimed; try again. If the run is gone, delete {lock} "
-                    f"or use {command} --force after {STALE_LOCK_SECONDS} s")
-    if force and lock.exists():
+    fd = os.open(lock, os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
         try:
-            if time.time() - lock.stat().st_mtime > STALE_LOCK_SECONDS:
-                old = lock.with_name(f"{lock.name}.{os.getpid()}.stale")
-                os.rename(lock, old)
-                if time.time() - old.stat().st_mtime <= STALE_LOCK_SECONDS:
-                    try:
-                        # Restore without overwriting a lock claimed during the rename.
-                        os.link(old, lock)
-                    except FileExistsError:
-                        pass
-                    old.unlink(missing_ok=True)
-                    raise SystemExit(busy)
-                old.unlink(missing_ok=True)
-        except FileNotFoundError:
-            pass
-    try:
-        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError:
-        raise SystemExit(busy) from None
-    try:
-        os.close(fd)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise SystemExit(f"{step} is locked by a running {command}; wait for it") from None
         yield
     finally:
-        lock.unlink(missing_ok=True)
+        os.close(fd)
 
 
 def take(folder, step, who, need=None, rev=revision, force=False, on_claim=None):
-    with step_lock(folder, step, force, command="take"):
+    with step_lock(folder, step, command="take"):
         file = Path(folder) / f"{step}.md"
         lines = file.read_text(encoding="utf-8").split("\n")
         owner = lines[0].removeprefix("Status: ")
@@ -166,14 +147,18 @@ def take(folder, step, who, need=None, rev=revision, force=False, on_claim=None)
         text = "\n".join([f"Status: active {who}", f"Uses: {uses}", *lines[2:]])
         write_step(file, text)
         if on_claim is not None:
-            on_claim(Path(folder))
+            try:
+                on_claim(Path(folder))
+            except BaseException as error:
+                log(folder, step, f"take {who} failed: {error}")
+                raise
             text = file.read_text(encoding="utf-8")
     log(folder, step, f"take {who}")
     print(text)
 
 
 def done(folder, step, rev=None, force=False):
-    with step_lock(folder, step, force, command="done"):
+    with step_lock(folder, step, command="done"):
         file = Path(folder) / f"{step}.md"
         text = file.read_text(encoding="utf-8")
         todo = text.split(TODO_HEAD, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_HEAD in text else ""

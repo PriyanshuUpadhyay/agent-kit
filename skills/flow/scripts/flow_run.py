@@ -169,7 +169,7 @@ def skip(folder, step, *why, force=False):
     if not reason:
         raise SystemExit("skip needs a reason, for example: skip <folder> 02-design no UI")
     file = Path(folder) / f"{step}.md"
-    with step_run.step_lock(folder, step, force, command="skip"):
+    with step_run.step_lock(folder, step, command="skip"):
         if status_of(folder, step).split()[0] not in ("open", "active"):
             raise SystemExit(f"{step} is {status_of(folder, step)}; only an open or active step can be skipped")
         step_run.write_step(file, f"Status: skipped {reason}\n" + file.read_text(encoding="utf-8").split("\n", 1)[1])
@@ -210,14 +210,23 @@ def code_names(text):
     return list(dict.fromkeys(names))[:25]
 
 
+def plain(text):
+    return "".join(c for c in text if ord(c) >= 32 and not 127 <= ord(c) <= 159)
+
+
 def write_callers(folder):
     contracts = (folder / "03-contracts.md").read_text(encoding="utf-8")
     names = code_names(contracts.split(TODO_HEAD, 1)[-1])  # below the rules, which quote other code
     root = git("rev-parse", "--show-toplevel")
     parts = []
     for name in names:
-        hits = subprocess.run(["git", "grep", "-n", "-w", "-F", "-e", name, "--", ".", ":!tmp"],
-                              cwd=root, capture_output=True, text=True).stdout.splitlines()
+        try:
+            output = subprocess.run(["git", "grep", "-n", "-w", "-F", "-e", name, "--", ".", ":!tmp"],
+                                    cwd=root, capture_output=True, timeout=60).stdout
+        except subprocess.TimeoutExpired:
+            parts.append(f"### {name}\ncallers: git grep timed out")
+            continue
+        hits = [plain(hit) for hit in output.decode("utf-8", errors="backslashreplace").split("\n") if hit]
         more = f"\n... and {len(hits) - 10} more" if len(hits) > 10 else ""
         parts.append(f"### {name} ({len(hits)} places)\n" + "\n".join(h[:160] for h in hits[:10]) + more)
     body = "\n\n".join(parts) or "No code names in backticks in 03-contracts.md. Search by hand and say so."

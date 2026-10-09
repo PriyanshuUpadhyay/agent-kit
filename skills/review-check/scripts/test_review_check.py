@@ -291,43 +291,126 @@ def test_verify_build_lock(run, verify):
     lock = verify.with_suffix(".lock")
     original = (run / "build.json").read_text()
     head = sh("git", "-C", str(verify), "rev-parse", "HEAD")
-    lock.write_text("")
-    try:
+    with rc.step_run.step_lock(lock.parent, "verify", command="build --run"):
+        old = time.time() - 7200
+        os.utime(lock, (old, old))
         try:
             rc.build(run.name, "--run")
-            raise AssertionError("build must refuse an existing verify lock")
+            raise AssertionError("build must refuse a live verify lock regardless of age")
         except SystemExit as error:
-            assert str(lock) in str(error) and "--force" in str(error), error
-            assert f"use build --run --force after {rc.step_run.STALE_LOCK_SECONDS} s" in str(error), error
-        assert lock.exists() and (run / "build.json").read_text() == original
+            assert str(error) == "verify is locked by a running build --run; wait for it", error
+        assert (run / "build.json").read_text() == original
         assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
-        try:
-            rc.build(run.name, "--run", "--force")
-            raise AssertionError("--force must preserve a fresh verify lock")
-        except SystemExit as error:
-            assert str(lock) in str(error), error
-        assert lock.exists() and (run / "build.json").read_text() == original
-        old = time.time() - rc.step_run.STALE_LOCK_SECONDS - 1
-        os.utime(lock, (old, old))
+    try:
         rc.build(run.name, "--run", "--force")
-        assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
-        assert not lock.exists(), "--force must clear the stale lock and release its own lock"
-    finally:
-        lock.unlink(missing_ok=True)
+        raise AssertionError("build --run --force must be rejected")
+    except SystemExit as error:
+        assert "--force" in str(error), error
     target = json.loads((run / "target.json").read_text())
     checking_lock = {**target, "ci": {**target["ci"], "cmd": "test -f ../verify.lock"}}
     (run / "target.json").write_text(json.dumps(checking_lock))
     try:
-        rc.build(run.name, "--run")
-        assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
-        assert not lock.exists(), "build must release the lock after its command"
-        checking_lock["ci"]["cmd"] = "false"
-        (run / "target.json").write_text(json.dumps(checking_lock))
-        rc.build(run.name, "--run")
-        assert json.loads((run / "build.json").read_text())["conclusion"] == "failure"
-        assert not lock.exists(), "a failed command must release the lock"
+        for command, conclusion in (("test -f ../verify.lock", "success"), ("false", "failure")):
+            checking_lock["ci"]["cmd"] = command
+            (run / "target.json").write_text(json.dumps(checking_lock))
+            rc.build(run.name, "--run")
+            assert json.loads((run / "build.json").read_text())["conclusion"] == conclusion
+            with rc.step_run.step_lock(lock.parent, "verify"):
+                pass
+            assert lock.exists(), "build must leave the harmless lock file"
     finally:
         (run / "target.json").write_text(json.dumps(target))
+
+
+def test_build_interrupt(run, verify):
+    target = json.loads((run / "target.json").read_text(encoding="utf-8"))
+    pidfile = verify / "interrupt-group.pid"
+    command = "echo $$ > interrupt-group.pid; exec sleep 30"
+    (run / "target.json").write_text(json.dumps({**target, "ci": {**target["ci"], "cmd": command}}), encoding="utf-8")
+    code = "import sys; sys.path.insert(0, sys.argv[1]); import review_check as rc; rc.build(sys.argv[2], '--run')"
+    child = subprocess.Popen([sys.executable, "-c", code, str(HERE), run.name],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    group = None
+    try:
+        deadline = time.monotonic() + 5
+        while not pidfile.exists():
+            assert child.poll() is None and time.monotonic() < deadline, "CI did not start"
+            time.sleep(0.01)
+        group = int(pidfile.read_text(encoding="utf-8"))
+        child.send_signal(signal.SIGINT)
+        try:
+            _, errors = child.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            raise AssertionError("Ctrl-C did not stop the CI group promptly")
+        assert child.returncode != 0 and "KeyboardInterrupt" in errors, errors
+        try:
+            os.kill(group, 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise AssertionError("Ctrl-C left the CI process alive")
+        with rc.step_run.step_lock(verify.parent, "verify"):
+            pass
+    finally:
+        if group is not None:
+            try:
+                os.killpg(group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if child.poll() is None:
+            child.kill()
+        child.communicate(timeout=5)
+        (run / "target.json").write_text(json.dumps(target), encoding="utf-8")
+
+
+def test_build_timeout_bounded_cleanup(run, verify):
+    from unittest.mock import MagicMock
+    process = MagicMock()
+    process.pid = 12345
+    process.communicate.side_effect = subprocess.TimeoutExpired("ci", 1)
+    with patch.object(rc, "home", return_value=verify.parent), \
+            patch.object(rc, "verify_tree", return_value=verify), \
+            patch.object(rc.subprocess, "Popen", return_value=process), \
+            patch.object(rc.os, "killpg") as killpg:
+        rc.build(run.name, "--run")
+    assert [call.kwargs.get("timeout") for call in process.communicate.call_args_list] == [rc.BUILD_TIMEOUT, 10]
+    process.kill.assert_called_once()
+    process.wait.assert_called_once_with(timeout=10)
+    killpg.assert_called_once_with(12345, signal.SIGKILL)
+    process.stdout.close.assert_called_once()
+    process.stderr.close.assert_called_once()
+    result = json.loads((run / "build.json").read_text(encoding="utf-8"))
+    assert result["conclusion"] == "failure" and result["tail"][-1] == f"timed out after {rc.BUILD_TIMEOUT} s"
+
+
+def test_build_timeout_escaped_child(run, verify):
+    target = json.loads((run / "target.json").read_text(encoding="utf-8"))
+    # This child keeps the pipes open in a separate session, beyond the group kill.
+    code = "import subprocess; from pathlib import Path; p=subprocess.Popen(['sleep','15'], start_new_session=True); Path('escaped.pid').write_text(str(p.pid))"
+    import shlex
+    command = f"{shlex.quote(sys.executable)} -c {shlex.quote(code)}; sleep 30"
+    (run / "target.json").write_text(json.dumps({**target, "ci": {**target["ci"], "cmd": command}}), encoding="utf-8")
+    escaped = None
+    try:
+        started = time.monotonic()
+        with patch.object(rc, "BUILD_TIMEOUT", 1):
+            rc.build(run.name, "--run")
+        elapsed = time.monotonic() - started
+        escaped = int((verify / "escaped.pid").read_text(encoding="utf-8"))
+        assert elapsed < 13, f"escaped pipe holder delayed cleanup for {elapsed} s"
+        result = json.loads((run / "build.json").read_text(encoding="utf-8"))
+        assert result["tail"][-1] == "timed out after 1 s"
+        with rc.step_run.step_lock(verify.parent, "verify"):
+            pass
+    finally:
+        if escaped is None and (verify / "escaped.pid").exists():
+            escaped = int((verify / "escaped.pid").read_text(encoding="utf-8"))
+        if escaped is not None:
+            try:
+                os.kill(escaped, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        (run / "target.json").write_text(json.dumps(target), encoding="utf-8")
 
 
 def test_build_timeout(run, verify):
@@ -340,7 +423,8 @@ def test_build_timeout(run, verify):
         result = json.loads((run / "build.json").read_text())
         assert result["conclusion"] == "failure", result
         assert result["tail"][-1] == "timed out after 0.05 s", result
-        assert not verify.with_suffix(".lock").exists(), "a timed out build must release its lock"
+        with rc.step_run.step_lock(verify.parent, "verify"):
+            pass
     finally:
         (run / "target.json").write_text(json.dumps(target))
 
@@ -364,7 +448,8 @@ def test_build_timeout_children(run, verify):
             time.sleep(0.01)
         result = json.loads((run / "build.json").read_text())
         assert result["conclusion"] == "failure" and result["tail"][-1] == "timed out after 0.2 s"
-        assert not verify.with_suffix(".lock").exists()
+        with rc.step_run.step_lock(verify.parent, "verify"):
+            pass
     finally:
         if child is not None:
             try:
@@ -431,6 +516,9 @@ def test_frozen_build():
             assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3, "verify was not reused"
             test_missing_verify_directory(run, verify, head)
             test_verify_build_lock(run, verify)
+            test_build_interrupt(run, verify)
+            test_build_timeout_bounded_cleanup(run, verify)
+            test_build_timeout_escaped_child(run, verify)
             test_build_timeout(run, verify)
             test_build_timeout_children(run, verify)
             target = json.loads((run / "target.json").read_text())
