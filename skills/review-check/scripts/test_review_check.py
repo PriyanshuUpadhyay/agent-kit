@@ -711,7 +711,29 @@ def test_pushed_build_without_verify(run, verify, head):
     assert result["source"] == "check-run" and result["head"] == head
     assert result["conclusion"] == "success" and result["tail"] == ["https://example.invalid/check/1"]
     assert len(calls) == 1 and Path(calls[0][1]["cwd"]).resolve() == Path.cwd().resolve()
+    assert calls[0][1].get("timeout") == rc.BUILD_TIMEOUT
     assert verify.is_dir() and not (verify.parent / "verify.lock").exists()
+
+
+def test_pushed_build_timeout(run):
+    original = (run / "build.json").read_text(encoding="utf-8")
+    real_run = subprocess.run
+    calls = []
+
+    def timeout_gh(args, **kwargs):
+        if args[0] == "gh":
+            calls.append((args, kwargs))
+            raise subprocess.TimeoutExpired(args, rc.BUILD_TIMEOUT)
+        return real_run(args, **kwargs)
+
+    with patch.object(rc.subprocess, "run", timeout_gh):
+        try:
+            rc.build(run.name)
+            raise AssertionError("a timed out gh call must refuse build proof")
+        except SystemExit as error:
+            assert str(error) == f"gh: timed out after {rc.BUILD_TIMEOUT} s", error
+    assert len(calls) == 1 and calls[0][1].get("timeout") == rc.BUILD_TIMEOUT
+    assert (run / "build.json").read_text(encoding="utf-8") == original
 
 
 def test_frozen_build():
@@ -730,6 +752,8 @@ def test_frozen_build():
                 rc.start(f"{base}..{head}")
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
             verify = Path("tmp/review-check/verify").resolve()
+            (run / "build.json").write_text("{}\n", encoding="utf-8")
+            test_pushed_build_timeout(run)
             test_pushed_build_without_verify(run, verify, head)
             try:
                 rc.build(run.name, "--run")

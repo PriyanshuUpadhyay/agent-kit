@@ -38,6 +38,9 @@ SKIPPABLE = ("02-design", "03-contracts", "04-impact")
 SEARCH_SECONDS = 120
 SEARCH_EACH_SECONDS = 60
 NAME_CAP = 25
+LINE_CHUNK = 4096
+MAX_HITS = 10
+HIT_CHARS = 160
 CAP = 15000  # characters per skill; engineering-standards is about 10k
 RULES_HEAD = "## Rules for this step (written by flow_run.py start; apply them, keep this section)"
 CALLERS_HEAD = "## Callers (written by flow_run.py take from the code names in 03-contracts.md; a search, not a judgment)"
@@ -234,25 +237,25 @@ def write_callers(folder):
                                         cwd=root, stdout=stdout, stderr=stderr, timeout=min(SEARCH_EACH_SECONDS, remaining))
                 if result.returncode not in (0, 1):
                     stderr.seek(0)
-                    error = stderr.readline().decode("utf-8", errors="backslashreplace").rstrip("\n")
+                    error = stderr.readline(LINE_CHUNK).decode("utf-8", errors="backslashreplace").rstrip("\n")
                     parts.append(f"### {name}\ncallers: git grep failed: {plain(error)}")
                     continue
                 stdout.seek(0)
                 hits, count = [], 0
-                while prefix := stdout.readline(4096):
+                while prefix := stdout.readline(LINE_CHUNK):
                     line = prefix
                     # Drain long lines in chunks, retaining only their bounded prefix.
                     while line and not line.endswith(b"\n"):
-                        line = stdout.readline(4096)
+                        line = stdout.readline(LINE_CHUNK)
                     hit = prefix.decode("utf-8", errors="backslashreplace").rstrip("\n")
                     if hit:
                         count += 1
-                        if len(hits) < 10:
-                            hits.append(plain(hit)[:160])
+                        if len(hits) < MAX_HITS:
+                            hits.append(plain(hit)[:HIT_CHARS])
         except subprocess.TimeoutExpired:
             parts.append(f"### {name}\ncallers: git grep timed out")
             continue
-        more = f"\n... and {count - 10} more" if count > 10 else ""
+        more = f"\n... and {count - MAX_HITS} more" if count > MAX_HITS else ""
         parts.append(f"### {name} ({count} places)\n" + "\n".join(hits) + more)
     if omitted:
         parts.append(f"... and {omitted} more names not searched")

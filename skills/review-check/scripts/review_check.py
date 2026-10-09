@@ -476,6 +476,8 @@ def build(name, *opts):
             process = None
             try:
                 try:
+                    # Defer launch signals until process is set. The child inherits this blocked mask across exec,
+                    # so preexec_fn resets it before exec; finally restores only the parent's mask.
                     previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, (signal.SIGTERM, signal.SIGHUP, signal.SIGINT))
                     try:
                         process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
@@ -517,8 +519,11 @@ def build(name, *opts):
         raise SystemExit("uncommitted changes have no CI result; use `build <run> --run`")
     else:
         q = urllib.parse.quote(ci["name"])
-        out = subprocess.run(["gh", "api", f"repos/{{owner}}/{{repo}}/commits/{head}/check-runs?check_name={q}"],
-                             cwd=cwd, capture_output=True, text=True)
+        try:
+            out = subprocess.run(["gh", "api", f"repos/{{owner}}/{{repo}}/commits/{head}/check-runs?check_name={q}"],
+                                 cwd=cwd, capture_output=True, text=True, timeout=BUILD_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise SystemExit(f"gh: timed out after {BUILD_TIMEOUT} s")
         if out.returncode != 0:
             raise SystemExit(f"gh: {out.stderr.strip()}")
         # skipped, cancelled, or running checks prove nothing; a re-run of the same head gets a higher id

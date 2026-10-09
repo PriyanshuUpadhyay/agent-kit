@@ -13,6 +13,7 @@ from unittest.mock import patch
 import flow_run
 
 SCRIPT = Path(__file__).with_name("flow_run.py")
+CALLERS_MEMORY_LIMIT = 1_000_000
 
 
 def test_skip_text_encoding():
@@ -225,17 +226,15 @@ def test_callers_timeout(folder):
         contracts.write_text(original_contracts, encoding="utf-8")
 
 
-def test_callers_large_output(folder):
+def callers_stub_output(folder, name, stub_body):
     import tracemalloc
     file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
     original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
     try:
-        contracts.write_text("`many_hits()`", encoding="utf-8")
+        contracts.write_text(f"`{name}()`", encoding="utf-8")
         with tempfile.TemporaryDirectory() as directory:
             stub = Path(directory) / "git"
-            stub.write_text(f"#!{sys.executable}\nimport sys\n"
-                            "for index in range(10000):\n"
-                            "    print(f'app.py:{index + 1}:many_hits() ' + 'x' * 500)\n", encoding="utf-8")
+            stub.write_text(f"#!{sys.executable}\nimport sys\n{stub_body}", encoding="utf-8")
             stub.chmod(0o755)
             with patch.object(flow_run, "git", return_value=str(folder)), \
                     patch.dict(os.environ, {"PATH": directory + os.pathsep + os.environ["PATH"]}):
@@ -245,48 +244,46 @@ def test_callers_large_output(folder):
                     _, peak = tracemalloc.get_traced_memory()
                 finally:
                     tracemalloc.stop()
-        text = file.read_text(encoding="utf-8")
-        assert "### many_hits (10000 places)" in text and "... and 9990 more" in text, text
-        hits = [line for line in text.splitlines() if line.startswith("app.py:")]
-        assert len(hits) == 10 and hits[-1].startswith("app.py:10:")
-        assert all(len(hit) <= 160 for hit in hits)
-        assert peak < 1_000_000, f"caller search held the full output in memory: peak {peak} bytes"
+        return peak, file.read_text(encoding="utf-8")
     finally:
         file.write_text(original, encoding="utf-8")
         contracts.write_text(original_contracts, encoding="utf-8")
+
+
+def test_callers_large_output(folder):
+    peak, text = callers_stub_output(folder, "many_hits",
+                                    "for index in range(10000):\n"
+                                    "    print(f'app.py:{index + 1}:many_hits() ' + 'x' * 500)\n")
+    assert "### many_hits (10000 places)" in text and f"... and {10000 - flow_run.MAX_HITS} more" in text, text
+    hits = [line for line in text.splitlines() if line.startswith("app.py:")]
+    assert len(hits) == flow_run.MAX_HITS and hits[-1].startswith(f"app.py:{flow_run.MAX_HITS}:")
+    assert all(len(hit) <= flow_run.HIT_CHARS for hit in hits)
+    assert peak < CALLERS_MEMORY_LIMIT, f"caller search held the full output in memory: peak {peak} bytes"
 
 
 def test_callers_long_line(folder):
-    import tracemalloc
-    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
-    original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
-    try:
-        contracts.write_text("`long_hit()`", encoding="utf-8")
-        with tempfile.TemporaryDirectory() as directory:
-            stub = Path(directory) / "git"
-            stub.write_text(f"#!{sys.executable}\nimport sys\n"
-                            "sys.stdout.buffer.write(b'bundle.js:1:long_hit() ')\n"
-                            "for _ in range(50):\n"
-                            "    sys.stdout.buffer.write(b'x' * 1024 * 1024)\n"
-                            "sys.stdout.buffer.write(b'\\n\\napp.py:2:long_hit()\\napp.py:3:long_hit()')\n", encoding="utf-8")
-            stub.chmod(0o755)
-            with patch.object(flow_run, "git", return_value=str(folder)), \
-                    patch.dict(os.environ, {"PATH": directory + os.pathsep + os.environ["PATH"]}):
-                tracemalloc.start()
-                try:
-                    flow_run.write_callers(folder)
-                    _, peak = tracemalloc.get_traced_memory()
-                finally:
-                    tracemalloc.stop()
-        text = file.read_text(encoding="utf-8")
-        assert "### long_hit (3 places)" in text, text
-        hits = [line for line in text.splitlines() if line.startswith(("bundle.js:", "app.py:"))]
-        assert len(hits) == 3 and len(hits[0]) == 160, hits
-        assert hits[1:] == ["app.py:2:long_hit()", "app.py:3:long_hit()"], hits
-        assert peak < 1_000_000, f"caller search held a whole line in memory: peak {peak} bytes"
-    finally:
-        file.write_text(original, encoding="utf-8")
-        contracts.write_text(original_contracts, encoding="utf-8")
+    peak, text = callers_stub_output(folder, "long_hit",
+                                    "sys.stdout.buffer.write(b'bundle.js:1:long_hit() ')\n"
+                                    "for _ in range(50):\n"
+                                    "    sys.stdout.buffer.write(b'x' * 1024 * 1024)\n"
+                                    "sys.stdout.buffer.write(b'\\n\\napp.py:2:long_hit()\\napp.py:3:long_hit()')\n")
+    assert "### long_hit (3 places)" in text, text
+    hits = [line for line in text.splitlines() if line.startswith(("bundle.js:", "app.py:"))]
+    assert len(hits) == 3 and len(hits[0]) == flow_run.HIT_CHARS, hits
+    assert hits[1:] == ["app.py:2:long_hit()", "app.py:3:long_hit()"], hits
+    assert peak < CALLERS_MEMORY_LIMIT, f"caller search held a whole line in memory: peak {peak} bytes"
+
+
+def test_callers_long_stderr(folder):
+    peak, text = callers_stub_output(folder, "failed_hit",
+                                    "for _ in range(50):\n"
+                                    "    sys.stderr.buffer.write(b'x' * 1024 * 1024)\n"
+                                    "sys.exit(128)\n")
+    prefix = "callers: git grep failed: "
+    errors = [line for line in text.splitlines() if line.startswith(prefix)]
+    assert len(errors) == 1 and len(errors[0]) <= len(prefix) + flow_run.LINE_CHUNK, "git grep error line exceeds its chunk limit"
+    assert "0 places" not in text
+    assert peak < CALLERS_MEMORY_LIMIT, f"caller search held a whole stderr line in memory: peak {peak} bytes"
 
 
 def test_callers_failure(folder):
@@ -481,6 +478,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_impact_closed_stdout(repo, env, folder)
     test_impact_utf8(repo, env, folder)
     test_callers_timeout(folder)
+    test_callers_long_stderr(folder)
     test_callers_large_output(folder)
     test_callers_long_line(folder)
     test_callers_failure(folder)
