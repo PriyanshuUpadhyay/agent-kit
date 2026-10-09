@@ -593,10 +593,19 @@ def test_block_fail_closed(tmp):
     Path(tmp, "utf8-add", "app", "docs").mkdir(parents=True)
     Path(tmp, "utf8-add", "app", "docs", "x.md").write_bytes(b"# x\n\xff\n")
     cases.append(("utf8-add", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/x.md"]\n', (), "x.md is not UTF-8"))
+    # A repo file that cannot be read, an [add] path with a NUL byte, and control characters in repo
+    # text each give one clean line.
+    Path(tmp, "toml-dir", "app", ".blocks.toml").mkdir(parents=True)
+    cases += [
+        ("toml-dir", "- build: block:red-first-check\n", None, (), ".blocks.toml cannot be read"),
+        ("add-nul", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["a\\u0000b.md"]\n', (), "holds a NUL byte"),
+        ("controls", "- build: block:red-first-check\n", PARAMS + '["\\u001b[2Jx\\ny"]\n', (), "unknown table [[2Jx y]"),
+    ]
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
         assert len(out.stderr.strip().splitlines()) == 1, (name, out.stderr)
+        assert not any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in out.stderr.rstrip("\n")), (name, out.stderr)
         assert not (repo / "tmp" / "flow").exists(), name
     # A bad block catalog stops the load with a reason that names it.
     kit = Path(tmp, "kit")
@@ -622,7 +631,7 @@ def test_block_repo_file(tmp):
     Path(tmp, "repo-file", "app", "docs", "our-api.md").write_text(
         "# our-api\nConcept: x\n\n## Rules\n- OUR RULE 7\n\n## Check (script)\n- `true` runs: it proves nothing\n\n## Check (judge)\n", encoding="utf-8")
     out, folder, _, _ = blocks_start(tmp, "repo-file", "- design: block:tech-diagram\n",
-                                     PARAMS + '[add]\nbuild = ["docs/our-api.md"]\n[off]\nhtml-diagram = "this repo draws SVG"\n')
+                                     PARAMS + '[add]\nbuild = ["docs/our-api.md"]\n[off]\nhtml-diagram = "this repo\\u001b draws\\nSVG"\n')
     assert out.returncode == 0, out.stderr
     build = step_text(folder, "05-build")
     assert "===== block:our-api =====" in build and "OUR RULE 7" in build and "- [ ] block our-api script: `true` runs: it proves nothing: " in build, build

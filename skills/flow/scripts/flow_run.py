@@ -113,7 +113,10 @@ def start(profile="default"):
         steps = graph()
         catalog = {step: skill_paths(step) for step in steps}
         # Resolve every step before the folder exists, so a config error leaves no half-made run.
-        blocks, judge = resolve_blocks(Path(root), {s.split("-", 1)[1]: ids for s, (_, ids) in catalog.items()}, profile)
+        try:
+            blocks, judge = resolve_blocks(Path(root), {s.split("-", 1)[1]: ids for s, (_, ids) in catalog.items()}, profile)
+        except SystemExit as error:  # its reasons quote table names, keys, and paths from the repo's .blocks.toml
+            raise SystemExit(one_line(str(error.code))) from None
         folder.mkdir(parents=True)
         for step, need in steps.items():
             extra = f"Worktree: {root}\nBranch: {branch}\n" if step == "01-frame" else ""
@@ -198,6 +201,8 @@ def resolve_blocks(root, wanted, profile_name):
         if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
             raise SystemExit(f"[add] {key} in {repo_file} must be a list of paths, such as {key} = [\"docs/x.md\"]")
         for path in paths:
+            if "\0" in path:
+                raise SystemExit(f"[add] {path} in {repo_file} holds a NUL byte")
             # The repo file is repo-owned input, and the step text goes to agents, so no file outside the repo.
             if Path(path).is_absolute() or not (root / path).resolve().is_relative_to(root.resolve()):
                 raise SystemExit(f"[add] {path} leaves the repo; {repo_file} takes repo-relative paths")
@@ -247,7 +252,7 @@ def resolve_blocks(root, wanted, profile_name):
         if profile.get("merge_base") and rest:
             folded = [b for g in groups if g in base for b in groups[g]]
             groups = {g: folded + groups[g] if g == rest[0] else groups[g] for g in rest}
-        text = "\n".join([f"Off: {b}: {off[b]}" for b in joined if b in off]
+        text = "\n".join([f"Off: {b}: {one_line(str(off[b]))}" for b in joined if b in off]
                          + [render(name, [load(b)[1] for b in members], profile.get("examples", True))
                             for name, members in groups.items()])
         read = [f"profile {profile_name}"] + [f"block:{b}@{load(b)[0]}" for b in blocks] if blocks else []
@@ -256,6 +261,10 @@ def resolve_blocks(root, wanted, profile_name):
             judge.setdefault(b, check_lines(load(b)[1], "Check (judge)"))
         out[key] = (read, text, todos)
     return out, "\n".join(f"- block {b} judge: {line}" for b, lines in judge.items() for line in lines)
+
+
+def one_line(text):
+    return plain(text, keep_newlines=True).replace("\n", " ").replace("\t", " ")
 
 
 def read_toml(path):
@@ -270,6 +279,8 @@ def read_utf8(path):
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
         raise SystemExit(f"{path} is not UTF-8: {error}") from None
+    except OSError as error:
+        raise SystemExit(f"{path} cannot be read: {error.strerror}") from None
 
 
 def sections(text):
@@ -325,7 +336,7 @@ def done(folder, step):
 def skip(folder, step, *why):
     if step not in SKIPPABLE:
         raise SystemExit(f"{step} cannot be skipped; only {', '.join(SKIPPABLE)} can")
-    reason = plain(" ".join(why), keep_newlines=True).replace("\n", " ").replace("\t", " ").strip()
+    reason = one_line(" ".join(why)).strip()
     if not reason:
         raise SystemExit("skip needs a reason, for example: skip <folder> 02-design no UI")
     file = Path(folder) / f"{step}.md"
