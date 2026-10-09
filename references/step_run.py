@@ -4,7 +4,7 @@
   start <folder> <SKILL.md>    make one step file per table row, each with a todo and a result section
   status <folder>              print each step's status, whether it is ready, and whether it is stale
   take <folder> <step> <who> [--force]   claim the step and print its file; force takes a stale claim
-  done <folder> <step>         set the step done, only when every todo is checked with evidence
+  done <folder> <step> [--force] set the step done, only when every todo is checked with evidence
 
 take and done add one line to <folder>/events.log, so the path of a run stays readable after it ends.
 A skill script with its own step graph or revision (flow) imports these functions and passes `need`
@@ -15,6 +15,7 @@ import datetime
 import hashlib
 import os
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -23,6 +24,7 @@ from pathlib import Path
 
 TODO_HEAD = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
 RESULT_HEAD = "## Result"
+STALE_LOCK_SECONDS = 60
 
 
 def table(skill_md):
@@ -87,6 +89,8 @@ def write_step(file, text):
     temporary = Path(name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            mode = stat.S_IMODE(file.stat().st_mode) if file.exists() else 0o644
+            os.fchmod(stream.fileno(), mode)
             stream.write(text)
         os.replace(temporary, file)
     finally:
@@ -117,14 +121,30 @@ def status(folder, need_of=None, rev=revision):
 
 
 @contextmanager
-def step_lock(folder, step, force=False):
+def step_lock(folder, step, force=False, command="take", busy=None):
     lock = Path(folder) / f"{step}.lock"
-    if force and lock.exists() and time.time() - lock.stat().st_mtime > 60:
-        lock.unlink()
+    busy = busy or (f"{step} is being claimed; try again. If the run is gone, delete {lock} "
+                    f"or use {command} --force after {STALE_LOCK_SECONDS} s")
+    if force and lock.exists():
+        try:
+            if time.time() - lock.stat().st_mtime > STALE_LOCK_SECONDS:
+                old = lock.with_name(f"{lock.name}.{os.getpid()}.stale")
+                os.rename(lock, old)
+                if time.time() - old.stat().st_mtime <= STALE_LOCK_SECONDS:
+                    try:
+                        # Restore without overwriting a lock claimed during the rename.
+                        os.link(old, lock)
+                    except FileExistsError:
+                        pass
+                    old.unlink(missing_ok=True)
+                    raise SystemExit(busy)
+                old.unlink(missing_ok=True)
+        except FileNotFoundError:
+            pass
     try:
         fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
-        raise SystemExit(f"{step} is being claimed; try again. If the run is gone, delete {lock} or use --force to clear it") from None
+        raise SystemExit(busy) from None
     try:
         os.close(fd)
         yield
@@ -132,8 +152,8 @@ def step_lock(folder, step, force=False):
         lock.unlink(missing_ok=True)
 
 
-def take(folder, step, who, need=None, rev=revision, force=False):
-    with step_lock(folder, step, force):
+def take(folder, step, who, need=None, rev=revision, force=False, on_claim=None):
+    with step_lock(folder, step, force, command="take"):
         file = Path(folder) / f"{step}.md"
         lines = file.read_text(encoding="utf-8").split("\n")
         owner = lines[0].removeprefix("Status: ")
@@ -145,12 +165,15 @@ def take(folder, step, who, need=None, rev=revision, force=False):
         uses = ", ".join(f"{n}@{rev(folder, n)}" for n in need)
         text = "\n".join([f"Status: active {who}", f"Uses: {uses}", *lines[2:]])
         write_step(file, text)
+        if on_claim is not None:
+            on_claim(Path(folder))
+            text = file.read_text(encoding="utf-8")
     log(folder, step, f"take {who}")
     print(text)
 
 
-def done(folder, step, rev=None):
-    with step_lock(folder, step):
+def done(folder, step, rev=None, force=False):
+    with step_lock(folder, step, force, command="done"):
         file = Path(folder) / f"{step}.md"
         text = file.read_text(encoding="utf-8")
         todo = text.split(TODO_HEAD, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_HEAD in text else ""
@@ -173,9 +196,9 @@ if __name__ == "__main__":
         raise SystemExit(__doc__)
     try:
         args = sys.argv[2:]
-        if sys.argv[1] == "take":
+        if sys.argv[1] in ("take", "done"):
             force = "--force" in args
-            take(*(arg for arg in args if arg != "--force"), force=force)
+            commands[sys.argv[1]](*(arg for arg in args if arg != "--force"), force=force)
         else:
             commands[sys.argv[1]](*args)
         sys.stdout.flush()

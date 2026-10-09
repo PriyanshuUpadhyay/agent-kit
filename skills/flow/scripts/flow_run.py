@@ -4,8 +4,8 @@
   start                        make tmp/flow/<date>-<branch>/ with the seven step files
   status [<folder>]            print each step's status, whether it is ready, and whether it is stale
   take <folder> <step> <who> [--force] mark the step active and print its file with the skills the catalog gives it
-  done <folder> <step>         set the step done, only when every todo is checked with evidence
-  skip <folder> <step> <why>   skip design, contracts, or impact, with the reason
+  done <folder> <step> [--force] set the step done, only when every todo is checked with evidence
+  skip <folder> <step> <why> [--force] skip design, contracts, or impact, with the reason
 
 `start` writes the full text of each step's skills into that step's file, because an agent that gets
 only a path often does not open it (Sonnet workers opened 0 of 4 pointer skills, 2026-10-04 and
@@ -154,23 +154,22 @@ def take(folder, step, who, force=False):
             print(f"06-review already lists {runs} runs; bring the open rows to the user before a new range")
     if step == "07-close":
         approved(folder)
-    step_run.take(folder, step, who, need, rev, force=force)
-    if step == "04-impact":
-        write_callers(Path(folder))
+    step_run.take(folder, step, who, need, rev, force=force,
+                  on_claim=write_callers if step == "04-impact" else None)
 
 
-def done(folder, step):
-    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None)
+def done(folder, step, force=False):
+    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None, force=force)
 
 
-def skip(folder, step, *why):
+def skip(folder, step, *why, force=False):
     if step not in SKIPPABLE:
         raise SystemExit(f"{step} cannot be skipped; only {', '.join(SKIPPABLE)} can")
     reason = " ".join(why).strip()
     if not reason:
         raise SystemExit("skip needs a reason, for example: skip <folder> 02-design no UI")
     file = Path(folder) / f"{step}.md"
-    with step_run.step_lock(folder, step):
+    with step_run.step_lock(folder, step, force, command="skip"):
         if status_of(folder, step).split()[0] not in ("open", "active"):
             raise SystemExit(f"{step} is {status_of(folder, step)}; only an open or active step can be skipped")
         step_run.write_step(file, f"Status: skipped {reason}\n" + file.read_text(encoding="utf-8").split("\n", 1)[1])
@@ -212,7 +211,7 @@ def code_names(text):
 
 
 def write_callers(folder):
-    contracts = (folder / "03-contracts.md").read_text()
+    contracts = (folder / "03-contracts.md").read_text(encoding="utf-8")
     names = code_names(contracts.split(TODO_HEAD, 1)[-1])  # below the rules, which quote other code
     root = git("rev-parse", "--show-toplevel")
     parts = []
@@ -223,11 +222,11 @@ def write_callers(folder):
         parts.append(f"### {name} ({len(hits)} places)\n" + "\n".join(h[:160] for h in hits[:10]) + more)
     body = "\n\n".join(parts) or "No code names in backticks in 03-contracts.md. Search by hand and say so."
     file = folder / "04-impact.md"
-    text = file.read_text()
+    text = file.read_text(encoding="utf-8")
     if CALLERS_HEAD in text:
         return
     head, _, tail = text.rpartition(f"\n{RESULT_HEAD}")
-    file.write_text(f"{head}\n{CALLERS_HEAD}\n{body}\n\n{RESULT_HEAD}{tail}" if _ else f"{text}\n{CALLERS_HEAD}\n{body}\n")
+    step_run.write_step(file, f"{head}\n{CALLERS_HEAD}\n{body}\n\n{RESULT_HEAD}{tail}" if _ else f"{text}\n{CALLERS_HEAD}\n{body}\n")
 
 
 def skills_text(paths):
@@ -252,12 +251,12 @@ if __name__ == "__main__":
         raise SystemExit(__doc__)
     try:
         args = sys.argv[2:]
-        if sys.argv[1] == "take":
+        if sys.argv[1] in ("take", "done", "skip"):
             force = "--force" in args
             args = [arg for arg in args if arg != "--force"]
-            if len(args) != 3:
+            if sys.argv[1] == "take" and len(args) != 3:
                 raise SystemExit("take needs <folder> <step> <who> [--force]; who is required")
-            take(*args, force=force)
+            commands[sys.argv[1]](*args, force=force)
         else:
             commands[sys.argv[1]](*args)
         sys.stdout.flush()

@@ -2,7 +2,7 @@
 a unit with no row, a rule with no result, a made-up quote, a quote at the wrong line, or a bare "ok"
 proof blocks it; a language with no ctags support still gets units; a changed function that others
 call gets REF; the build gate owns the IDs the repo's lint config proves, and only for this head."""
-import json, os, runpy, shutil, subprocess, sys, tempfile
+import json, os, runpy, shutil, signal, subprocess, sys, tempfile, time
 from contextlib import redirect_stdout
 from io import BytesIO, StringIO, TextIOWrapper
 from pathlib import Path
@@ -298,8 +298,17 @@ def test_verify_build_lock(run, verify):
             raise AssertionError("build must refuse an existing verify lock")
         except SystemExit as error:
             assert str(lock) in str(error) and "--force" in str(error), error
+            assert f"use build --run --force after {rc.step_run.STALE_LOCK_SECONDS} s" in str(error), error
         assert lock.exists() and (run / "build.json").read_text() == original
         assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
+        try:
+            rc.build(run.name, "--run", "--force")
+            raise AssertionError("--force must preserve a fresh verify lock")
+        except SystemExit as error:
+            assert str(lock) in str(error), error
+        assert lock.exists() and (run / "build.json").read_text() == original
+        old = time.time() - rc.step_run.STALE_LOCK_SECONDS - 1
+        os.utime(lock, (old, old))
         rc.build(run.name, "--run", "--force")
         assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
         assert not lock.exists(), "--force must clear the stale lock and release its own lock"
@@ -333,6 +342,35 @@ def test_build_timeout(run, verify):
         assert result["tail"][-1] == "timed out after 0.05 s", result
         assert not verify.with_suffix(".lock").exists(), "a timed out build must release its lock"
     finally:
+        (run / "target.json").write_text(json.dumps(target))
+
+
+def test_build_timeout_children(run, verify):
+    target = json.loads((run / "target.json").read_text())
+    command = "sleep 30 >/dev/null 2>&1 & echo $! > timeout-child.pid; wait"
+    (run / "target.json").write_text(json.dumps({**target, "ci": {**target["ci"], "cmd": command}}))
+    child = None
+    try:
+        with patch.object(rc, "BUILD_TIMEOUT", 0.2):
+            rc.build(run.name, "--run")
+        child = int((verify / "timeout-child.pid").read_text())
+        deadline = time.monotonic() + 2
+        while True:
+            try:
+                os.kill(child, 0)
+            except ProcessLookupError:
+                break
+            assert time.monotonic() < deadline, f"timed out build left sleep {child} alive"
+            time.sleep(0.01)
+        result = json.loads((run / "build.json").read_text())
+        assert result["conclusion"] == "failure" and result["tail"][-1] == "timed out after 0.2 s"
+        assert not verify.with_suffix(".lock").exists()
+    finally:
+        if child is not None:
+            try:
+                os.kill(child, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         (run / "target.json").write_text(json.dumps(target))
 
 
@@ -394,6 +432,7 @@ def test_frozen_build():
             test_missing_verify_directory(run, verify, head)
             test_verify_build_lock(run, verify)
             test_build_timeout(run, verify)
+            test_build_timeout_children(run, verify)
             target = json.loads((run / "target.json").read_text())
             target["head"] = moved
             target["ci"]["cmd"] = "test $(cat value.txt) = later"

@@ -19,8 +19,12 @@ only from it.
 `--patch` reviews that patch instead of the whole range, for example review-walk's diff since view.
 `verdict` exits 1 when the gate fails, so a caller cannot read an APPROVE that no one earned.
 """
-import fnmatch, hashlib, json, os, re, shutil, subprocess, sys, urllib.parse
+import fnmatch, hashlib, json, os, re, shutil, signal, subprocess, sys, urllib.parse
+from contextlib import nullcontext
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "references"))
+import step_run  # noqa: E402
 
 KINDS = ("pass", "fix", "ask", "note", "n/a")
 RULE = re.compile(r"^- `([A-Z][A-Z0-9-]*-\d+)` (.*)$")
@@ -447,27 +451,23 @@ def build(name, *opts):
         if not head:
             print("build: local target; proof is from the live tree")
         lock = home() / "verify.lock" if head else None
-        if lock:
-            if "--force" in opts[1:]:
-                lock.unlink(missing_ok=True)
-            try:
-                fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-            except FileExistsError:
-                raise SystemExit(f"verify worktree busy; wait for the other build. If the run is gone, "
-                                 f"delete {lock} or use --run --force to clear it") from None
-        try:
-            if lock:
-                os.close(fd)
+        busy = (f"verify worktree busy; wait for the other build. If the run is gone, "
+                f"delete {lock} or use build --run --force after {step_run.STALE_LOCK_SECONDS} s")
+        with step_run.step_lock(lock.parent, "verify", force="--force" in opts[1:], command="build --run", busy=busy) if lock else nullcontext():
+            if head:
                 cwd = verify_tree(head)
-            try:
-                r = subprocess.run(["bash", "-c", ci["cmd"]], cwd=cwd, capture_output=True, text=True,
-                                   timeout=BUILD_TIMEOUT)
-                conclusion, tail = ("success" if r.returncode == 0 else "failure"), (r.stdout + r.stderr).splitlines()[-40:]
-            except subprocess.TimeoutExpired:
-                conclusion, tail = "failure", [f"timed out after {BUILD_TIMEOUT} s"]
-        finally:
-            if lock:
-                lock.unlink()
+            with subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True, start_new_session=True) as process:
+                try:
+                    stdout, stderr = process.communicate(timeout=BUILD_TIMEOUT)
+                    conclusion, tail = ("success" if process.returncode == 0 else "failure"), (stdout + stderr).splitlines()[-40:]
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    process.communicate()
+                    conclusion, tail = "failure", [f"timed out after {BUILD_TIMEOUT} s"]
         result = {"source": "command", "name": ci["cmd"], "conclusion": conclusion, "tail": tail}
     elif not head:
         raise SystemExit("uncommitted changes have no CI result; use `build <run> --run`")
