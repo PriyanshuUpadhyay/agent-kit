@@ -541,6 +541,11 @@ def test_block_fail_closed(tmp):
         cases.append((name, "- build: block:red-first-check\n", PARAMS + f'[add]\nbuild = ["{path}"]\n', (),
                       f"[add] {path} leaves the repo"))
     Path(tmp, "add-symlink", "app", "link.md").symlink_to(Path(tmp, "add-symlink", "outside.md"))
+    # A repo block whose id equals a kit alias name would mix with the alias.
+    Path(tmp, "add-alias", "app", "docs").mkdir(parents=True)
+    Path(tmp, "add-alias", "app", "docs", "tech-diagram.md").write_text("# tech-diagram\n", encoding="utf-8")
+    cases.append(("add-alias", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/tech-diagram.md"]\n', (),
+                  "has id tech-diagram, which is an alias"))
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)

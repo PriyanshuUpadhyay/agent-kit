@@ -198,6 +198,8 @@ def resolve_blocks(root, wanted, profile_name):
             if Path(path).is_absolute() or not (root / path).resolve().is_relative_to(root.resolve()):
                 raise SystemExit(f"[add] {path} leaves the repo; {repo_file} takes repo-relative paths")
             block = Path(path).stem
+            if block in aliases:
+                raise SystemExit(f"[add] {path} in {repo_file} has id {block}, which is an alias in {kit_file}; rename the file")
             if files.get(block, root / path) != root / path:
                 raise SystemExit(f"duplicate block id {block}: {path} in {repo_file} and {files[block]}")
             if not (root / path).is_file():
