@@ -28,18 +28,6 @@ def test_skip_text_encoding():
     assert not missing, f"skip test reads or writes without UTF-8 encoding at {missing}"
 
 
-def test_review_read_encoding():
-    """take and approved read 06-review.md, which holds UTF-8 block text; macOS reads UTF-8 under any
-    locale, so this parses the code instead of running it under LC_ALL=C."""
-    import ast
-    tree = ast.parse(Path(SCRIPT).read_text(encoding="utf-8"))
-    missing = [call.lineno for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in ("take", "approved")
-               for call in ast.walk(node) if isinstance(call, ast.Call)
-               and isinstance(call.func, ast.Attribute) and call.func.attr == "read_text"
-               and not any(kw.arg == "encoding" for kw in call.keywords)]
-    assert not missing, f"take or approved reads without UTF-8 encoding at {missing}"
-
-
 def test_command_wrong_count(run, folder):
     for command, args in (("start", ("extra",)), ("start", ("--profile",)), ("status", (folder, "extra")),
                           ("take", ()), ("take", (folder, "01-frame", "a", "extra")),
@@ -640,12 +628,50 @@ def test_block_repo_file(tmp):
     assert "block html-diagram" not in design and "block html-diagram" not in step_text(folder, "06-review")
 
 
+# An ASCII locale: the child opens files as US-ASCII unless the code passes encoding="utf-8". The child
+# runs without -I, which would ignore PYTHONUTF8=0 and turn on UTF-8 mode under the C locale.
+ASCII_ENV = {"LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+
+
+def assert_ascii_locale():
+    out = subprocess.run([sys.executable, "-c", "print(open(__import__('os').devnull).encoding)"],
+                         env={**os.environ, **ASCII_ENV}, capture_output=True, text=True)
+    assert out.stdout.strip().lower() in ("ascii", "us-ascii", "ansi_x3.4-1968"), f"not an ASCII locale: {out.stdout}"
+
+
 def test_block_ascii_locale(tmp):
     """start writes the UTF-8 block text (`…` in web-ui-basics) under an ASCII locale."""
-    ascii_env = {"LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
-    out, folder, _, _ = blocks_start(tmp, "ascii", "- build: block:web-ui-basics\n", env=ascii_env)
+    assert_ascii_locale()
+    out, folder, _, _ = blocks_start(tmp, "ascii", "- build: block:web-ui-basics\n", env=ASCII_ENV)
     assert out.returncode == 0, out.stderr
     assert "…" in step_text(folder, "05-build")
+
+
+def test_review_read_encoding(tmp):
+    """take 06-review reads 06-review.md, and take 07-close also reads the verdict and target.json, all
+    UTF-8 text, under an ASCII locale."""
+    assert_ascii_locale()
+    out, folder, repo, run = blocks_start(tmp, "review-ascii", "- review: block:web-ui-basics\n", env=ASCII_ENV)
+    assert out.returncode == 0 and "…" in step_text(folder, "06-review"), out.stderr
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "one"],
+                   cwd=repo, check=True)
+
+    def mark(step, extra=""):
+        f = folder / f"{step}.md"
+        f.write_text("Status: done x\n" + f.read_text(encoding="utf-8").split("\n", 1)[1] + extra, encoding="utf-8")
+
+    for step in ("01-frame", "02-design", "03-contracts", "04-impact", "05-build"):
+        mark(step)
+    out = run("take", folder, "06-review", "a")
+    assert out.returncode == 0, out.stderr
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
+    review = repo / "tmp" / "review-check" / "range-1"
+    review.mkdir(parents=True)
+    (review / "03-verdict.md").write_text("Status: done x\nUses:\nVerdict: APPROVE (1 of 1 units; 0 fix)\n- note: …\n", encoding="utf-8")
+    (review / "target.json").write_text(json.dumps({"head": head, "note": "…"}, ensure_ascii=False), encoding="utf-8")
+    mark("06-review", "Run: tmp/review-check/range-1\n")
+    out = run("take", folder, "07-close", "a")
+    assert out.returncode == 0, out.stderr
 
 
 def test_block_checks(tmp):
@@ -704,10 +730,10 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "Revision:" not in (folder / "06-review.md").read_text()
     # A catalog with no block item writes no block, no profile, and no judge section (old behaviour).
     assert all("block:" not in text and "Judge checks" not in text
+               and "profile " not in next(l for l in text.splitlines() if l.startswith("Skills read:"))
                for text in (p.read_text(encoding="utf-8") for p in folder.glob("0*.md")))
 
     test_skip_text_encoding()
-    test_review_read_encoding()
     test_command_wrong_count(run, folder)
     test_done_wrong_count(run, folder)
     test_take_force(run, folder)
@@ -827,4 +853,5 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_repo_file(tmp)
     test_block_checks(tmp)
     test_block_ascii_locale(tmp)
+    test_review_read_encoding(tmp)
     print("ok")
