@@ -546,22 +546,32 @@ def test_block_fail_closed(tmp):
     Path(tmp, "add-alias", "app", "docs", "tech-diagram.md").write_text("# tech-diagram\n", encoding="utf-8")
     cases.append(("add-alias", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/tech-diagram.md"]\n', (),
                   "has id tech-diagram, which is an alias"))
+    # A TOML syntax error or a wrong value type in the repo file names the file, with no traceback.
+    # A top-level key goes before [params], or TOML puts it in that table.
+    cases += [(f"type-{name}", "- build: block:red-first-check\n", toml, (), reason) for name, toml, reason in (
+        ("syntax", "[params\nx = 1\n", ".blocks.toml is not valid TOML"),
+        ("params", "params = 3\n", ".blocks.toml: params must be a table"),
+        ("off", "off = 3\n" + PARAMS, ".blocks.toml: off must be a table"),
+        ("add", "add = 3\n" + PARAMS, ".blocks.toml: add must be a table"),
+        ("add-string", PARAMS + '[add]\nbuild = "docs/x.md"\n', "must be a list of paths"))]
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
         assert len(out.stderr.strip().splitlines()) == 1, (name, out.stderr)
         assert not (repo / "tmp" / "flow").exists(), name
-    # An alias that equals a block id stops the load of the block catalog.
+    # A bad block catalog stops the load with a reason that names it.
     kit = Path(tmp, "kit")
     kit.mkdir()
     (kit / "a.md").write_text("# a\n", encoding="utf-8")
-    (kit / "blocks.toml").write_text('base = []\n[blocks]\na = "a.md"\n[aliases]\na = ["a"]\n[profiles.default]\n', encoding="utf-8")
-    with patch.object(flow_run, "BLOCKS", kit):
-        try:
-            flow_run.resolve_blocks(Path(tmp), {"build": ["a"]}, "default")
-            raise AssertionError("an alias named like a block must stop start")
-        except SystemExit as error:
-            assert "alias a is also a block id" in str(error), error
+    for toml, reason in (('base = []\n[blocks]\na = "a.md"\n[aliases]\na = ["a"]\n[profiles.default]\n', "alias a is also a block id"),
+                         ("[blocks\n", "blocks.toml is not valid TOML")):
+        (kit / "blocks.toml").write_text(toml, encoding="utf-8")
+        with patch.object(flow_run, "BLOCKS", kit):
+            try:
+                flow_run.resolve_blocks(Path(tmp), {"build": ["a"]}, "default")
+                raise AssertionError(f"start must stop: {reason}")
+            except SystemExit as error:
+                assert reason in str(error) and "\n" not in str(error), error
 
 
 def test_block_repo_file(tmp):

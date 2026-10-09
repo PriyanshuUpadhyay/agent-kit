@@ -171,7 +171,7 @@ def resolve_blocks(root, wanted, profile_name):
     the repo's .blocks.toml, packed by the profile: (Skills read items, rules text, script todos). Also
     the judge lines of every block that ran, once each. blocks/blocks.toml owns the format."""
     kit_file, repo_file = BLOCKS / "blocks.toml", root / ".blocks.toml"
-    kit = tomllib.loads(kit_file.read_text(encoding="utf-8"))
+    kit = read_toml(kit_file)
     files = {block: BLOCKS / name for block, name in kit.get("blocks", {}).items()}
     aliases = kit.get("aliases", {})
     for alias, members in aliases.items():
@@ -186,13 +186,17 @@ def resolve_blocks(root, wanted, profile_name):
     if unknown := [name for name in merge if name not in aliases]:
         raise SystemExit(f"profile {profile_name} merges {unknown[0]}, which is not an alias in {kit_file}")
 
-    repo = tomllib.loads(repo_file.read_text(encoding="utf-8")) if repo_file.exists() else {}
+    repo = read_toml(repo_file) if repo_file.exists() else {}
     if unknown := sorted(set(repo) - {"params", "add", "off"}):
         raise SystemExit(f"unknown table [{unknown[0]}] in {repo_file}; it takes [params], [add], and [off]")
+    if wrong := [t for t in ("params", "add", "off") if not isinstance(repo.get(t, {}), dict)]:
+        raise SystemExit(f"{repo_file}: {wrong[0]} must be a table, written as [{wrong[0]}]")
     params, off, added = repo.get("params", {}), repo.get("off", {}), {}
     for key, paths in repo.get("add", {}).items():
         if key not in wanted:
             raise SystemExit(f"[add] {key} in {repo_file} is not a step; steps are {', '.join(wanted)}")
+        if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+            raise SystemExit(f"[add] {key} in {repo_file} must be a list of paths, such as {key} = [\"docs/x.md\"]")
         for path in paths:
             # The repo file is repo-owned input, and the step text goes to agents, so no file outside the repo.
             if Path(path).is_absolute() or not (root / path).resolve().is_relative_to(root.resolve()):
@@ -252,6 +256,13 @@ def resolve_blocks(root, wanted, profile_name):
             judge.setdefault(b, check_lines(load(b)[1], "Check (judge)"))
         out[key] = (read, text, todos)
     return out, "\n".join(f"- block {b} judge: {line}" for b, lines in judge.items() for line in lines)
+
+
+def read_toml(path):
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise SystemExit(f"{path} is not valid TOML: {error}")
 
 
 def sections(text):
