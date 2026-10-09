@@ -69,7 +69,7 @@ def test_skip_plain_reason(run, folder):
 def fill(f, evidence="evidence"):
     """Check every todo of a step file with evidence, as an agent would."""
     f.write_text("".join(l.replace("- [ ]", "- [x]").rstrip() + (f" {evidence}\n" if l.startswith("- [") and l.rstrip().endswith(":") else "\n")
-                         for l in f.read_text().splitlines()))
+                         for l in f.read_text(encoding="utf-8").splitlines()), encoding="utf-8")
 
 
 def test_take_force(run, folder):
@@ -559,6 +559,13 @@ def test_block_fail_closed(tmp):
         ("add-step", "- build: block:red-first-check\n", PARAMS + '[add]\nship = ["docs/x.md"]\n', (), "[add] ship in"),
         ("table", "- build: block:red-first-check\n", PARAMS + "[extra]\nx = 1\n", (), "unknown table [extra]"),
     ]
+    # Bytes that are not UTF-8 in the repo file or in an [add] block name the file, with no traceback.
+    Path(tmp, "utf8-toml", "app").mkdir(parents=True)
+    Path(tmp, "utf8-toml", "app", ".blocks.toml").write_bytes(PARAMS.encode() + b'x = "\xff"\n')
+    cases.append(("utf8-toml", "- build: block:red-first-check\n", None, (), ".blocks.toml is not UTF-8"))
+    Path(tmp, "utf8-add", "app", "docs").mkdir(parents=True)
+    Path(tmp, "utf8-add", "app", "docs", "x.md").write_bytes(b"# x\n\xff\n")
+    cases.append(("utf8-add", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/x.md"]\n', (), "x.md is not UTF-8"))
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)

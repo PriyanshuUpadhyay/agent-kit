@@ -229,7 +229,7 @@ def resolve_blocks(root, wanted, profile_name):
     def load(block):
         """The block's content hash and its filled sections, read once."""
         if block not in loaded:
-            raw = files[block].read_text(encoding="utf-8")
+            raw = read_utf8(files[block])
             if missing := [p for p in PARAM.findall(raw) if p not in params]:
                 raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
             loaded[block] = (hashlib.sha256(raw.encode()).hexdigest()[:8],
@@ -260,9 +260,16 @@ def resolve_blocks(root, wanted, profile_name):
 
 def read_toml(path):
     try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
+        return tomllib.loads(read_utf8(path))
     except tomllib.TOMLDecodeError as error:
-        raise SystemExit(f"{path} is not valid TOML: {error}")
+        raise SystemExit(f"{path} is not valid TOML: {error}") from None
+
+
+def read_utf8(path):
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise SystemExit(f"{path} is not UTF-8: {error}") from None
 
 
 def sections(text):
