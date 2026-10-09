@@ -456,7 +456,8 @@ def skills_text(paths):
         if not p.exists():
             parts.append(f"===== {path} (missing) =====")
             continue
-        text = read_utf8(p)
+        # As in render: no control bytes, and `## ` becomes `### `, so no rules line can pass for a step heading.
+        text = re.sub(r"^## ", "### ", plain(read_utf8(p), keep_newlines=True), flags=re.M)
         cut = f" (first {CAP} characters; read the file for the rest)" if len(text) > CAP else ""
         parts.append(f"===== {path}{cut} =====\n{text[:CAP]}")
     return "\n".join(parts)
