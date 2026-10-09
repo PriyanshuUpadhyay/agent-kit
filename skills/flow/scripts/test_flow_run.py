@@ -764,6 +764,13 @@ def test_web_ui_basics_checks(tmp):
     (site / "style.css").write_text("@media (prefers-reduced-motion: reduce) { * { animation: none; } }\n", encoding="utf-8")
     banned, motion = block_rg("web-ui-basics", site)[:2]
     assert motion.returncode == 0 and "style.css" in motion.stdout, motion
+    # An image tag whose attributes sit on later lines shows all of them.
+    (site / "index.html").write_text('<h1>A</h1>\n<img\n  src="a.png"\n  alt="A"\n  width="10"\n  height="10">\n'
+                                     '<img src="b.png">\n', encoding="utf-8")
+    (site / "DESIGN.md").write_text("Use <img with alt.\n", encoding="utf-8")
+    images = block_rg("web-ui-basics", site)[3]
+    assert all(attr in images.stdout for attr in ('alt="A"', 'width="10"', 'height="10"', '<img src="b.png">')), images
+    assert "DESIGN.md" not in images.stdout, images
 
 
 with tempfile.TemporaryDirectory() as tmp:
