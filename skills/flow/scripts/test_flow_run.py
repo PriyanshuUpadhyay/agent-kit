@@ -744,6 +744,28 @@ def test_html_diagram_check(tmp):
         assert passed == good, (html, counted, captioned)
 
 
+def block_rg(name, site):
+    """Run each `rg` command of a block's Check (script) section on `site`, as written."""
+    text = (flow_run.BLOCKS / f"{name}.md").read_text(encoding="utf-8").split("## Check (script)\n", 1)[1].split("\n## ")[0]
+    return [subprocess.run(c.replace("{{site}}", shlex.quote(str(site))), shell=True, capture_output=True, text=True)
+            for c in re.findall(r"`([^`]+)`", text) if c.startswith("rg ")]
+
+
+def test_web_ui_basics_checks(tmp):
+    """The web-ui-basics rg checks read the page files, not DESIGN.md prose beside them."""
+    site = Path(tmp, "basics-site")
+    site.mkdir()
+    (site / "DESIGN.md").write_text("Never use outline: none. prefers-reduced-motion is nice.\n", encoding="utf-8")
+    (site / "index.html").write_text("<h1>A</h1>\n", encoding="utf-8")
+    (site / "style.css").write_text("h1 { color: red; }\n", encoding="utf-8")
+    banned, motion = block_rg("web-ui-basics", site)[:2]
+    assert banned.returncode == 1 and not banned.stdout, banned
+    assert motion.returncode == 1 and not motion.stdout, "DESIGN.md prose must not count as handling reduced motion"
+    (site / "style.css").write_text("@media (prefers-reduced-motion: reduce) { * { animation: none; } }\n", encoding="utf-8")
+    banned, motion = block_rg("web-ui-basics", site)[:2]
+    assert motion.returncode == 0 and "style.css" in motion.stdout, motion
+
+
 with tempfile.TemporaryDirectory() as tmp:
     home, repo = Path(tmp, "home"), Path(tmp, "app")
     (home / ".flow" / "app").mkdir(parents=True)
@@ -900,6 +922,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_repo_file(tmp)
     test_block_checks(tmp)
     test_html_diagram_check(tmp)
+    test_web_ui_basics_checks(tmp)
     test_block_ascii_locale(tmp)
     test_review_read_encoding(tmp)
     print("ok")

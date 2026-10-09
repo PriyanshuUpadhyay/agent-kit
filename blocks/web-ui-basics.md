@@ -31,8 +31,8 @@ Action: write and run `checks/basics.mjs` at 1440, 390, and 375 px. It reports `
 Result: the evidence line shows the FAIL and then the PASS for each width.
 
 ## Check (script)
-- `rg -n 'outline:\s*none|transition:\s*all|user-scalable=no|maximum-scale=1|ease-in[^-]' {{site}}` prints nothing, or each `outline: none` has a `:focus-visible` rule beside it: no banned pattern.
-- `rg -n 'prefers-reduced-motion' {{site}}` finds a block: reduced motion is handled.
+- `rg -n -g '*.html' -g '*.css' -g '*.js' 'outline:\s*none|transition:\s*all|user-scalable=no|maximum-scale=1|ease-in[^-]' {{site}}` prints nothing, or each `outline: none` has a `:focus-visible` rule beside it: no banned pattern.
+- `rg -n -g '*.html' -g '*.css' -g '*.js' 'prefers-reduced-motion' {{site}}` finds a block: reduced motion is handled.
 - `rg -o '<h[1-6]' {{site}}/index.html` lists the headings with no skipped level: heading order holds.
 - `rg -n '<img' {{site}}` shows `alt`, `width`, and `height` on each image: images are described and sized.
 
