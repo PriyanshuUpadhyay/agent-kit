@@ -27,6 +27,7 @@ RESULT_HEAD = "## Result"
 
 
 def plain(text, *, keep_newlines=False):
+    text = text.replace("\u2028", "\n").replace("\u2029", "\n")
     return "".join(c for c in text if c == "\t" or (keep_newlines and c == "\n")
                    or ord(c) >= 32 and not 127 <= ord(c) <= 159)
 
@@ -191,8 +192,11 @@ if __name__ == "__main__":
             force = "--force" in args
             commands[sys.argv[1]](*(arg for arg in args if arg != "--force"), force=force)
         else:
-            if sys.argv[1] == "done" and (len(args) != 2 or "--force" in args):
-                raise SystemExit("done <folder> <step> accepts no --force")
+            if sys.argv[1] == "done":
+                if "--force" in args:
+                    raise SystemExit("done <folder> <step> accepts no --force")
+                if len(args) != 2:
+                    raise SystemExit("done <folder> <step>")
             commands[sys.argv[1]](*args)
         sys.stdout.flush()
     except BrokenPipeError:

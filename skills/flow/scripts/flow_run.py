@@ -35,6 +35,8 @@ from step_run import RESULT_HEAD, TODO_HEAD, plain, status_of  # noqa: E402
 SKILL_MD = Path(__file__).resolve().parents[1] / "SKILL.md"
 SKIPPABLE = ("02-design", "03-contracts", "04-impact")
 SEARCH_SECONDS = 120
+SEARCH_EACH_SECONDS = 60
+NAME_CAP = 25
 CAP = 15000  # characters per skill; engineering-standards is about 10k
 RULES_HEAD = "## Rules for this step (written by flow_run.py start; apply them, keep this section)"
 CALLERS_HEAD = "## Callers (written by flow_run.py take from the code names in 03-contracts.md; a search, not a judgment)"
@@ -167,7 +169,7 @@ def done(folder, step):
 def skip(folder, step, *why):
     if step not in SKIPPABLE:
         raise SystemExit(f"{step} cannot be skipped; only {', '.join(SKIPPABLE)} can")
-    reason = " ".join(why).strip()
+    reason = plain(" ".join(why), keep_newlines=True).replace("\n", " ").replace("\t", " ").strip()
     if not reason:
         raise SystemExit("skip needs a reason, for example: skip <folder> 02-design no UI")
     file = Path(folder) / f"{step}.md"
@@ -215,8 +217,8 @@ def code_names(text):
 def write_callers(folder):
     contracts = (folder / "03-contracts.md").read_text(encoding="utf-8")
     names = code_names(contracts.split(TODO_HEAD, 1)[-1])  # below the rules, which quote other code
-    omitted = max(0, len(names) - 25)
-    names = names[:25]
+    omitted = max(0, len(names) - NAME_CAP)
+    names = names[:NAME_CAP]
     root = git("rev-parse", "--show-toplevel")
     parts = []
     deadline = time.monotonic() + SEARCH_SECONDS
@@ -227,7 +229,7 @@ def write_callers(folder):
             break
         try:
             result = subprocess.run(["git", "grep", "-n", "-w", "-F", "-e", name, "--", ".", ":!tmp"],
-                                    cwd=root, capture_output=True, timeout=min(60, remaining))
+                                    cwd=root, capture_output=True, timeout=min(SEARCH_EACH_SECONDS, remaining))
         except subprocess.TimeoutExpired:
             parts.append(f"### {name}\ncallers: git grep timed out")
             continue
@@ -278,8 +280,11 @@ if __name__ == "__main__":
                 raise SystemExit("take needs <folder> <step> <who> [--force]; who is required")
             commands[sys.argv[1]](*args, force=force)
         else:
-            if sys.argv[1] == "done" and (len(args) != 2 or "--force" in args):
-                raise SystemExit("done <folder> <step> accepts no --force")
+            if sys.argv[1] == "done":
+                if "--force" in args:
+                    raise SystemExit("done <folder> <step> accepts no --force")
+                if len(args) != 2:
+                    raise SystemExit("done <folder> <step>")
             if sys.argv[1] == "skip" and "--force" in args:
                 raise SystemExit("skip accepts no --force")
             commands[sys.argv[1]](*args)

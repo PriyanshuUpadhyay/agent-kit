@@ -33,6 +33,13 @@ with step_run.step_lock(sys.argv[2], sys.argv[3]):
     return child
 
 
+def test_done_wrong_count(folder):
+    for args in ((folder,), (folder, "01-ask", "extra")):
+        out = run("done", *args)
+        assert out.returncode == 1 and "done <folder> <step>" in out.stderr, out.stderr
+        assert "--force" not in out.stderr and "Traceback" not in out.stderr, out.stderr
+
+
 def test_done_rejects_force(folder):
     file = folder / "01-ask.md"
     original = file.read_text(encoding="utf-8")
@@ -50,7 +57,13 @@ def test_done_rejects_force(folder):
 
 
 def test_lock_holder_failed_handshake(folder):
-    code = 'import sys; print("not held", flush=True); print("lock failed", file=sys.stderr, flush=True); sys.stdin.read()'
+    code = 'import sys; print("lock failed", file=sys.stderr, flush=True); print("not held", flush=True); sys.stdin.read()'
+    # Pause after stdout is visible so the parent can kill before any later stderr write.
+    code = ("import builtins,time\noriginal_print=builtins.print\n"
+            "def delayed_print(*args, **kwargs):\n"
+            "    original_print(*args, **kwargs)\n"
+            "    if args == ('not held',): time.sleep(0.1)\n"
+            "builtins.print=delayed_print\nexec(" + repr(code) + ")")
     child = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
@@ -149,7 +162,7 @@ def test_explicit_text_encoding():
     import ast
     tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
     missing = [node.lineno for node in ast.walk(tree) if isinstance(node, ast.Call)
-               and isinstance(node.func, ast.Attribute) and node.func.attr in ("read_text", "write_text")
+               and isinstance(node.func, ast.Attribute) and node.func.attr in ("read_text", "write_text", "open")
                and not any(kw.arg == "encoding" for kw in node.keywords)]
     assert not missing, f"text operations without UTF-8 encoding at {missing}"
 
@@ -159,6 +172,8 @@ def test_plain_controls():
     text = "\tindented\nnext\r\x1b\x01\x7f\x85"
     assert step_run.plain(text) == "\tindentednext"
     assert step_run.plain(text, keep_newlines=True) == "\tindented\nnext"
+    assert step_run.plain("a\u2028b\u2029c") == "abc"
+    assert step_run.plain("a\u2028b\u2029c", keep_newlines=True) == "a\nb\nc"
 
 
 def test_claim_failure_log_one_line(folder):
@@ -167,7 +182,7 @@ def test_claim_failure_log_one_line(folder):
     events = (folder / "events.log").read_text(encoding="utf-8")
 
     def failed(path):
-        raise RuntimeError("\x1ba\nb\tc\x7f")
+        raise RuntimeError("\x1ba\u2028b\u2029c\x7f")
 
     try:
         with redirect_stdout(StringIO()):
@@ -253,7 +268,7 @@ def test_atomic_step_writes(folder):
     def check_replace(source, destination):
         nonlocal previous
         assert source.parent == file.parent and source.suffix == ".tmp" and destination == file
-        with (folder / "01-ask.lock").open("a") as contender:
+        with (folder / "01-ask.lock").open("a", encoding="utf-8") as contender:
             try:
                 fcntl.flock(contender.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -311,6 +326,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert run("done", folder, "01-ask").returncode == 0 and f.read_text(encoding="utf-8").startswith("Status: done ")
     test_explicit_text_encoding()
     test_plain_controls()
+    test_done_wrong_count(folder)
     test_done_rejects_force(folder)
     test_lock_holder_failed_handshake(folder)
     test_process_lock(folder)

@@ -447,8 +447,9 @@ def build_signals():
 
     previous = {signum: signal.getsignal(signum) for signum in (signal.SIGTERM, signal.SIGHUP)}
     try:
-        for signum in previous:
-            signal.signal(signum, stop)
+        for signum, handler in previous.items():
+            if handler != signal.SIG_IGN:
+                signal.signal(signum, stop)
         yield
     finally:
         for signum, handler in previous.items():
@@ -471,13 +472,16 @@ def build(name, *opts):
         with (step_run.step_lock(home(), "verify", command="build --run") if head else nullcontext()), build_signals():
             if head:
                 cwd = verify_tree(head)
-            process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE, text=True, start_new_session=True)
+            process = None
             try:
                 try:
+                    process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
+                                               stderr=subprocess.PIPE, text=True, start_new_session=True)
                     stdout, stderr = process.communicate(timeout=BUILD_TIMEOUT)
                     conclusion, tail = ("success" if process.returncode == 0 else "failure"), (stdout + stderr).splitlines()[-40:]
                 except (subprocess.TimeoutExpired, KeyboardInterrupt, SystemExit) as error:
+                    if process is None:
+                        raise
                     try:
                         os.killpg(process.pid, signal.SIGKILL)
                     except ProcessLookupError:
@@ -497,10 +501,11 @@ def build(name, *opts):
                         raise
                     conclusion, tail = "failure", [f"timed out after {BUILD_TIMEOUT} s"]
             finally:
-                if not process.stdout.closed:
-                    process.stdout.close()
-                if not process.stderr.closed:
-                    process.stderr.close()
+                if process is not None:
+                    if not process.stdout.closed:
+                        process.stdout.close()
+                    if not process.stderr.closed:
+                        process.stderr.close()
         result = {"source": "command", "name": ci["cmd"], "conclusion": conclusion, "tail": tail}
     elif not head:
         raise SystemExit("uncommitted changes have no CI result; use `build <run> --run`")
