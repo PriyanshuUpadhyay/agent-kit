@@ -512,6 +512,19 @@ def test_block_alias_and_base(tmp):
         assert step_text(folder, step).count("===== block:first-principles =====") == 1, step
 
 
+def test_block_hash_bytes(tmp):
+    """The Skills read hash is the sha256 of the block file's bytes, also for a file with CRLF line ends."""
+    Path(tmp, "crlf", "app", "docs").mkdir(parents=True)
+    data = b"# crlf\r\n\r\n## Rules\r\n- CRLF RULE 3\r\n"
+    Path(tmp, "crlf", "app", "docs", "crlf.md").write_bytes(data)
+    out, folder, _, _ = blocks_start(tmp, "crlf", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/crlf.md"]\n')
+    assert out.returncode == 0, out.stderr
+    build = step_text(folder, "05-build")
+    skills = next(line for line in build.splitlines() if line.startswith("Skills read:"))
+    assert f"block:crlf@{hashlib.sha256(data).hexdigest()[:8]}" in skills, skills
+    assert "- CRLF RULE 3\n" in build and "\r" not in build, build
+
+
 def rule_lines(text):
     """The rule, todo, and check lines of a step file, without Example sections."""
     lines, example = [], False
@@ -1095,6 +1108,7 @@ with tempfile.TemporaryDirectory() as tmp:
     events = (folder / "events.log").read_text()
     assert "02-design\tskip no UI" in events and "07-close\ttake a" in events
     test_block_in_step(tmp)
+    test_block_hash_bytes(tmp)
     test_block_alias_and_base(tmp)
     test_block_profile(tmp)
     test_block_example_params(tmp)

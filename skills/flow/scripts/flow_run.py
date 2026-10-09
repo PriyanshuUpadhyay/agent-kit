@@ -252,7 +252,8 @@ def resolve_blocks(root, wanted, profile_name):
             if bad := [h for h, _ in parts[1:] if h.lower().startswith("check") and h not in CHECKS]:
                 raise SystemExit(f"block {block} has the section heading ## {bad[0]}; a check section is "
                                  f"## {CHECKS[0]} or ## {CHECKS[1]}")
-            loaded[block] = (hashlib.sha256(raw.encode()).hexdigest()[:8], parts)
+            # The hash is of the file's bytes (C4); read_text turns CRLF into LF, so the text cannot give it.
+            loaded[block] = (hashlib.sha256(files[block].read_bytes()).hexdigest()[:8], parts)
         return loaded[block]
 
     out, judge = {}, {}
