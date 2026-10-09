@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Make and take flow steps. Run from inside the repo.
 
-  start                        make tmp/flow/<date>-<branch>/ with the seven step files
+  start [--profile <name>]     make tmp/flow/<date>-<branch>/ with the seven step files; the profile packs blocks
   status [<folder>]            print each step's status, whether it is ready, and whether it is stale
   take <folder> <step> <who> [--force] mark the step active and print its file with the skills the catalog gives it
   done <folder> <step>         set the step done, only when every todo is checked with evidence
@@ -10,7 +10,8 @@
 `start` writes the full text of each step's skills into that step's file, because an agent that gets
 only a path often does not open it (Sonnet workers opened 0 of 4 pointer skills, 2026-10-04 and
 2026-10-05), and every agent reads the step file it works on, on every provider. `take` prints them
-again.
+again. A catalog item `block:<id>` names a block of the kit's blocks/ folder; blocks/blocks.toml owns
+the block, alias, and profile format, and the repo's .blocks.toml adds params, repo blocks, and off.
 
 The step graph is the step table in ../SKILL.md. `start` writes the need names and marks 05-build.md
 with `Revision: HEAD`, as references/step-run.md describes. The kit's references/step_run.py
@@ -21,6 +22,7 @@ of 05-build is HEAD, take 04-impact lists the places that name the contracts' co
 
 import codecs
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -28,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "references"))
@@ -35,6 +38,7 @@ import step_run  # noqa: E402
 from step_run import RESULT_HEAD, TODO_HEAD, plain, status_of  # noqa: E402
 
 SKILL_MD = Path(__file__).resolve().parents[1] / "SKILL.md"
+BLOCKS = Path(__file__).resolve().parents[3] / "blocks"
 SKIPPABLE = ("02-design", "03-contracts", "04-impact")
 SEARCH_SECONDS = 120
 SEARCH_EACH_SECONDS = 60
@@ -44,6 +48,9 @@ MAX_HITS = 10
 HIT_CHARS = 160
 CAP = 15000  # characters per skill; engineering-standards is about 10k
 RULES_HEAD = "## Rules for this step (written by flow_run.py start; apply them, keep this section)"
+JUDGE_HEAD = "## Judge checks of blocks that ran"
+PARAM = re.compile(r"\{\{(\w+)\}\}")
+CHECKS = ("Check (script)", "Check (judge)")
 CALLERS_HEAD = "## Callers (written by flow_run.py take from the code names in 03-contracts.md; a search, not a judgment)"
 TODOS = {  # each item names the file that owns the rule
     "01-frame": ["Goal, user, and out of scope (flow)", "Done-when, each one checkable (flow)",
@@ -88,7 +95,7 @@ def rev(folder, step):
     return git("rev-parse", "HEAD")[:12] if step == "05-build" else step_run.revision(folder, step)
 
 
-def start():
+def start(profile="default"):
     root = git("rev-parse", "--show-toplevel")
     if not root:
         raise SystemExit("not in a git repository")
@@ -103,16 +110,23 @@ def start():
     except OSError as error:
         print(f"note: could not add /tmp/ to {exclude}: {error}", file=sys.stderr)
     if not folder.exists():
+        steps = graph()
+        catalog = {step: skill_paths(step) for step in steps}
+        # Resolve every step before the folder exists, so a config error leaves no half-made run.
+        blocks, judge = resolve_blocks(Path(root), {s.split("-", 1)[1]: ids for s, (_, ids) in catalog.items()}, profile)
         folder.mkdir(parents=True)
-        for step, need in graph().items():
+        for step, need in steps.items():
             extra = f"Worktree: {root}\nBranch: {branch}\n" if step == "01-frame" else ""
             extra += "Revision: HEAD\n" if step == "05-build" else ""  # the rule in rev(), for readers without this script
             uses = f"Uses: {', '.join(need)}".rstrip()
-            paths = skill_paths(step)
+            paths = catalog[step][0]
+            read, text, todos = blocks[step.split("-", 1)[1]]
+            rules = "\n".join(part for part in (skills_text(paths), text) if part)
+            judged = f"{JUDGE_HEAD}\n{judge}\n\n" if step == "06-review" and judge else ""
             (folder / f"{step}.md").write_text(
                 f"Status: open\n{uses}\n{extra}Take with: python3 {Path(__file__).resolve()} take {folder} {step} <agent>\n"
-                f"Skills read: {', '.join(paths) or 'none'}\n\n{RULES_HEAD}\n{skills_text(paths)}\n"
-                f"{TODO_HEAD}\n" + "".join(f"- [ ] {item}: \n" for item in TODOS[step]) + f"\n{RESULT_HEAD}\n")
+                f"Skills read: {', '.join(paths + read) or 'none'}\n\n{RULES_HEAD}\n{rules}\n{judged}"
+                f"{TODO_HEAD}\n" + "".join(f"- [ ] {item}: \n" for item in TODOS[step] + todos) + f"\n{RESULT_HEAD}\n")
     print(folder)
     print(f"Each step file holds its rules, a todo list, and a result section. Close a step with: python3 {Path(__file__).resolve()} done <folder> <step>")
 
@@ -128,7 +142,8 @@ def status(folder=None):
 
 
 def skill_paths(step):
-    """The catalog paths for this step: the `any` section, each profile domain, and the repo rules."""
+    """The catalog items for this step, from the `any` section, each profile domain, and the repo rules:
+    the paths, and apart from them the `block:<id>` items."""
     key = step.split("-", 1)[1]
     profile = flow_home() / repo_name() / "profile.md"
     domains, repo_rules = {"any"}, []
@@ -140,14 +155,126 @@ def skill_paths(step):
             repo_rules = [r.strip() for r in m.group(1).split(",") if r.strip() and r.strip() != "none"]
     else:
         print(f"note: no profile at {profile}; the flow skill's start rule says what to do", file=sys.stderr)
-    paths, section = [], None
+    items, section = [], None
     for line in (flow_home() / "domains.md").read_text().splitlines():
         if line.startswith("## "):
             section = line[3:].strip()
         elif section in domains and line.startswith(f"- {key}:"):
-            paths += [p.strip() for p in line.split(":", 1)[1].split(",") if p.strip()]
+            items += [p.strip() for p in line.split(":", 1)[1].split(",") if p.strip()]
     root = Path(git("rev-parse", "--show-toplevel"))
-    return list(dict.fromkeys(paths)) + [str(root / r) for r in repo_rules]
+    paths = [p for p in dict.fromkeys(items) if not p.startswith("block:")]
+    return paths + [str(root / r) for r in repo_rules], [p.removeprefix("block:") for p in items if p.startswith("block:")]
+
+
+def resolve_blocks(root, wanted, profile_name):
+    """For each step key in `wanted` (key -> catalog block ids), the blocks it gets from the catalog and
+    the repo's .blocks.toml, packed by the profile: (Skills read items, rules text, script todos). Also
+    the judge lines of every block that ran, once each. blocks/blocks.toml owns the format."""
+    kit_file, repo_file = BLOCKS / "blocks.toml", root / ".blocks.toml"
+    kit = tomllib.loads(kit_file.read_text(encoding="utf-8"))
+    files = {block: BLOCKS / name for block, name in kit.get("blocks", {}).items()}
+    aliases = kit.get("aliases", {})
+    for alias, members in aliases.items():
+        if alias in files:
+            raise SystemExit(f"alias {alias} is also a block id in {kit_file}; rename one")
+        if unknown := [m for m in members if m not in files]:
+            raise SystemExit(f"unknown block id {unknown[0]} in alias {alias} of {kit_file}")
+    profile = kit.get("profiles", {}).get(profile_name)
+    if profile is None:
+        raise SystemExit(f"unknown profile {profile_name}; {kit_file} has {', '.join(kit.get('profiles', {}))}")
+    merge = profile.get("merge", [])
+    if unknown := [name for name in merge if name not in aliases]:
+        raise SystemExit(f"profile {profile_name} merges {unknown[0]}, which is not an alias in {kit_file}")
+
+    repo = tomllib.loads(repo_file.read_text(encoding="utf-8")) if repo_file.exists() else {}
+    if unknown := sorted(set(repo) - {"params", "add", "off"}):
+        raise SystemExit(f"unknown table [{unknown[0]}] in {repo_file}; it takes [params], [add], and [off]")
+    params, off, added = repo.get("params", {}), repo.get("off", {}), {}
+    for key, paths in repo.get("add", {}).items():
+        if key not in wanted:
+            raise SystemExit(f"[add] {key} in {repo_file} is not a step; steps are {', '.join(wanted)}")
+        for path in paths:
+            block = Path(path).stem
+            if files.get(block, root / path) != root / path:
+                raise SystemExit(f"duplicate block id {block}: {path} in {repo_file} and {files[block]}")
+            if not (root / path).is_file():
+                raise SystemExit(f"[add] {path} in {repo_file} is not a file")
+            files[block] = root / path
+            added.setdefault(key, []).append(block)
+    # ponytail: off works per block; per-check off (block id plus check line) is the upgrade if a repo needs it.
+    for block, reason in off.items():
+        if block not in files:
+            raise SystemExit(f"unknown block id {block} in [off] of {repo_file}")
+        if not str(reason).strip():
+            raise SystemExit(f"[off] {block} needs a reason in {repo_file}")
+
+    named = {}
+    for key, ids in wanted.items():
+        if unknown := [i for i in ids if i not in files and i not in aliases]:
+            raise SystemExit(f"unknown block id {unknown[0]} in the {key} line of ~/.flow/domains.md")
+        named[key] = [m for i in ids for m in aliases.get(i, [i])] + added.get(key, [])
+    base = kit.get("base", []) if any(named.values()) else []  # a run that names no block stays as before
+
+    loaded = {}
+
+    def load(block):
+        """The block's content hash and its filled sections, read once."""
+        if block not in loaded:
+            raw = files[block].read_text(encoding="utf-8")
+            if missing := [p for p in PARAM.findall(raw) if p not in params]:
+                raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
+            loaded[block] = (hashlib.sha256(raw.encode()).hexdigest()[:8],
+                             sections(PARAM.sub(lambda m: str(params[m.group(1)]), raw)))
+        return loaded[block]
+
+    out, judge = {}, {}
+    for key, ids in named.items():
+        joined = list(dict.fromkeys(base + ids))
+        blocks = [b for b in joined if b not in off]
+        groups = {}  # a merged alias sits where its first member stood
+        for b in blocks:
+            groups.setdefault(next((a for a in merge if b in aliases[a]), b), []).append(b)
+        rest = [g for g in groups if g not in base]
+        if profile.get("merge_base") and rest:
+            folded = [b for g in groups if g in base for b in groups[g]]
+            groups = {g: folded + groups[g] if g == rest[0] else groups[g] for g in rest}
+        text = "\n".join([f"Off: {b}: {off[b]}" for b in joined if b in off]
+                         + [render(name, [load(b)[1] for b in members], profile.get("examples", True))
+                            for name, members in groups.items()])
+        read = [f"profile {profile_name}"] + [f"block:{b}@{load(b)[0]}" for b in blocks] if blocks else []
+        todos = [f"block {b} script: {line}" for b in blocks for line in check_lines(load(b)[1], "Check (script)")]
+        for b in blocks:
+            judge.setdefault(b, check_lines(load(b)[1], "Check (judge)"))
+        out[key] = (read, text, todos)
+    return out, "\n".join(f"- block {b} judge: {line}" for b, lines in judge.items() for line in lines)
+
+
+def sections(text):
+    """A block's header lines and each `## ` section, in order: [(None, header), (heading, lines), ...]."""
+    parts = [(None, [])]
+    for line in text.splitlines():
+        if line.startswith("## "):
+            parts.append((line[3:].strip(), []))
+        else:
+            parts[-1][1].append(line)
+    return parts
+
+
+def check_lines(parts, heading):
+    return [line[2:] for head, lines in parts if head == heading for line in lines if line.startswith("- ")]
+
+
+def render(name, members, examples):
+    """Blocks as step text under one name, without their check sections, which become todos and judge
+    lines. One member is the block itself; several are one merged block."""
+    lines = [f"===== block:{name} =====", f"# {name}"]
+    lines += [line for parts in members for line in parts[0][1] if not line.startswith("# ")]
+    body = {}
+    for parts in members:
+        for head, section in parts[1:]:
+            if head not in CHECKS and (examples or head != "Example"):
+                body.setdefault(head, []).extend(section)
+    return "\n".join(lines + [line for head, section in body.items() for line in (f"## {head}", *section)]).rstrip() + "\n"
 
 
 def take(folder, step, who, force=False):
@@ -303,11 +430,14 @@ if __name__ == "__main__":
             args = [arg for arg in args if arg != "--force"]
         if command in ("done", "skip") and "--force" in args:
             raise SystemExit("done <folder> <step> accepts no --force" if command == "done" else "skip accepts no --force")
+        options = {"force": force} if command == "take" else {}
+        if command == "start" and len(args) == 2 and args[0] == "--profile":
+            options, args = {"profile": args[1]}, []
         minimum, maximum = arity[command]
         if len(args) < minimum or maximum is not None and len(args) > maximum:
             raise SystemExit(next(line.strip() for line in __doc__.splitlines()
                                   if line.strip().split()[:1] == [command]))
-        commands[command](*args, **({"force": force} if command == "take" else {}))
+        commands[command](*args, **options)
         sys.stdout.flush()
     except BrokenPipeError:
         fd = os.open(os.devnull, os.O_WRONLY)

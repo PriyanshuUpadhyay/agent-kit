@@ -35,12 +35,18 @@ the git common dir (`git rev-parse --git-common-dir`), not the worktree folder n
 2. Run the script from the repo root. `F=<skill-dir>/scripts/flow_run.py`.
 
    ```sh
-   python3 $F start                          # makes the folder and step files, writes each step's skills into its file in full
+   python3 $F start [--profile <name>]       # makes the folder and step files, writes each step's skills and blocks into its file in full
    python3 $F status [<folder>]              # each step's status, which open step is ready, and which is stale
    python3 $F take <folder> <step> <agent>   # marks the step active and prints its file with its skills in full
    python3 $F done <folder> <step>           # sets the step done, only when every todo has its evidence
    python3 $F skip <folder> <step> <reason>  # skips 02-design, 03-contracts, or 04-impact, never another step
    ```
+
+   A catalog step line may also name `block:<id>`, a block or an alias in the kit's `blocks/`
+   folder. `start` writes each block into the step file, turns its `Check (script)` lines into
+   todos, and puts its `Check (judge)` lines into `06-review.md`. `--profile` picks how the blocks
+   are packed (default `default`). The repo's own `.blocks.toml` fills block params, adds repo
+   blocks, and turns a block off with a reason. `blocks/blocks.toml` owns the format.
 
 3. Read `01-frame.md`. If `Worktree:` or `Branch:` is not the current worktree and branch, stop and
    tell the user. If two open folders exist for one branch, stop and tell the user.

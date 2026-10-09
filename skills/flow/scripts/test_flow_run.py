@@ -10,7 +10,8 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-import flow_run
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I does not add the script's folder
+import flow_run  # noqa: E402
 
 SCRIPT = Path(__file__).with_name("flow_run.py")
 CALLERS_MEMORY_LIMIT = 1_000_000
@@ -28,7 +29,7 @@ def test_skip_text_encoding():
 
 
 def test_command_wrong_count(run, folder):
-    for command, args in (("start", ("extra",)), ("status", (folder, "extra")),
+    for command, args in (("start", ("extra",)), ("start", ("--profile",)), ("status", (folder, "extra")),
                           ("take", ()), ("take", (folder, "01-frame", "a", "extra")),
                           ("done", ()), ("skip", ()), ("skip", (folder,)),
                           ("skip", (folder, "02-design"))):
@@ -430,6 +431,164 @@ def test_closed_stdout(repo, env, folder):
         file.write_text(original)
 
 
+PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\n'
+
+
+def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args):
+    """Start a flow in a new repo whose catalog `any` section has the given step lines, with the kit's blocks."""
+    home, repo = Path(tmp, name, "home"), Path(tmp, name, "app")
+    (home / ".flow" / "app").mkdir(parents=True)
+    (home / ".flow" / "domains.md").write_text("## any\n" + catalog, encoding="utf-8")
+    (home / ".flow" / "app" / "profile.md").write_text("Domains: any\nRepo rules: none\n", encoding="utf-8")
+    repo.mkdir(exist_ok=True)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    if repo_toml is not None:
+        (repo / ".blocks.toml").write_text(repo_toml, encoding="utf-8")
+    run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], cwd=repo,
+                                    env={**os.environ, "HOME": str(home)}, capture_output=True, text=True)
+    out = run("start", *args)
+    folder = Path(out.stdout.splitlines()[0]) if out.returncode == 0 else None
+    return out, folder, repo, run
+
+
+def step_text(folder, step):
+    return (folder / f"{step}.md").read_text(encoding="utf-8")
+
+
+def test_block_in_step(tmp):
+    """D1: a catalog step line naming block:<id> writes that block into the step file, and the
+    Skills read line names the profile and the block with its content hash."""
+    out, folder, repo, run = blocks_start(tmp, "d1", "- build: block:red-first-check\n")
+    assert out.returncode == 0, out.stderr
+    build = step_text(folder, "05-build")
+    assert "===== block:red-first-check =====" in build and "Rank each claim on the ladder" in build, build
+    skills = next(line for line in build.splitlines() if line.startswith("Skills read:"))
+    assert "profile default" in skills, skills
+    assert any(item.strip().startswith("block:red-first-check@") and len(item.strip().split("@")[1]) == 8
+               for item in skills.split(",")), skills
+    assert "Rank each claim on the ladder" not in step_text(folder, "02-design")
+    # A second start on the folder writes nothing, even when the catalog now fails.
+    (repo.parent / "home" / ".flow" / "domains.md").write_text("## any\n- build: block:nope\n", encoding="utf-8")
+    again = run("start")
+    assert again.returncode == 0 and step_text(folder, "05-build") == build, again.stderr
+
+
+def test_block_alias_and_base(tmp):
+    """D2: an alias expands to its members, duplicates drop, and base joins every step once."""
+    out, folder, _, _ = blocks_start(tmp, "d2", "- design: block:tech-diagram, block:html-diagram\n- build: block:red-first-check\n")
+    assert out.returncode == 0, out.stderr
+    design = step_text(folder, "02-design")
+    for block in ("first-principles", "tech-diagram-concept", "html-diagram"):
+        assert design.count(f"===== block:{block} =====") == 1, (block, design)
+    for step in ("01-frame", "04-impact", "05-build", "07-close"):
+        assert step_text(folder, step).count("===== block:first-principles =====") == 1, step
+
+
+def rule_lines(text):
+    """The rule, todo, and check lines of a step file, without Example sections."""
+    lines, example = [], False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            example = line == "## Example"
+        elif line.startswith("- ") and not example:
+            lines.append(line)
+    return sorted(lines)
+
+
+def test_block_profile(tmp):
+    """D3: the merged profile writes each alias as one block and folds base in, with the same rule and
+    check lines as the split form, and drops the Example sections."""
+    catalog = "- design: block:tech-diagram, block:style-frames, block:look-grammar\n"
+    split, split_folder, _, _ = blocks_start(tmp, "d3-split", catalog)
+    merged, merged_folder, _, _ = blocks_start(tmp, "d3-merged", catalog, PARAMS, "--profile", "merged")
+    assert split.returncode == 0 and merged.returncode == 0, (split.stderr, merged.stderr)
+    a, b = step_text(split_folder, "02-design"), step_text(merged_folder, "02-design")
+    assert a.count("===== block:") == 6 and b.count("===== block:") == 3, b
+    assert "===== block:tech-diagram =====" in b and "===== block:style-frames =====" in b, b
+    assert "## Example" in a and "## Example" not in b
+    assert "profile merged" in b.splitlines()[3], b.splitlines()[3]
+    assert rule_lines(a) == rule_lines(b), set(rule_lines(a)) ^ set(rule_lines(b))
+    assert rule_lines(step_text(split_folder, "06-review")) == rule_lines(step_text(merged_folder, "06-review"))
+
+
+def test_block_params(tmp):
+    """D4: {{name}} takes its value from the repo's .blocks.toml; a missing one stops start and names it."""
+    out, folder, _, _ = blocks_start(tmp, "d4", "- review: block:diagram-correctness\n")
+    assert out.returncode == 0, out.stderr
+    review = step_text(folder, "06-review")
+    assert "The source of truth is docs/spec.md." in review and "{{" not in review, review
+    out, folder, repo, _ = blocks_start(tmp, "d4-missing", "- review: block:diagram-correctness\n", "")
+    assert out.returncode == 1 and "{{source_of_truth}}" in out.stderr and "Traceback" not in out.stderr, out.stderr
+    assert not (repo / "tmp" / "flow").exists(), "a failed start must not leave a folder"
+
+
+def test_block_fail_closed(tmp):
+    """D5: start stops with a one-line reason and makes no folder."""
+    cases = [
+        ("unknown", "- build: block:nope\n", PARAMS, (), "unknown block id nope"),
+        ("off-empty", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = " "\n', (), "[off] html-diagram needs a reason"),
+        ("off-unknown", "- design: block:tech-diagram\n", PARAMS + '[off]\nnope = "x"\n', (), "unknown block id nope"),
+        ("duplicate", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["red-first-check.md"]\n', (), "duplicate block id red-first-check"),
+        ("profile", "- build: block:red-first-check\n", PARAMS, ("--profile", "nope"), "unknown profile nope"),
+    ]
+    Path(tmp, "duplicate", "app").mkdir(parents=True)
+    Path(tmp, "duplicate", "app", "red-first-check.md").write_text("# red-first-check\n", encoding="utf-8")
+    for name, catalog, repo_toml, args, reason in cases:
+        out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
+        assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
+        assert len(out.stderr.strip().splitlines()) == 1, (name, out.stderr)
+        assert not (repo / "tmp" / "flow").exists(), name
+    # An alias that equals a block id stops the load of the block catalog.
+    kit = Path(tmp, "kit")
+    kit.mkdir()
+    (kit / "a.md").write_text("# a\n", encoding="utf-8")
+    (kit / "blocks.toml").write_text('base = []\n[blocks]\na = "a.md"\n[aliases]\na = ["a"]\n[profiles.default]\n', encoding="utf-8")
+    with patch.object(flow_run, "BLOCKS", kit):
+        try:
+            flow_run.resolve_blocks(Path(tmp), {"build": ["a"]}, "default")
+            raise AssertionError("an alias named like a block must stop start")
+        except SystemExit as error:
+            assert "alias a is also a block id" in str(error), error
+
+
+def test_block_repo_file(tmp):
+    """The repo's [add] puts its own block into a step, and an [off] entry with a reason drops a block
+    and says so in the step it would have joined."""
+    Path(tmp, "repo-file", "app", "docs").mkdir(parents=True)
+    Path(tmp, "repo-file", "app", "docs", "our-api.md").write_text(
+        "# our-api\nConcept: x\n\n## Rules\n- OUR RULE 7\n\n## Check (script)\n- `true` runs: it proves nothing\n\n## Check (judge)\n", encoding="utf-8")
+    out, folder, _, _ = blocks_start(tmp, "repo-file", "- design: block:tech-diagram\n",
+                                     PARAMS + '[add]\nbuild = ["docs/our-api.md"]\n[off]\nhtml-diagram = "this repo draws SVG"\n')
+    assert out.returncode == 0, out.stderr
+    build = step_text(folder, "05-build")
+    assert "===== block:our-api =====" in build and "OUR RULE 7" in build and "- [ ] block our-api script: `true` runs: it proves nothing: " in build, build
+    design = step_text(folder, "02-design")
+    assert "Off: html-diagram: this repo draws SVG" in design and "===== block:html-diagram" not in design, design
+    assert "block html-diagram" not in design and "block html-diagram" not in step_text(folder, "06-review")
+
+
+def test_block_checks(tmp):
+    """D6: Check (script) lines become step todos; Check (judge) lines go to 06-review only, and done
+    refuses a checked block todo with no evidence even when its command holds a colon."""
+    out, folder, _, run = blocks_start(tmp, "d6", "- build: block:html-diagram\n")
+    assert out.returncode == 0, out.stderr
+    build, review = step_text(folder, "05-build"), step_text(folder, "06-review")
+    todo = build.split(flow_run.TODO_HEAD)[1]
+    script = "- [ ] block html-diagram script: `rg -n '<svg|<canvas|position:\\s*absolute' index.html style*.css` shows nothing inside a diagram: the diagrams reflow.: "
+    assert script + "\n" in todo, todo
+    judge = "At 375 px, does each arrow still point from its source to its target?"
+    assert judge not in build, "a judge check must not be a build todo"
+    assert "## Judge checks of blocks that ran" in review and judge in review.split("## Judge checks of blocks that ran")[1]
+    assert "block first-principles judge: Does every fact in the result trace to a line in docs/spec.md?" in review, review
+    assert review.count("block first-principles judge:") == 2, "base judge lines appear once per run"
+    f = folder / "05-build.md"
+    fill(f)
+    text = f.read_text(encoding="utf-8")
+    f.write_text(text.replace(script.replace("- [ ]", "- [x]").rstrip() + " evidence", script.replace("- [ ]", "- [x]").rstrip()), encoding="utf-8")
+    refused = run("done", folder, "05-build")
+    assert refused.returncode == 1 and "no evidence: - [x] block html-diagram script:" in refused.stderr, refused.stderr
+
+
 with tempfile.TemporaryDirectory() as tmp:
     home, repo = Path(tmp, "home"), Path(tmp, "app")
     (home / ".flow" / "app").mkdir(parents=True)
@@ -461,6 +620,8 @@ with tempfile.TemporaryDirectory() as tmp:
     assert uses["05-build"] == "Uses: 04-impact, 02-design" and uses["07-close"] == "Uses: 06-review", uses
     assert "\nRevision: HEAD\n" in (folder / "05-build.md").read_text()
     assert "Revision:" not in (folder / "06-review.md").read_text()
+    # A catalog with no block item writes no block, no profile, and no judge section (old behaviour).
+    assert all("block:" not in p.read_text() and "Judge checks" not in p.read_text() for p in folder.glob("0*.md"))
 
     test_skip_text_encoding()
     test_command_wrong_count(run, folder)
@@ -573,4 +734,11 @@ with tempfile.TemporaryDirectory() as tmp:
 
     events = (folder / "events.log").read_text()
     assert "02-design\tskip no UI" in events and "07-close\ttake a" in events
+    test_block_in_step(tmp)
+    test_block_alias_and_base(tmp)
+    test_block_profile(tmp)
+    test_block_params(tmp)
+    test_block_fail_closed(tmp)
+    test_block_repo_file(tmp)
+    test_block_checks(tmp)
     print("ok")
