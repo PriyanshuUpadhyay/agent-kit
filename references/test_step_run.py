@@ -5,7 +5,8 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-import step_run
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I does not add the script's folder
+import step_run  # noqa: E402
 
 SCRIPT = Path(__file__).with_name("step_run.py")
 run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], capture_output=True, text=True)

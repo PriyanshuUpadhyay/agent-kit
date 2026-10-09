@@ -170,7 +170,7 @@ def done(folder, step, rev=None):
         text = file.read_text(encoding="utf-8")
         todo = text.split(TODO_HEAD, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_HEAD in text else ""
         open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
-        empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.split(":", 1)[-1].strip()]
+        empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.rsplit(":", 1)[-1].strip()]
         if open_items or empty:
             raise SystemExit(f"{step} is not done:\n" + "\n".join(open_items + [f"no evidence: {l}" for l in empty]))
         rev = rev or revision(folder, step)
