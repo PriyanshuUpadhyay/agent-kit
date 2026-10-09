@@ -523,7 +523,7 @@ def build(name, *opts):
             out = subprocess.run(["gh", "api", f"repos/{{owner}}/{{repo}}/commits/{head}/check-runs?check_name={q}"],
                                  cwd=cwd, capture_output=True, text=True, timeout=BUILD_TIMEOUT)
         except subprocess.TimeoutExpired:
-            raise SystemExit(f"gh: timed out after {BUILD_TIMEOUT} s")
+            raise SystemExit(f"gh: timed out after {BUILD_TIMEOUT} s") from None
         if out.returncode != 0:
             raise SystemExit(f"gh: {out.stderr.strip()}")
         # skipped, cancelled, or running checks prove nothing; a re-run of the same head gets a higher id

@@ -732,6 +732,7 @@ def test_pushed_build_timeout(run):
             raise AssertionError("a timed out gh call must refuse build proof")
         except SystemExit as error:
             assert str(error) == f"gh: timed out after {rc.BUILD_TIMEOUT} s", error
+            assert error.__cause__ is None and error.__suppress_context__, "gh timeout must suppress exception context"
     assert len(calls) == 1 and calls[0][1].get("timeout") == rc.BUILD_TIMEOUT
     assert (run / "build.json").read_text(encoding="utf-8") == original
 

@@ -286,6 +286,23 @@ def test_callers_long_stderr(folder):
     assert peak < CALLERS_MEMORY_LIMIT, f"caller search held a whole stderr line in memory: peak {peak} bytes"
 
 
+def test_callers_stderr_utf8_cut(folder):
+    _, text = callers_stub_output(folder, "failed_hit",
+                                  "sys.stderr.buffer.write(('€' * 2000).encode('utf-8'))\n"
+                                  "sys.exit(128)\n")
+    errors = [line for line in text.splitlines() if line.startswith("callers: git grep failed: ")]
+    assert len(errors) == 1 and errors[0].endswith("€") and "\\x" not in errors[0], repr(errors)[-80:]
+
+
+def test_callers_stdout_utf8_cut(folder):
+    with patch.object(flow_run, "HIT_CHARS", flow_run.LINE_CHUNK):
+        _, text = callers_stub_output(folder, "long_hit",
+                                      "sys.stdout.buffer.write(('€' * 2000 + '\\n').encode('utf-8'))\n")
+    hits = [line for line in text.splitlines() if line.startswith("€")]
+    assert "### long_hit (1 places)" in text, text
+    assert len(hits) == 1 and hits[0].endswith("€") and "\\x" not in hits[0], repr(hits)[-80:]
+
+
 def test_callers_failure(folder):
     file = folder / "04-impact.md"
     original = file.read_text(encoding="utf-8")
@@ -479,6 +496,8 @@ with tempfile.TemporaryDirectory() as tmp:
     test_impact_utf8(repo, env, folder)
     test_callers_timeout(folder)
     test_callers_long_stderr(folder)
+    test_callers_stdout_utf8_cut(folder)
+    test_callers_stderr_utf8_cut(folder)
     test_callers_large_output(folder)
     test_callers_long_line(folder)
     test_callers_failure(folder)

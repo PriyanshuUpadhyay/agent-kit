@@ -19,6 +19,7 @@ of 05-build is HEAD, take 04-impact lists the places that name the contracts' co
 07-close needs the review-check run's own APPROVE verdict on HEAD.
 """
 
+import codecs
 import datetime
 import json
 import os
@@ -218,6 +219,11 @@ def code_names(text):
     return list(dict.fromkeys(names))
 
 
+def decode_prefix(chunk):
+    # A bounded read can end inside a UTF-8 character; discard that incomplete tail.
+    return codecs.utf_8_decode(chunk, "backslashreplace", False)[0].rstrip("\n")
+
+
 def write_callers(folder):
     contracts = (folder / "03-contracts.md").read_text(encoding="utf-8")
     names = code_names(contracts.split(TODO_HEAD, 1)[-1])  # below the rules, which quote other code
@@ -237,7 +243,7 @@ def write_callers(folder):
                                         cwd=root, stdout=stdout, stderr=stderr, timeout=min(SEARCH_EACH_SECONDS, remaining))
                 if result.returncode not in (0, 1):
                     stderr.seek(0)
-                    error = stderr.readline(LINE_CHUNK).decode("utf-8", errors="backslashreplace").rstrip("\n")
+                    error = decode_prefix(stderr.readline(LINE_CHUNK))
                     parts.append(f"### {name}\ncallers: git grep failed: {plain(error)}")
                     continue
                 stdout.seek(0)
@@ -247,7 +253,7 @@ def write_callers(folder):
                     # Drain long lines in chunks, retaining only their bounded prefix.
                     while line and not line.endswith(b"\n"):
                         line = stdout.readline(LINE_CHUNK)
-                    hit = prefix.decode("utf-8", errors="backslashreplace").rstrip("\n")
+                    hit = decode_prefix(prefix)
                     if hit:
                         count += 1
                         if len(hits) < MAX_HITS:
