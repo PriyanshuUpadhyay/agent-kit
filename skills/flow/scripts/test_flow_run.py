@@ -358,7 +358,8 @@ def test_callers_below_rules(folder):
     file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
     original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
     try:
-        contracts.write_text(f"## Todo (later)\n`rule_name()`\n{flow_run.TODO_HEAD}\n`real_name()`\n", encoding="utf-8")
+        contracts.write_text(f"## Todo (later)\n`rule_name()`\n{flow_run.TODO_HEAD}\n- [x] names: below\n\n"
+                             f"{flow_run.RESULT_HEAD}\n`real_name()`\n", encoding="utf-8")
         with patch.object(flow_run, "git", return_value=str(folder)), \
                 patch.object(flow_run.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"", b"")) as search:
             flow_run.write_callers(folder)

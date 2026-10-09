@@ -28,11 +28,15 @@ TODO_MARK = "## Todo ("
 RESULT_HEAD = "## Result"
 
 
-def todo_start(text):
-    """Where the step's own todo list starts, or -1. The rules above it may quote any heading, so this
-    is the last line that starts with TODO_MARK."""
-    heads = list(re.finditer(rf"^{re.escape(TODO_MARK)}", text, re.M))
-    return heads[-1].start() if heads else -1
+def todo_start(text, ends=(RESULT_HEAD,)):
+    """Where the step's own todo list starts, or -1. Rules text above it and agent text below it may both
+    hold a TODO_MARK line, so this is the first TODO_MARK line followed only by todo items or blank lines
+    up to a heading in `ends`: rules text never reaches one before the real list, and agent text comes
+    after it. A file with no such line has no todo list to trust, so callers refuse it."""
+    for head in re.finditer(rf"^{re.escape(TODO_MARK)}.*\n((?:- \[[ x]\].*\n|[ \t]*\n)*)(.*)", text, re.M):
+        if head[2] in ends:
+            return head.start()
+    return -1
 
 
 def plain(text, *, keep_newlines=False):
@@ -173,12 +177,14 @@ def take(folder, step, who, need=None, rev=revision, force=False, on_claim=None)
     print(text)
 
 
-def done(folder, step, rev=None):
+def done(folder, step, rev=None, ends=(RESULT_HEAD,)):
     with step_lock(folder, step, command="done"):
         file = Path(folder) / f"{step}.md"
         text = file.read_text(encoding="utf-8")
-        start = todo_start(text)
-        todo = text[start:].split(RESULT_HEAD, 1)[0] if start >= 0 else ""
+        start = todo_start(text, ends)
+        if start < 0:
+            raise SystemExit(f"{step} is not done: no todo list ({TODO_MARK}... head, its items, then {RESULT_HEAD}) found")
+        todo = text[start:].split(RESULT_HEAD, 1)[0]
         open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
         empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.rsplit(":", 1)[-1].strip()]
         if open_items or empty:

@@ -324,6 +324,24 @@ def test_rules_todo_heading(folder):
             path.unlink(missing_ok=True)
 
 
+def test_result_todo_heading(folder):
+    """Agent text under `## Result` may hold a checked `## Todo (` list; it must not hide the open real todos."""
+    file = folder / "09-result.md"
+    fake = f"## Todo (x)\n- [x] fake: ok\n\n{step_run.RESULT_HEAD}\n"
+    try:
+        for tail in (fake, fake.removesuffix(f"\n{step_run.RESULT_HEAD}\n")):
+            file.write_text(f"Status: open\n\n{step_run.TODO_HEAD}\n- [ ] real item: \n\n{step_run.RESULT_HEAD}\n{tail}",
+                            encoding="utf-8")
+            out = run("done", folder, "09-result")
+            assert out.returncode == 1 and "real item" in out.stderr, "done must read the step's own todo list"
+        file.write_text("Status: open\n\n## Todo (x)\n- later item\n## Other\n", encoding="utf-8")
+        out = run("done", folder, "09-result")
+        assert out.returncode == 1 and "no todo list" in out.stderr, "done must refuse a file with no todo list"
+    finally:
+        for path in (file, folder / "09-result.lock"):
+            path.unlink(missing_ok=True)
+
+
 def test_step_mode(folder):
     file = folder / "01-ask.md"
     original = file.read_text(encoding="utf-8")
@@ -368,6 +386,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_step_mode(folder)
     test_old_todo_head(folder)
     test_rules_todo_heading(folder)
+    test_result_todo_heading(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)
     test_atomic_step_writes(folder)

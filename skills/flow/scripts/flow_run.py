@@ -330,7 +330,7 @@ def take(folder, step, who, force=False):
 
 
 def done(folder, step):
-    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None)
+    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None, ends=(RESULT_HEAD, CALLERS_HEAD))
 
 
 def skip(folder, step, *why):
