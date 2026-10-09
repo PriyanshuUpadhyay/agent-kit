@@ -53,7 +53,7 @@ the git common dir (`git rev-parse --git-common-dir`), not the worktree folder n
 4. Pick up a step as `references/step-run.md` says, and take it with `take`. The step file holds the
    full text of the skills that the catalog gives the step (the `any` section, each profile domain,
    and the repo rules) under `## Rules for this step`, and a todo list. Apply the rules, check each
-   todo with its evidence after the colon, write the result under `## Result`, and close the step
+   todo with its evidence after the last colon, write the result under `## Result`, and close the step
    with `done`. Never set a step done or skipped by hand. When a tool
    that the profile names is missing, set the status to `unavailable <tool>` and tell the user.
 5. Write only your step's file. Line 1 is the status.

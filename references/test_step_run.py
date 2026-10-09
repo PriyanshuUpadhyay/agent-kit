@@ -299,6 +299,18 @@ def test_atomic_step_writes(folder):
     (folder / "events.log").write_text(original_events, encoding="utf-8")
 
 
+def test_old_todo_head(folder):
+    file = folder / "09-old.md"
+    head = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
+    file.write_text(f"Status: open\n\n{head}\n- [ ] old item: \n\n{step_run.RESULT_HEAD}\n", encoding="utf-8")
+    try:
+        out = run("done", folder, "09-old")
+        assert out.returncode == 1 and "old item" in out.stderr, "done must read todos under an older head wording"
+    finally:
+        for path in (file, folder / "09-old.lock"):
+            path.unlink(missing_ok=True)
+
+
 def test_step_mode(folder):
     file = folder / "01-ask.md"
     original = file.read_text(encoding="utf-8")
@@ -341,6 +353,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_claim_failure_log(folder)
     test_claim_failure_log_one_line(folder)
     test_step_mode(folder)
+    test_old_todo_head(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)
     test_atomic_step_writes(folder)

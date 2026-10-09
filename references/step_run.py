@@ -22,7 +22,9 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
-TODO_HEAD = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
+TODO_HEAD = "## Todo (check a box only with its evidence after the last colon; `done` refuses an empty one)"
+# Parse by this prefix, so a step file written under an older head wording still has its todos checked.
+TODO_MARK = "## Todo ("
 RESULT_HEAD = "## Result"
 
 
@@ -168,7 +170,7 @@ def done(folder, step, rev=None):
     with step_lock(folder, step, command="done"):
         file = Path(folder) / f"{step}.md"
         text = file.read_text(encoding="utf-8")
-        todo = text.split(TODO_HEAD, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_HEAD in text else ""
+        todo = text.split(TODO_MARK, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_MARK in text else ""
         open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
         empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.rsplit(":", 1)[-1].strip()]
         if open_items or empty:

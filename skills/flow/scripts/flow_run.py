@@ -35,7 +35,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "references"))
 import step_run  # noqa: E402
-from step_run import RESULT_HEAD, TODO_HEAD, plain, status_of  # noqa: E402
+from step_run import RESULT_HEAD, TODO_HEAD, TODO_MARK, plain, status_of  # noqa: E402
 
 SKILL_MD = Path(__file__).resolve().parents[1] / "SKILL.md"
 BLOCKS = Path(__file__).resolve().parents[3] / "blocks"
@@ -377,7 +377,7 @@ def decode_prefix(chunk):
 
 def write_callers(folder):
     contracts = (folder / "03-contracts.md").read_text(encoding="utf-8")
-    names = code_names(contracts.split(TODO_HEAD, 1)[-1])  # below the rules, which quote other code
+    names = code_names(contracts.split(TODO_MARK, 1)[-1])  # below the rules, which quote other code
     omitted = max(0, len(names) - NAME_CAP)
     names = names[:NAME_CAP]
     root = git("rev-parse", "--show-toplevel")
