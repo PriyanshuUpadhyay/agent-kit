@@ -512,8 +512,8 @@ def rule_lines(text):
     """The rule, todo, and check lines of a step file, without Example sections."""
     lines, example = [], False
     for line in text.splitlines():
-        if line.startswith("## "):
-            example = line == "## Example"
+        if line.startswith(("## ", "### ")):  # a step section or a block section
+            example = line == "### Example"
         elif line.startswith("- ") and not example:
             lines.append(line)
     return sorted(lines)
@@ -529,7 +529,7 @@ def test_block_profile(tmp):
     a, b = step_text(split_folder, "02-design"), step_text(merged_folder, "02-design")
     assert a.count("===== block:") == 6 and b.count("===== block:") == 3, b
     assert "===== block:tech-diagram =====" in b and "===== block:style-frames =====" in b, b
-    assert "## Example" in a and "## Example" not in b
+    assert "\n### Example\n" in a and "Example\n" not in b
     assert "profile merged" in b.splitlines()[3], b.splitlines()[3]
     assert rule_lines(a) == rule_lines(b), set(rule_lines(a)) ^ set(rule_lines(b))
     assert rule_lines(step_text(split_folder, "06-review")) == rule_lines(step_text(merged_folder, "06-review"))
@@ -566,6 +566,21 @@ def test_block_controls(tmp):
     assert not (repo / "tmp" / "flow").exists()
     checks = flow_run.sections((flow_run.BLOCKS / "web-ui-basics.md").read_text(encoding="utf-8"))
     assert build.count("block web-ui-basics script:") == len(flow_run.check_lines(checks, "Check (script)")), build
+
+
+def test_block_headings(tmp):
+    """A block's `## ` sections are written as `### ` under its marker, so a repo block that holds a
+    `## Todo (` list and a `## Result` section cannot stand in for the step's own todo list."""
+    Path(tmp, "fake-todo", "app", "docs").mkdir(parents=True)
+    Path(tmp, "fake-todo", "app", "docs", "fake.md").write_text(
+        "# fake\n\n## Todo (fake)\n- [x] nothing: ok\n\n## Result\nall good\n", encoding="utf-8")
+    out, folder, _, run = blocks_start(tmp, "fake-todo", RED_BUILD, PARAMS + '[add]\ndesign = ["docs/fake.md"]\n')
+    assert out.returncode == 0, out.stderr
+    design = step_text(folder, "02-design")
+    rules = design.split(flow_run.RULES_HEAD, 1)[1].split(flow_run.TODO_HEAD, 1)[0]
+    assert "### Todo (fake)" in rules and not any(line.startswith("## ") for line in rules.splitlines()), rules
+    done = run("done", folder, "02-design")
+    assert done.returncode == 1 and "- [ ] " in done.stderr and "no todo list" not in done.stderr, done.stderr
 
 
 def test_block_fail_closed(tmp):
@@ -968,6 +983,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_profile(tmp)
     test_block_params(tmp)
     test_block_controls(tmp)
+    test_block_headings(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
     test_block_checks(tmp)

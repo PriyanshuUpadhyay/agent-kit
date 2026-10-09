@@ -316,7 +316,9 @@ def render(name, members, examples):
         for head, section in parts[1:]:
             if head not in CHECKS and (examples or head != "Example"):
                 body.setdefault(head, []).extend(section)
-    return "\n".join(lines + [line for head, section in body.items() for line in (f"## {head}", *section)]).rstrip() + "\n"
+    # `### ` nests each section under the block marker. sections() split on every `## ` line, so no block
+    # line now starts with `## `, and repo text cannot stand in for the step's todo head or `## Result`.
+    return "\n".join(lines + [line for head, section in body.items() for line in (f"### {head}", *section)]).rstrip() + "\n"
 
 
 def take(folder, step, who, force=False):
