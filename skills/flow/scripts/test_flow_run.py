@@ -554,6 +554,11 @@ def test_block_fail_closed(tmp):
         ("off", "off = 3\n" + PARAMS, ".blocks.toml: off must be a table"),
         ("add", "add = 3\n" + PARAMS, ".blocks.toml: add must be a table"),
         ("add-string", PARAMS + '[add]\nbuild = "docs/x.md"\n', "must be a list of paths"))]
+    cases += [
+        ("add-missing", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/none.md"]\n', (), "[add] docs/none.md in"),
+        ("add-step", "- build: block:red-first-check\n", PARAMS + '[add]\nship = ["docs/x.md"]\n', (), "[add] ship in"),
+        ("table", "- build: block:red-first-check\n", PARAMS + "[extra]\nx = 1\n", (), "unknown table [extra]"),
+    ]
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
@@ -564,7 +569,9 @@ def test_block_fail_closed(tmp):
     kit.mkdir()
     (kit / "a.md").write_text("# a\n", encoding="utf-8")
     for toml, reason in (('base = []\n[blocks]\na = "a.md"\n[aliases]\na = ["a"]\n[profiles.default]\n', "alias a is also a block id"),
-                         ("[blocks\n", "blocks.toml is not valid TOML")):
+                         ("[blocks\n", "blocks.toml is not valid TOML"),
+                         ('[blocks]\na = "a.md"\n[aliases]\nb = ["nope"]\n[profiles.default]\n', "unknown block id nope in alias b"),
+                         ('[blocks]\na = "a.md"\n[profiles.default]\nmerge = ["a"]\n', "merges a, which is not an alias")):
         (kit / "blocks.toml").write_text(toml, encoding="utf-8")
         with patch.object(flow_run, "BLOCKS", kit):
             try:
