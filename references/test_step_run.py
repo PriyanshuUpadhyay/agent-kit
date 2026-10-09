@@ -1,5 +1,5 @@
 """Run: python3 test_step_run.py"""
-import os, subprocess, sys, tempfile, time
+import fcntl, os, subprocess, sys, tempfile, time
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -21,8 +21,53 @@ with step_run.step_lock(sys.argv[2], sys.argv[3]):
 """
     child = subprocess.Popen([sys.executable, "-c", code, str(SCRIPT.parent), str(folder), step],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    assert child.stdout.readline() == "held\n"
+    held = False
+    try:
+        held = child.stdout.readline() == "held\n"
+    finally:
+        if not held:
+            child.kill()
+            _, stderr = child.communicate(timeout=5)
+    if not held:
+        raise AssertionError(stderr)
     return child
+
+
+def test_done_rejects_force(folder):
+    file = folder / "01-ask.md"
+    original = file.read_text(encoding="utf-8")
+    events = (folder / "events.log").read_text(encoding="utf-8")
+    try:
+        for args in ((folder, "01-ask", "--force"), ("--force", folder, "01-ask")):
+            out = run("done", *args)
+            assert out.returncode == 1, "done must refuse --force"
+            assert "done <folder> <step>" in out.stderr and "Traceback" not in out.stderr, out.stderr
+            assert file.read_text(encoding="utf-8") == original
+            assert (folder / "events.log").read_text(encoding="utf-8") == events
+    finally:
+        file.write_text(original, encoding="utf-8")
+        (folder / "events.log").write_text(events, encoding="utf-8")
+
+
+def test_lock_holder_failed_handshake(folder):
+    code = 'import sys; print("not held", flush=True); print("lock failed", file=sys.stderr, flush=True); sys.stdin.read()'
+    child = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        with patch.object(subprocess, "Popen", return_value=child):
+            try:
+                lock_holder(folder, "01-ask")
+                raise AssertionError("lock_holder must refuse a failed handshake")
+            except AssertionError as error:
+                message = str(error)
+        assert child.poll() is not None, "a failed handshake must kill and wait for the child"
+        assert all(pipe.closed for pipe in (child.stdin, child.stdout, child.stderr)), "child pipes must close"
+        assert "lock failed" in message, "the assertion must include the child stderr"
+    finally:
+        if child.poll() is None:
+            child.kill()
+        if not child.stdin.closed:
+            child.communicate(timeout=5)
 
 
 def test_process_lock(folder):
@@ -36,7 +81,8 @@ def test_process_lock(folder):
         old = time.time() - 7200
         os.utime(lock, (old, old))
         for command, args in (("take", ("b",)), ("done", ())):
-            for force in (("--force",), ()):
+            flags = (("--force",), ()) if command == "take" else ((),)
+            for force in flags:
                 out = run(command, folder, "01-ask", *args, *force)
                 assert out.returncode == 1, out
                 assert f"01-ask is locked by a running {command}; wait for it" in out.stderr, out.stderr
@@ -108,6 +154,36 @@ def test_explicit_text_encoding():
     assert not missing, f"text operations without UTF-8 encoding at {missing}"
 
 
+def test_plain_controls():
+    assert hasattr(step_run, "plain"), "step_run must own the shared plain helper"
+    text = "\tindented\nnext\r\x1b\x01\x7f\x85"
+    assert step_run.plain(text) == "\tindentednext"
+    assert step_run.plain(text, keep_newlines=True) == "\tindented\nnext"
+
+
+def test_claim_failure_log_one_line(folder):
+    file = folder / "01-ask.md"
+    original = file.read_text(encoding="utf-8")
+    events = (folder / "events.log").read_text(encoding="utf-8")
+
+    def failed(path):
+        raise RuntimeError("\x1ba\nb\tc\x7f")
+
+    try:
+        with redirect_stdout(StringIO()):
+            try:
+                step_run.take(folder, "01-ask", "hook", on_claim=failed)
+                raise AssertionError("claim hook must raise")
+            except RuntimeError:
+                pass
+        lines = (folder / "events.log").read_text(encoding="utf-8").splitlines()
+        assert len(lines) == len(events.splitlines()) + 1, "each event must occupy one line"
+        assert lines[-1].endswith("\t01-ask\ttake hook failed: a b c"), lines[-1]
+    finally:
+        file.write_text(original, encoding="utf-8")
+        (folder / "events.log").write_text(events, encoding="utf-8")
+
+
 def test_utf8_and_lock_context(folder):
     file = folder / "02-look.md"
     original = file.read_text(encoding="utf-8")
@@ -177,7 +253,13 @@ def test_atomic_step_writes(folder):
     def check_replace(source, destination):
         nonlocal previous
         assert source.parent == file.parent and source.suffix == ".tmp" and destination == file
-        assert (folder / "01-ask.lock").exists(), "take and done must hold the step lock during replacement"
+        with (folder / "01-ask.lock").open("a") as contender:
+            try:
+                fcntl.flock(contender.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                pass
+            else:
+                raise AssertionError("take and done must hold the step lock during replacement")
         assert file.read_text(encoding="utf-8") == previous, "readers must keep seeing the complete old file"
         next_text = source.read_text(encoding="utf-8")
         assert next_text and next_text.startswith("Status: ")
@@ -228,10 +310,14 @@ with tempfile.TemporaryDirectory() as tmp:
     f.write_text(f.read_text(encoding="utf-8").replace("- [ ] the question: ", "- [x] the question: why is the sky blue"), encoding="utf-8")
     assert run("done", folder, "01-ask").returncode == 0 and f.read_text(encoding="utf-8").startswith("Status: done ")
     test_explicit_text_encoding()
+    test_plain_controls()
+    test_done_rejects_force(folder)
+    test_lock_holder_failed_handshake(folder)
     test_process_lock(folder)
     test_dead_run_unlock(folder)
     test_no_lock_path_mutation(folder)
     test_claim_failure_log(folder)
+    test_claim_failure_log_one_line(folder)
     test_step_mode(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)

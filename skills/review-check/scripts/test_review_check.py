@@ -322,36 +322,53 @@ def test_verify_build_lock(run, verify):
         (run / "target.json").write_text(json.dumps(target))
 
 
-def test_build_interrupt(run, verify):
+def test_build_interrupt(run, verify, signum=signal.SIGINT):
     target = json.loads((run / "target.json").read_text(encoding="utf-8"))
     pidfile = verify / "interrupt-group.pid"
-    command = "echo $$ > interrupt-group.pid; exec sleep 30"
+    pidfile.unlink(missing_ok=True)
+    command = ": > interrupt-group.pid; sleep 0.1; echo $$ > interrupt-group.pid; exec sleep 30"
     (run / "target.json").write_text(json.dumps({**target, "ci": {**target["ci"], "cmd": command}}), encoding="utf-8")
-    code = "import sys; sys.path.insert(0, sys.argv[1]); import review_check as rc; rc.build(sys.argv[2], '--run')"
-    child = subprocess.Popen([sys.executable, "-c", code, str(HERE), run.name],
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    code = """import signal, sys
+signal.signal(signal.SIGINT, signal.default_int_handler)
+print('CI 合意', file=sys.stderr, flush=True)
+sys.path.insert(0, sys.argv[1])
+import review_check as rc
+rc.build(sys.argv[2], '--run')
+"""
+    previous = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        child = subprocess.Popen([sys.executable, "-c", code, str(HERE), run.name],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                                 errors="replace", start_new_session=True)
+    finally:
+        signal.signal(signal.SIGINT, previous)
     group = None
     try:
         deadline = time.monotonic() + 5
-        while not pidfile.exists():
+        while not (pidfile.exists() and pidfile.read_text(encoding="utf-8").strip()):
             assert child.poll() is None and time.monotonic() < deadline, "CI did not start"
             time.sleep(0.01)
         group = int(pidfile.read_text(encoding="utf-8"))
-        child.send_signal(signal.SIGINT)
+        child.send_signal(signum)
         try:
             _, errors = child.communicate(timeout=2)
         except subprocess.TimeoutExpired:
-            raise AssertionError("Ctrl-C did not stop the CI group promptly")
-        assert child.returncode != 0 and "KeyboardInterrupt" in errors, errors
+            raise AssertionError(f"signal {signum} did not stop the CI group promptly") from None
+        assert child.returncode != 0 and "合意" in errors, errors
+        if signum == signal.SIGINT:
+            assert "KeyboardInterrupt" in errors, errors
         try:
-            os.kill(group, 0)
+            os.killpg(group, 0)
         except ProcessLookupError:
             pass
         else:
-            raise AssertionError("Ctrl-C left the CI process alive")
+            raise AssertionError(f"signal {signum} left the CI process group alive")
         with rc.step_run.step_lock(verify.parent, "verify"):
             pass
     finally:
+        if group is None and pidfile.exists() and pidfile.read_text(encoding="utf-8").strip():
+            group = int(pidfile.read_text(encoding="utf-8"))
         if group is not None:
             try:
                 os.killpg(group, signal.SIGKILL)
@@ -369,13 +386,14 @@ def test_build_timeout_bounded_cleanup(run, verify):
     process.pid = 12345
     process.communicate.side_effect = subprocess.TimeoutExpired("ci", 1)
     with patch.object(rc, "home", return_value=verify.parent), \
+            patch.object(rc, "CLEANUP_SECONDS", 0.05), \
             patch.object(rc, "verify_tree", return_value=verify), \
             patch.object(rc.subprocess, "Popen", return_value=process), \
             patch.object(rc.os, "killpg") as killpg:
         rc.build(run.name, "--run")
-    assert [call.kwargs.get("timeout") for call in process.communicate.call_args_list] == [rc.BUILD_TIMEOUT, 10]
+    assert [call.kwargs.get("timeout") for call in process.communicate.call_args_list] == [rc.BUILD_TIMEOUT, 0.05]
     process.kill.assert_called_once()
-    process.wait.assert_called_once_with(timeout=10)
+    process.wait.assert_called_once_with(timeout=0.05)
     killpg.assert_called_once_with(12345, signal.SIGKILL)
     process.stdout.close.assert_called_once()
     process.stderr.close.assert_called_once()
@@ -391,25 +409,44 @@ def test_build_timeout_escaped_child(run, verify):
     command = f"{shlex.quote(sys.executable)} -c {shlex.quote(code)}; sleep 30"
     (run / "target.json").write_text(json.dumps({**target, "ci": {**target["ci"], "cmd": command}}), encoding="utf-8")
     escaped = None
+    pidfile = verify / "escaped.pid"
+    real_popen = subprocess.Popen
+    running = None
+
+    def ready_process(args, **kwargs):
+        nonlocal running
+        process = real_popen(args, **kwargs)
+        if args[:2] == ["bash", "-c"]:
+            running = process
+            deadline = time.monotonic() + 5
+            while not (pidfile.exists() and pidfile.read_text(encoding="utf-8").strip()):
+                assert process.poll() is None and time.monotonic() < deadline, "escaped child did not start"
+                time.sleep(0.01)
+        return process
+
     try:
         started = time.monotonic()
-        with patch.object(rc, "BUILD_TIMEOUT", 1):
+        with patch.object(rc, "BUILD_TIMEOUT", 0.1), patch.object(rc, "CLEANUP_SECONDS", 0.05), \
+                patch.object(rc.subprocess, "Popen", side_effect=ready_process):
             rc.build(run.name, "--run")
         elapsed = time.monotonic() - started
         escaped = int((verify / "escaped.pid").read_text(encoding="utf-8"))
-        assert elapsed < 13, f"escaped pipe holder delayed cleanup for {elapsed} s"
+        assert elapsed < 8, f"escaped pipe holder delayed cleanup for {elapsed} s"
         result = json.loads((run / "build.json").read_text(encoding="utf-8"))
-        assert result["tail"][-1] == "timed out after 1 s"
+        assert result["tail"][-1] == "timed out after 0.1 s"
         with rc.step_run.step_lock(verify.parent, "verify"):
             pass
     finally:
-        if escaped is None and (verify / "escaped.pid").exists():
-            escaped = int((verify / "escaped.pid").read_text(encoding="utf-8"))
+        if escaped is None and pidfile.exists() and pidfile.read_text(encoding="utf-8").strip():
+            escaped = int(pidfile.read_text(encoding="utf-8"))
         if escaped is not None:
             try:
                 os.kill(escaped, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+        if running is not None and running.poll() is None:
+            os.killpg(running.pid, signal.SIGKILL)
+            running.communicate(timeout=5)
         (run / "target.json").write_text(json.dumps(target), encoding="utf-8")
 
 
@@ -516,7 +553,8 @@ def test_frozen_build():
             assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3, "verify was not reused"
             test_missing_verify_directory(run, verify, head)
             test_verify_build_lock(run, verify)
-            test_build_interrupt(run, verify)
+            for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                test_build_interrupt(run, verify, signum)
             test_build_timeout_bounded_cleanup(run, verify)
             test_build_timeout_escaped_child(run, verify)
             test_build_timeout(run, verify)

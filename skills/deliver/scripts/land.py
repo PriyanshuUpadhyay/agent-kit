@@ -9,10 +9,12 @@ Without --base, use each worktree's merge-base with the main checkout's HEAD.
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "references"))
+from step_run import plain  # noqa: E402
 
 
 def git(worktree, *args):
@@ -28,10 +30,6 @@ def file_list(value, label):
     if not isinstance(value, list) or any(not isinstance(p, str) or not p for p in value):
         raise ValueError(f"{label} must be a list of file paths")
     return set(value)
-
-
-def plain(text):
-    return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", text)
 
 
 def land(declaration, worktrees, base=None):

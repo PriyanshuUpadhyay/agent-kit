@@ -4,7 +4,7 @@
   start <folder> <SKILL.md>    make one step file per table row, each with a todo and a result section
   status <folder>              print each step's status, whether it is ready, and whether it is stale
   take <folder> <step> <who> [--force]   claim the step and print its file; force takes a stale claim
-  done <folder> <step> [--force] set the step done, only when every todo is checked with evidence
+  done <folder> <step>          set the step done, only when every todo is checked with evidence
 
 take and done add one line to <folder>/events.log, so the path of a run stays readable after it ends.
 A skill script with its own step graph or revision (flow) imports these functions and passes `need`
@@ -24,6 +24,11 @@ from pathlib import Path
 
 TODO_HEAD = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
 RESULT_HEAD = "## Result"
+
+
+def plain(text, *, keep_newlines=False):
+    return "".join(c for c in text if c == "\t" or (keep_newlines and c == "\n")
+                   or ord(c) >= 32 and not 127 <= ord(c) <= 159)
 
 
 def table(skill_md):
@@ -150,14 +155,15 @@ def take(folder, step, who, need=None, rev=revision, force=False, on_claim=None)
             try:
                 on_claim(Path(folder))
             except BaseException as error:
-                log(folder, step, f"take {who} failed: {error}")
+                message = plain(str(error), keep_newlines=True).replace("\n", " ").replace("\t", " ")
+                log(folder, step, f"take {who} failed: {message}")
                 raise
             text = file.read_text(encoding="utf-8")
     log(folder, step, f"take {who}")
     print(text)
 
 
-def done(folder, step, rev=None, force=False):
+def done(folder, step, rev=None):
     with step_lock(folder, step, command="done"):
         file = Path(folder) / f"{step}.md"
         text = file.read_text(encoding="utf-8")
@@ -181,10 +187,12 @@ if __name__ == "__main__":
         raise SystemExit(__doc__)
     try:
         args = sys.argv[2:]
-        if sys.argv[1] in ("take", "done"):
+        if sys.argv[1] == "take":
             force = "--force" in args
             commands[sys.argv[1]](*(arg for arg in args if arg != "--force"), force=force)
         else:
+            if sys.argv[1] == "done" and (len(args) != 2 or "--force" in args):
+                raise SystemExit("done <folder> <step> accepts no --force")
             commands[sys.argv[1]](*args)
         sys.stdout.flush()
     except BrokenPipeError:

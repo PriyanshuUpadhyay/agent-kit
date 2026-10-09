@@ -20,7 +20,7 @@ only from it.
 `verdict` exits 1 when the gate fails, so a caller cannot read an APPROVE that no one earned.
 """
 import fnmatch, hashlib, json, os, re, shutil, signal, subprocess, sys, urllib.parse
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "references"))
@@ -30,6 +30,7 @@ KINDS = ("pass", "fix", "ask", "note", "n/a")
 RULE = re.compile(r"^- `([A-Z][A-Z0-9-]*-\d+)` (.*)$")
 REFS_CAP = 20  # a symbol with more references than this gets the first 20; the seat searches the rest
 BUILD_TIMEOUT = 3600
+CLEANUP_SECONDS = 10
 FUNC_KINDS = {"function", "method", "subroutine", "func", "procedure"}
 PLAIN = ("--no-ext-diff", "--no-color", "--src-prefix=a/", "--dst-prefix=b/")  # user config may change these
 GENERIC = {"", "n/a", "na", "none", "ok", "okay", "fine", "good", "looks fine", "looks good", "checked",
@@ -439,6 +440,21 @@ def verify_tree(head):
     return verify
 
 
+@contextmanager
+def build_signals():
+    def stop(signum, frame):
+        raise SystemExit(128 + signum)
+
+    previous = {signum: signal.getsignal(signum) for signum in (signal.SIGTERM, signal.SIGHUP)}
+    try:
+        for signum in previous:
+            signal.signal(signum, stop)
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
 def build(name, *opts):
     """Write build.json from CI or a command on the reviewed commit's verify worktree."""
     if opts not in ((), ("--run",)):
@@ -452,7 +468,7 @@ def build(name, *opts):
     if opts[:1] == ("--run",):
         if not head:
             print("build: local target; proof is from the live tree")
-        with step_run.step_lock(home(), "verify", command="build --run") if head else nullcontext():
+        with (step_run.step_lock(home(), "verify", command="build --run") if head else nullcontext()), build_signals():
             if head:
                 cwd = verify_tree(head)
             process = subprocess.Popen(["bash", "-c", ci["cmd"]], cwd=cwd, stdout=subprocess.PIPE,
@@ -461,23 +477,23 @@ def build(name, *opts):
                 try:
                     stdout, stderr = process.communicate(timeout=BUILD_TIMEOUT)
                     conclusion, tail = ("success" if process.returncode == 0 else "failure"), (stdout + stderr).splitlines()[-40:]
-                except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
+                except (subprocess.TimeoutExpired, KeyboardInterrupt, SystemExit) as error:
                     try:
                         os.killpg(process.pid, signal.SIGKILL)
                     except ProcessLookupError:
                         pass
                     try:
-                        process.communicate(timeout=10)
+                        process.communicate(timeout=CLEANUP_SECONDS)
                     except subprocess.TimeoutExpired:
                         process.kill()
                         # A child in another session may still hold the output pipes open.
                         process.stdout.close()
                         process.stderr.close()
                         try:
-                            process.wait(timeout=10)
+                            process.wait(timeout=CLEANUP_SECONDS)
                         except subprocess.TimeoutExpired:
                             pass
-                    if isinstance(error, KeyboardInterrupt):
+                    if not isinstance(error, subprocess.TimeoutExpired):
                         raise
                     conclusion, tail = "failure", [f"timed out after {BUILD_TIMEOUT} s"]
             finally:

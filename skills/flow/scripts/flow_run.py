@@ -4,8 +4,8 @@
   start                        make tmp/flow/<date>-<branch>/ with the seven step files
   status [<folder>]            print each step's status, whether it is ready, and whether it is stale
   take <folder> <step> <who> [--force] mark the step active and print its file with the skills the catalog gives it
-  done <folder> <step> [--force] set the step done, only when every todo is checked with evidence
-  skip <folder> <step> <why> [--force] skip design, contracts, or impact, with the reason
+  done <folder> <step>         set the step done, only when every todo is checked with evidence
+  skip <folder> <step> <why>    skip design, contracts, or impact, with the reason
 
 `start` writes the full text of each step's skills into that step's file, because an agent that gets
 only a path often does not open it (Sonnet workers opened 0 of 4 pointer skills, 2026-10-04 and
@@ -25,14 +25,16 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "references"))
 import step_run  # noqa: E402
-from step_run import RESULT_HEAD, TODO_HEAD, status_of  # noqa: E402
+from step_run import RESULT_HEAD, TODO_HEAD, plain, status_of  # noqa: E402
 
 SKILL_MD = Path(__file__).resolve().parents[1] / "SKILL.md"
 SKIPPABLE = ("02-design", "03-contracts", "04-impact")
+SEARCH_SECONDS = 120
 CAP = 15000  # characters per skill; engineering-standards is about 10k
 RULES_HEAD = "## Rules for this step (written by flow_run.py start; apply them, keep this section)"
 CALLERS_HEAD = "## Callers (written by flow_run.py take from the code names in 03-contracts.md; a search, not a judgment)"
@@ -158,11 +160,11 @@ def take(folder, step, who, force=False):
                   on_claim=write_callers if step == "04-impact" else None)
 
 
-def done(folder, step, force=False):
-    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None, force=force)
+def done(folder, step):
+    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None)
 
 
-def skip(folder, step, *why, force=False):
+def skip(folder, step, *why):
     if step not in SKIPPABLE:
         raise SystemExit(f"{step} cannot be skipped; only {', '.join(SKIPPABLE)} can")
     reason = " ".join(why).strip()
@@ -207,28 +209,37 @@ def code_names(text):
         codeish = "()" in tok or "::" in tok or "_" in name or any(c.isupper() for c in name)
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{2,}", name) and codeish:
             names.append(name)
-    return list(dict.fromkeys(names))[:25]
-
-
-def plain(text):
-    return "".join(c for c in text if ord(c) >= 32 and not 127 <= ord(c) <= 159)
+    return list(dict.fromkeys(names))
 
 
 def write_callers(folder):
     contracts = (folder / "03-contracts.md").read_text(encoding="utf-8")
     names = code_names(contracts.split(TODO_HEAD, 1)[-1])  # below the rules, which quote other code
+    omitted = max(0, len(names) - 25)
+    names = names[:25]
     root = git("rev-parse", "--show-toplevel")
     parts = []
-    for name in names:
+    deadline = time.monotonic() + SEARCH_SECONDS
+    for index, name in enumerate(names):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            parts.append(f"callers: search stopped after {SEARCH_SECONDS} s, {len(names) - index} names not searched")
+            break
         try:
-            output = subprocess.run(["git", "grep", "-n", "-w", "-F", "-e", name, "--", ".", ":!tmp"],
-                                    cwd=root, capture_output=True, timeout=60).stdout
+            result = subprocess.run(["git", "grep", "-n", "-w", "-F", "-e", name, "--", ".", ":!tmp"],
+                                    cwd=root, capture_output=True, timeout=min(60, remaining))
         except subprocess.TimeoutExpired:
             parts.append(f"### {name}\ncallers: git grep timed out")
             continue
-        hits = [plain(hit) for hit in output.decode("utf-8", errors="backslashreplace").split("\n") if hit]
+        if result.returncode not in (0, 1):
+            error = result.stderr.decode("utf-8", errors="backslashreplace").split("\n", 1)[0]
+            parts.append(f"### {name}\ncallers: git grep failed: {plain(error)}")
+            continue
+        hits = [plain(hit) for hit in result.stdout.decode("utf-8", errors="backslashreplace").split("\n") if hit]
         more = f"\n... and {len(hits) - 10} more" if len(hits) > 10 else ""
         parts.append(f"### {name} ({len(hits)} places)\n" + "\n".join(h[:160] for h in hits[:10]) + more)
+    if omitted:
+        parts.append(f"... and {omitted} more names not searched")
     body = "\n\n".join(parts) or "No code names in backticks in 03-contracts.md. Search by hand and say so."
     file = folder / "04-impact.md"
     text = file.read_text(encoding="utf-8")
@@ -260,13 +271,17 @@ if __name__ == "__main__":
         raise SystemExit(__doc__)
     try:
         args = sys.argv[2:]
-        if sys.argv[1] in ("take", "done", "skip"):
+        if sys.argv[1] == "take":
             force = "--force" in args
             args = [arg for arg in args if arg != "--force"]
             if sys.argv[1] == "take" and len(args) != 3:
                 raise SystemExit("take needs <folder> <step> <who> [--force]; who is required")
             commands[sys.argv[1]](*args, force=force)
         else:
+            if sys.argv[1] == "done" and (len(args) != 2 or "--force" in args):
+                raise SystemExit("done <folder> <step> accepts no --force")
+            if sys.argv[1] == "skip" and "--force" in args:
+                raise SystemExit("skip accepts no --force")
             commands[sys.argv[1]](*args)
         sys.stdout.flush()
     except BrokenPipeError:

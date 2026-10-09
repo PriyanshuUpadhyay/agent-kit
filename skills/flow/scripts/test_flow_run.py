@@ -1,4 +1,5 @@
 """Run: python3 test_flow_run.py  (uses a temporary repo and a temporary HOME)."""
+import fcntl
 import json
 import os
 import subprocess
@@ -49,6 +50,24 @@ def test_take_requires_who(run, folder):
         assert (folder / "events.log").read_text() == events
 
 
+def test_done_rejects_force(run, folder):
+    file = folder / "01-frame.md"
+    original = file.read_text(encoding="utf-8")
+    events = (folder / "events.log").read_text(encoding="utf-8")
+    try:
+        fill(file)
+        filled = file.read_text(encoding="utf-8")
+        for args in ((folder, "01-frame", "--force"), ("--force", folder, "01-frame")):
+            out = run("done", *args)
+            assert out.returncode == 1, "done must refuse --force"
+            assert "done <folder> <step>" in out.stderr and "Traceback" not in out.stderr, out.stderr
+            assert file.read_text(encoding="utf-8") == filled
+            assert (folder / "events.log").read_text(encoding="utf-8") == events
+    finally:
+        file.write_text(original, encoding="utf-8")
+        (folder / "events.log").write_text(events, encoding="utf-8")
+
+
 def test_atomic_skip(folder):
     file = folder / "02-design.md"
     original = file.read_text()
@@ -58,7 +77,13 @@ def test_atomic_skip(folder):
     def check_replace(source, destination):
         assert file.read_text() == original, "skip must preserve the old file until replacement"
         assert source.parent == file.parent and source.suffix == ".tmp" and destination == file
-        assert (folder / "02-design.lock").exists(), "skip must hold the step lock during replacement"
+        with (folder / "02-design.lock").open("a") as contender:
+            try:
+                fcntl.flock(contender.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                pass
+            else:
+                raise AssertionError("skip must hold the step lock during replacement")
         real_replace(source, destination)
         replaced.append(destination)
 
@@ -74,27 +99,28 @@ def test_skip_lock(run, folder):
     original = file.read_text()
     events = (folder / "events.log").read_text()
     with flow_run.step_run.step_lock(folder, "02-design"):
-        for force in ((), ("--force",)):
-            out = run("skip", folder, "02-design", "no", "UI", *force)
-            assert out.returncode == 1 and "02-design is locked by a running skip; wait for it" in out.stderr, out
+        out = run("skip", folder, "02-design", "no", "UI")
+        assert out.returncode == 1 and "02-design is locked by a running skip; wait for it" in out.stderr, out
         assert file.read_text() == original
         assert (folder / "events.log").read_text() == events
 
 
-def test_skip_force(run, folder):
+def test_skip_rejects_force(run, folder):
     file = folder / "02-design.md"
     original = file.read_text()
+    events = (folder / "events.log").read_text(encoding="utf-8")
     try:
         for args in ((folder, "02-design", "no", "UI", "--force"),
                      ("--force", folder, "02-design", "no", "UI")):
             file.write_text(original.replace("Status: open", "Status: active dead-owner"))
             out = run("skip", *args)
-            assert out.returncode == 0, out.stderr
-            assert file.read_text().startswith("Status: skipped no UI\n"), "the reason must exclude --force"
-            with flow_run.step_run.step_lock(folder, "02-design"):
-                pass
+            assert out.returncode == 1, "skip must refuse --force"
+            assert "skip accepts no --force" in out.stderr and "Traceback" not in out.stderr, out.stderr
+            assert file.read_text() == original.replace("Status: open", "Status: active dead-owner")
+            assert (folder / "events.log").read_text(encoding="utf-8") == events
     finally:
         file.write_text(original)
+        (folder / "events.log").write_text(events, encoding="utf-8")
 
 
 def test_callers_after_claim(run, folder):
@@ -149,14 +175,63 @@ def test_callers_timeout(folder):
         contracts.write_text(original_contracts, encoding="utf-8")
 
 
+def test_callers_failure(folder):
+    file = folder / "04-impact.md"
+    original = file.read_text(encoding="utf-8")
+    result = subprocess.CompletedProcess(["git"], 128, b"", b"\x1b[31mcorrupt index\nextra detail")
+    try:
+        with patch.object(flow_run, "git", return_value=str(folder)), \
+                patch.object(flow_run.subprocess, "run", return_value=result):
+            flow_run.write_callers(folder)
+        text = file.read_text(encoding="utf-8")
+        assert "callers: git grep failed: [31mcorrupt index" in text, text
+        assert "0 places" not in text and "extra detail" not in text and "\x1b" not in text
+    finally:
+        file.write_text(original, encoding="utf-8")
+
+
+def test_callers_deadline(folder):
+    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
+    original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
+    try:
+        contracts.write_text("`one_name()` `two_name()` `three_name()`", encoding="utf-8")
+        with patch.object(flow_run, "git", return_value=str(folder)), \
+                patch("time.monotonic", side_effect=[0, 119, 120]), \
+                patch.object(flow_run.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"", b"")) as search:
+            flow_run.write_callers(folder)
+        assert search.call_count == 1, "the total deadline must stop later searches"
+        assert "callers: search stopped after 120 s, 2 names not searched" in file.read_text(encoding="utf-8")
+        assert search.call_args.kwargs["timeout"] == 1, "each search must use the remaining total budget"
+    finally:
+        file.write_text(original, encoding="utf-8")
+        contracts.write_text(original_contracts, encoding="utf-8")
+
+
+def test_callers_name_cap(folder):
+    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
+    original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
+    try:
+        contracts.write_text(" ".join(f"`name_{i}()`" for i in range(28)), encoding="utf-8")
+        with patch.object(flow_run, "git", return_value=str(folder)), \
+                patch.object(flow_run.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"", b"")) as search:
+            flow_run.write_callers(folder)
+        assert search.call_count == 25
+        assert "... and 3 more names not searched" in file.read_text(encoding="utf-8")
+    finally:
+        file.write_text(original, encoding="utf-8")
+        contracts.write_text(original_contracts, encoding="utf-8")
+
+
 def test_callers_controls(repo, run, folder):
     file, app = folder / "04-impact.md", repo / "app.py"
     original, source = file.read_text(encoding="utf-8"), app.read_bytes()
     try:
-        app.write_bytes(b"# \x1b]0;title\x07 \x7f \xc2\x80 parse_phone()\n")
+        assert hasattr(flow_run.step_run, "plain") and flow_run.plain is flow_run.step_run.plain
+        app.write_bytes(b"\t# \x1b]0;title\x07 \x7f \xc2\x80 parse_phone()\n")
         out = run("take", folder, "04-impact", "a")
         assert out.returncode == 0, out.stderr
         assert "]0;title" in out.stdout
+        assert ":\t# " in out.stdout, "tab-indented hits must keep their indentation"
         assert not any(ord(c) < 32 and c not in "\n\t" or 127 <= ord(c) <= 159 for c in out.stdout), repr(out.stdout)
         assert "parse_phone" in file.read_text(encoding="utf-8")
     finally:
@@ -259,6 +334,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     test_take_force(run, folder)
     test_take_requires_who(run, folder)
+    test_done_rejects_force(run, folder)
     test_closed_stdout(repo, env, folder)
 
     blocked = run("take", folder, "05-build", "a")
@@ -268,7 +344,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "cannot be skipped" in run("skip", folder, "05-build", "small").stderr
     assert "needs a reason" in run("skip", folder, "02-design").stderr
     test_skip_lock(run, folder)
-    test_skip_force(run, folder)
+    test_skip_rejects_force(run, folder)
     test_atomic_skip(folder)
     assert run("skip", folder, "02-design", "no", "UI").returncode == 0
     assert (folder / "02-design.md").read_text().startswith("Status: skipped no UI\n")
@@ -285,6 +361,9 @@ with tempfile.TemporaryDirectory() as tmp:
     test_impact_closed_stdout(repo, env, folder)
     test_impact_utf8(repo, env, folder)
     test_callers_timeout(folder)
+    test_callers_failure(folder)
+    test_callers_deadline(folder)
+    test_callers_name_cap(folder)
     test_callers_controls(repo, run, folder)
     out = run("take", folder, "04-impact", "a")
     assert out.returncode == 0, out.stderr
