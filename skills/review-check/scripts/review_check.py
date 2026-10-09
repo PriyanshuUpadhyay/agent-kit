@@ -524,7 +524,7 @@ def build(name, *opts):
                                  cwd=cwd, capture_output=True, text=True, timeout=BUILD_TIMEOUT)
         except subprocess.TimeoutExpired:
             raise SystemExit(f"gh: timed out after {BUILD_TIMEOUT} s") from None
-        except FileNotFoundError:
+        except (FileNotFoundError, NotADirectoryError):
             raise SystemExit("gh: not found") from None
         except OSError as error:
             raise SystemExit(f"gh: {error.strerror or error}") from None
