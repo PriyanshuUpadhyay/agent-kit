@@ -194,6 +194,9 @@ def resolve_blocks(root, wanted, profile_name):
         if key not in wanted:
             raise SystemExit(f"[add] {key} in {repo_file} is not a step; steps are {', '.join(wanted)}")
         for path in paths:
+            # The repo file is repo-owned input, and the step text goes to agents, so no file outside the repo.
+            if Path(path).is_absolute() or not (root / path).resolve().is_relative_to(root.resolve()):
+                raise SystemExit(f"[add] {path} leaves the repo; {repo_file} takes repo-relative paths")
             block = Path(path).stem
             if files.get(block, root / path) != root / path:
                 raise SystemExit(f"duplicate block id {block}: {path} in {repo_file} and {files[block]}")

@@ -533,6 +533,14 @@ def test_block_fail_closed(tmp):
     ]
     Path(tmp, "duplicate", "app").mkdir(parents=True)
     Path(tmp, "duplicate", "app", "red-first-check.md").write_text("# red-first-check\n", encoding="utf-8")
+    # An [add] path must stay inside the repo: absolute, `..`, and a symlink out are refused.
+    for name, path in (("add-absolute", str(Path(tmp, "add-absolute", "outside.md"))),
+                       ("add-parent", "../outside.md"), ("add-symlink", "link.md")):
+        Path(tmp, name, "app").mkdir(parents=True)
+        Path(tmp, name, "outside.md").write_text("# outside\nSECRET\n", encoding="utf-8")
+        cases.append((name, "- build: block:red-first-check\n", PARAMS + f'[add]\nbuild = ["{path}"]\n', (),
+                      f"[add] {path} leaves the repo"))
+    Path(tmp, "add-symlink", "app", "link.md").symlink_to(Path(tmp, "add-symlink", "outside.md"))
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
