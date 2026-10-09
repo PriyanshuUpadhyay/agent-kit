@@ -832,6 +832,34 @@ def block_rg(name, site):
             for c in re.findall(r"`([^`]+)`", text) if c.startswith("rg ")]
 
 
+def test_look_grammar_colors(tmp):
+    """The look-grammar color check finds each color literal in a declaration (also before a comma or on a
+    later line of a value) and in :root, and not a selector that looks like a hex color."""
+    site = Path(tmp, "colors-site")
+    site.mkdir()
+    (site / "a.css").write_text("\n".join([
+        ":root { --bg: #fff; --fg: oklch(0.2 0 0); }",  # 1
+        "#face .x { color: var(--fg); }",  # 2 selector
+        "#bad,",  # 3 selector list
+        "#cafe { color: var(--bg); }",  # 4 selector
+        "a { background: linear-gradient(#fff, #eee, red); }",  # 5
+        "b { box-shadow: 0 0 1px #000, 0 0 2px var(--bg); }",  # 6
+        "c {",  # 7
+        "  box-shadow:",  # 8
+        "    0 0 1px #abc,",  # 9
+        "    0 0 2px var(--fg);",  # 10
+        "}",  # 11
+        "d { border: 1px solid #abc }",  # 12
+        "e { color: color-mix(in srgb, #fff 50%, red); }",  # 13
+        "f { color: lab(50% 0 0); }",  # 14
+        "@media (min-width: 40em) { #dead { color: var(--fg); } }",  # 15 selector inside a block
+    ]) + "\n", encoding="utf-8")
+    colors = block_rg("look-grammar", site)[0]
+    assert colors.returncode == 0, colors.stderr
+    lines = sorted(int(line.split(":")[1]) for line in colors.stdout.splitlines())
+    assert lines == [1, 5, 6, 9, 12, 13, 14], (lines, colors.stdout)
+
+
 def test_web_ui_basics_checks(tmp):
     """The web-ui-basics rg checks read the page files, not DESIGN.md prose beside them."""
     site = Path(tmp, "basics-site")
@@ -1021,6 +1049,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_repo_file(tmp)
     test_block_checks(tmp)
     test_html_diagram_check(tmp)
+    test_look_grammar_colors(tmp)
     test_web_ui_basics_checks(tmp)
     test_block_ascii_locale(tmp)
     test_review_read_encoding(tmp)
