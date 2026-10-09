@@ -798,6 +798,14 @@ def test_web_ui_basics_checks(tmp):
     (site / "style.css").write_text("@media (prefers-reduced-motion: reduce) { * { animation: none; } }\n", encoding="utf-8")
     banned, motion = block_rg("web-ui-basics", site)[:2]
     assert motion.returncode == 0 and "style.css" in motion.stdout, motion
+    # The banned-pattern check hits ease-in at a line end and maximum-scale=1 (or 1.0), not 1.5 or ease-in-out.
+    (site / "style.css").write_text("a { transition: opacity 200ms ease-in\n}\nb { transition: color 200ms ease-in-out; }\n",
+                                    encoding="utf-8")
+    (site / "index.html").write_text('<meta content="maximum-scale=1.5">\n<meta content="maximum-scale=1">\n'
+                                     '<meta content="maximum-scale=1.0, width=device-width">\n', encoding="utf-8")
+    hits = [line.split(":", 1)[1] for line in block_rg("web-ui-basics", site)[0].stdout.splitlines()]
+    assert sorted(hits) == ["1:a { transition: opacity 200ms ease-in", '2:<meta content="maximum-scale=1">',
+                            '3:<meta content="maximum-scale=1.0, width=device-width">'], hits
     # An image tag whose attributes sit on later lines shows all of them.
     (site / "index.html").write_text('<h1>A</h1>\n<img\n  src="a.png"\n  alt="A"\n  width="10"\n  height="10">\n'
                                      '<img src="b.png">\n', encoding="utf-8")
