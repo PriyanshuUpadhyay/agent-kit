@@ -13,8 +13,8 @@ Use a flow for any change that `pair` or `deliver` builds. A one-line change tak
 flow folder named, make the folder and do `01-frame.md` first. Then pick the lane from the change
 and the repo's contracts, never from the missing folder. The fast lane skips `02-design.md`,
 `03-contracts.md`, and `04-impact.md` with `skip <folder> <step> fast lane: <reason>` only when none
-of them needs a new decision. Otherwise do them before build. The command keeps its own mode. After "flow start",
-ask the user for the mode before build.
+of them needs a new decision. Otherwise do them before build. The command keeps its own mode.
+After "flow start", ask the user to choose `pair` or `deliver` in the reply that shows `01-frame.md`.
 
 When a step ends and the next step is not yours, print `Next: <command>` as the last line of the
 reply, for example `Next: flow continue tmp/flow/2026-10-05-login 06-review`.
@@ -61,9 +61,12 @@ the script reads. The revision of `05-build` is `HEAD`, so a new commit makes `0
 
 ## Steps
 
+`02-design` and `03-contracts` need only frame, so both run by the pick-up rule in
+`references/step-run.md`; the frame names their shared assumptions.
+
 | File | Needs | Holds |
 |---|---|---|
-| `01-frame.md` | none | `Worktree:`, `Branch:`, goal, user, out of scope, done-when |
+| `01-frame.md` | none | `Worktree:`, `Branch:`, goal, user, out of scope, done-when, and shared assumptions for design and contracts |
 | `02-design.md` | frame | UX flow and screens, or `skipped: no UI` |
 | `03-contracts.md` | frame | APIs, data model, integrations, and the result of the `decisions` skill's check for the topic |
 | `04-impact.md` | contracts | the existing features that change, or "independent", judged from the `## Callers` section that `take` writes with the places that name each code name in backticks in `03-contracts.md` |

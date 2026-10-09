@@ -30,7 +30,10 @@ only the user can give.
    next step. Read it first after a `/clear`, a `/compact`, or a resume, and make the first reply a
    status block.
 5. When the predicate holds, run `review-check` on `<base>..HEAD`, where `<base>` is the commit
-   before this run's first commit. Fix each `fix` row in one more iteration, then review the
+   before this run's first commit. A fix seat may start on one review seat's validated `fix` rows
+   after a partial verdict finds no problem in those rows, in its own worktree from the reviewed head.
+   Later rows go to the same fix seat as one more ask. The verdict word and the next review start
+   wait for every review seat. Fix each `fix` row in one more iteration, then review the
    new range. Handle each `ask` as review-check's Asks section says: answer-only work keeps
    HEAD and the range fixed, then run `verdict` again on the same run. In a flow, you also hold
    the review step, and the last verdict goes in
@@ -47,7 +50,28 @@ only the user can give.
 
 The active host contract decides who types. Under a Fable chair the edits go to a routed coding
 seat, every worker is a visible foreground pane, and the chair verifies each returned diff itself.
+The Parallel fix seats (opt-in) section below names the exception.
 Notifications are chair-owned.
+
+## Commit gate
+
+The worker's `unit N ready` message carries the changed paths, its check output, and
+`git diff HEAD | shasum`. The chair hashes the same diff. A matching hash lets the chair stage
+the reported paths, commit, and send `committed` in one call. The chair then runs the unit's check
+on that commit in the background, in a persistent detached git worktree under `tmp/deliver/verify`.
+The worker edits N+1 at once, but its commit waits for N green. A red check stops landings; keep
+the work, diagnose, then fix or revert in a checked unit. Never revert automatically. A hash
+that does not match keeps the current gate; the chair runs the check before commit.
+
+## Parallel fix seats (opt-in)
+
+Only when the user opts in for this run, use at most two fix seats. Before launch, the chair
+declares each seat's file set and the shared interfaces that stay frozen. Each seat uses its own
+worktree. Run `python3 <skill-dir>/scripts/land.py <decl.json> <worktree>...`, where the declaration
+maps each worktree to its file list and names the frozen files; it refuses overlapping files.
+The chair lands in the declared order and runs each unit's check at its stack position.
+Feature units stay serial. Without opt-in, use one fix seat. The kit's `references/fan-out.md`
+owns fan-out policy.
 
 **Reply:** the exit condition, the iterations run, what landed with its hashes, what was
 discarded, the final predicate state with its proof, and the review verdict with any open QUESTION.

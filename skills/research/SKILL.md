@@ -31,7 +31,8 @@ readings of the question lead to different work, set the step to `waiting` with 
 
 ## 02-local
 
-Read, in this order:
+Read these sources as the kit's `references/fan-out.md` says. When they disagree, trust them in
+the following order.
 
 1. the repository at hand;
 2. its docs;
@@ -45,6 +46,10 @@ do not establish correctness. If evidence is thin, name the gap instead of makin
 stronger; the user does not need to ask for a second, deeper pass.
 
 ## 03-web
+
+Start the web seat as soon as `01-question.md` is written, then do `02-local` while it runs.
+Brief seeds come from prior reports and the chair's knowledge. A seed found in `02-local` goes
+to the seat as one follow-up ask only when it changes the search.
 
 On continue, skip only URLs on the `Fetched:` list with saved evidence. Refresh a source when the
 question or final link check needs current content.

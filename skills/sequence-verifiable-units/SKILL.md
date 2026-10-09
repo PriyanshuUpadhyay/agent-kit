@@ -7,7 +7,9 @@ disable-model-invocation: true
 # Sequence work into verifiable units
 
 Order work as small units that each end in a check, and do not advance until the current one
-passes. A break caught at its own unit is cheap to find. A break caught after a batch is buried
+passes. Fix rows with declared disjoint files may be built by two seats at once under `deliver`'s
+Parallel fix seats (opt-in) section; each still ends in its own check at its stack position.
+A break caught at its own unit is cheap to find. A break caught after a batch is buried
 under work built on it.
 
 A unit is the smallest change that leaves a checkable state. A helper lands in the same unit as

@@ -24,7 +24,7 @@ close, and when a step waits for the user. The run folder is the decision-log fo
 | File | Needs | Holds |
 |---|---|---|
 | `01-brief.md` | none | the pinned brief path, the seat names, and their routed models |
-| `02-round1.md` | brief | the Round-0 questions and answers, and each seat's Round-1 verdict and file |
+| `02-round1.md` | brief | the combined Round-0 and Round-1 ask, any questions and user answers, and each seat's Round-1 verdict and file |
 | `03-cross.md` | round1 | Rounds 2-3 per seat, or `skipped converged at round 1` |
 | `04-verdict.md` | cross | the Output block |
 | `05-close.md` | verdict | the decision-log path, the seats closed and verified, and the scratch removed |
@@ -34,6 +34,7 @@ Round-0 questions that survive the filter, and a split after Round 3, set the st
 ## Execution backend
 
 The runtime adapter (`orchestrate-claude`) selects the host and its reference; the council names no host.
+The kit's `references/fan-out.md` owns fan-out policy.
 
 These rules hold on every backend, and the selected reference only says how to satisfy them:
 
@@ -84,17 +85,18 @@ Voices are leaf reasoners. They may inspect the pinned material but may not spaw
 
 ### Round 0 — clarify
 
-Ask all three voices only for direction-changing unknowns. Filter out anything already answered,
-research-answerable from the pinned sources, cosmetic, safely assumable, or based on invented scope.
-Zero questions is the expected result for a clear request. Put surviving questions to the user and
-record the answers verbatim as resolved constraints.
-
-Round-0 response is `NO QUESTIONS` or a short list where every question explains what answer would
-materially change the analysis.
+Send Round 0 and Round 1 in one ask to all three voices. A voice with direction-changing
+questions writes only its questions and stops. Each question says which answer would change
+the analysis. A voice with none writes `NO QUESTIONS` and its Round-1 position in one artifact.
+Filter out anything already answered, research-answerable from the pinned sources, cosmetic,
+safely assumable, or based on invented scope. Put surviving questions to the user and record
+the answers verbatim as resolved constraints. When a user answer changes a constraint, every
+voice does Round 1 again. Otherwise, voices that stopped write their Round-1 positions.
 
 ### Round 1 — independent positions
 
-Send the same pinned brief before voices see one another. Require:
+Include the same pinned brief and the following output shape in the combined ask, before voices
+see one another.
 
 ```text
 VERDICT: GO | GO-WITH-CHANGES | NO-GO

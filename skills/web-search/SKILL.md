@@ -23,22 +23,18 @@ close, and when a step waits for the user. The run folder is
 |---|---|---|
 | `01-brief.md` | none | the sub-questions, the known list, the seeds, the reach rows that returned content, and the brief path |
 | `02-seats.md` | brief | each seat's name, model, and report path, and whether its artifact was accepted |
-| `03-gate.md` | seats | the depth-gate result per seat, any seat sent back, and the link check |
+| `03-gate.md` | seats | the depth-gate result per seat as each report arrives, any seat sent back, and the link check |
 | `04-merge.md` | gate | the merged report path |
 | `05-close.md` | merge | the seats closed and verified, and the scratch run directory removed |
 
 ## Seat mechanics
 
-The seats follow the council's mechanics but ride the cheap `search.web` route. Launch each one as
-a visible pane through the native agent facade with `--role search.web`, so the launcher picks the
-runner for the positional provider (codex, agy, claude). Share one brief, gate the round on one
-collect spec that covers all three seats, take completion from the accepted artifact rather than the
-screen, and run the close-out at the end.
+The seats follow the council's mechanics but ride the cheap `search.web` route. Share one brief.
+The host reference selected by the runtime adapter owns launch, completion, retry, and close-out
+mechanics. Read and follow it; completion on swarm is the seat's ring and its report file.
+The kit's `references/fan-out.md` owns fan-out policy.
 
-Read the host reference selected by the runtime adapter (`orchestrate-claude`) for those mechanics and follow it
-exactly. Do not restate them here.
-
-Four differences from a council run:
+These three details differ from a council run.
 
 - Agent names are `ws-<voice>-<run>`, so a search and a council can run at the same time.
 - The run directory is `~/.swarm/ws/<run>`, and every seat gets it as `--cwd`. The launcher
@@ -46,9 +42,6 @@ Four differences from a council run:
   or AGY trust dialog. Never use `~/.swarm/runs`, because that is swarm's own message store.
 - The seats resolve `search.web`, not `council.*`; the council keeps `council.gpt`,
   `council.gemini`, and `council.claude`.
-- The collect spec names the three `ws-<voice>-<run>` seats, not the council's. The GPT and GEMINI
-  seats get `"max_attempts": 2, "allow_idle_retry": true` in it; CLAUDE keeps the default single
-  attempt.
 
 ## Default site sets
 
@@ -65,8 +58,8 @@ Exa "find similar" from a primary source, whichever its tools can reach.
 ## Reach tools
 
 Agent Reach installs command-line readers for sites that block a plain fetch. Before the chair
-writes the brief, it runs each row below once with a short query from the question and keeps only
-the rows that return content. `agent-reach doctor` is not enough, because it skips live checks and
+writes the brief, it runs every row below once in one command, with a short query from the question.
+It keeps only the rows that return content. `agent-reach doctor` is not enough, because it skips live checks and
 leaves Exa and GitHub unmarked even when they work. Then the chair pastes the kept rows into every
 seat's brief word for word, because a paraphrase loses the exact commands and the seat stops at the
 first 403.
@@ -94,7 +87,7 @@ coverage table and use the fallback ladder in the method only.
 
 Search engines and answer engines rank the same famous names first, and the user already knows
 those. The value of a seat is what sits below that surface. Every brief carries this section, and
-the chair enforces it at collect.
+the chair enforces it when each report arrives.
 
 Example. The question is "which small model cleans up dictation text". A surface pass returns
 Whisper and Qwen. The depth pass lists those two as "known, baseline only", seeds Moonshine,
@@ -110,8 +103,9 @@ The brief gives each seat:
 2. **Known, baseline only** — the famous answers, by name. A seat reports each in one line as a
    comparison and never counts it as a finding.
 3. **Seeds** — candidates the chair already suspects are under-discussed, so the seat starts below
-   the surface. The chair takes them from prior reports, the local step of `research`, and its own
-   knowledge. An empty seed list is allowed only when the chair says why.
+   the surface. The chair takes them from prior reports and its own knowledge at brief time.
+   For later seeds from local sources, follow the `03-web` section of `research`.
+   An empty seed list is allowed only when the chair says why.
 4. **How to dig** — sort by new, not top; read the comments, not only the post; follow a thread to
    the author's repo, model card, or paper; search the technique, format, and runtime names, not
    only the product name; on GitHub and Hugging Face sort by recently updated and read repos with
@@ -152,12 +146,14 @@ One brief, one section per seat. It holds:
 
 ## Chair synthesis
 
-After collect accepts the artifacts:
+Gate each seat's report when it arrives; do not wait for the other seats. Merge after the gate
+has handled all three reports.
 
 1. Apply the depth gate. Reject a report whose findings are all on the known list, that stops at
    "nothing found" without the searches tried, that is under the floor, that calls a site blocked
-   without a blocked log, or whose matrix leaves a sub-question with no sources and no gap note. Send that seat back once with the Depth section
-   quoted, accept what it returns, and say so in the coverage table. Record `sent back: <seat> 1`
+   without a blocked log, or whose matrix leaves a sub-question with no sources and no gap note.
+   Send that seat back at once, once only, with the Depth section quoted. Accept what it returns,
+   and say so in the coverage table. Record `sent back: <seat> 1`
    in `03-gate.md` and read that line before any resend, so a seat is never sent back twice.
    Mark "(unverified)" and drop
    from the answer any finding whose only evidence is a homepage or that repeats the brief's seed
