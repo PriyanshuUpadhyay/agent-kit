@@ -750,7 +750,7 @@ def test_html_diagram_check(tmp):
         (site / "DESIGN.md").write_text("Wrap each diagram in <figure> with one <figcaption>.\n", encoding="utf-8")
         counted, captioned = block_rg("html-diagram", site)
         assert captioned.returncode in (0, 1) and counted.returncode in (0, 1), (captioned.stderr, counted.stderr)
-        passed = (counted.returncode == 0 and sum(int(n.rsplit(":", 1)[-1]) for n in counted.stdout.split()) >= 1
+        passed = (counted.returncode == 0 and sum(int(n.rsplit(":", 1)[-1]) for n in counted.stdout.splitlines()) >= 1
                   and captioned.returncode == 1 and not captioned.stdout)
         assert passed == good, (html, counted, captioned)
         assert "DESIGN.md" not in counted.stdout + captioned.stdout, (counted, captioned)
