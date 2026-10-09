@@ -451,6 +451,7 @@ def test_closed_stdout(repo, env, folder):
 
 
 PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\nsite = "site"\nshots = "tmp/shots"\n'
+RED_BUILD = "- build: block:red-first-check\n"  # the catalog line most block tests start from
 
 
 def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None):
@@ -477,7 +478,7 @@ def step_text(folder, step):
 def test_block_in_step(tmp):
     """D1: a catalog step line naming block:<id> writes that block into the step file, and the
     Skills read line names the profile and the block with its content hash."""
-    out, folder, repo, run = blocks_start(tmp, "d1", "- build: block:red-first-check\n")
+    out, folder, repo, run = blocks_start(tmp, "d1", RED_BUILD)
     assert out.returncode == 0, out.stderr
     build = step_text(folder, "05-build")
     assert "===== block:red-first-check =====" in build and "Rank each claim on the ladder" in build, build
@@ -494,7 +495,7 @@ def test_block_in_step(tmp):
 
 def test_block_alias_and_base(tmp):
     """D2: an alias expands to its members, duplicates drop, and base joins every step once."""
-    out, folder, _, _ = blocks_start(tmp, "d2", "- design: block:tech-diagram, block:html-diagram\n- build: block:red-first-check\n")
+    out, folder, _, _ = blocks_start(tmp, "d2", "- design: block:tech-diagram, block:html-diagram\n" + RED_BUILD)
     assert out.returncode == 0, out.stderr
     design = step_text(folder, "02-design")
     for block in ("first-principles", "tech-diagram-concept", "html-diagram"):
@@ -555,8 +556,8 @@ def test_block_fail_closed(tmp):
         ("off-number", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = 3\n', (), "[off] html-diagram needs a reason"),
         ("off-false", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = false\n', (), "[off] html-diagram needs a reason"),
         ("off-unknown", "- design: block:tech-diagram\n", PARAMS + '[off]\nnope = "x"\n', (), "unknown block id nope"),
-        ("duplicate", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["red-first-check.md"]\n', (), "duplicate block id red-first-check"),
-        ("profile", "- build: block:red-first-check\n", PARAMS, ("--profile", "nope"), "unknown profile nope"),
+        ("duplicate", RED_BUILD, PARAMS + '[add]\nbuild = ["red-first-check.md"]\n', (), "duplicate block id red-first-check"),
+        ("profile", RED_BUILD, PARAMS, ("--profile", "nope"), "unknown profile nope"),
     ]
     Path(tmp, "duplicate", "app").mkdir(parents=True)
     Path(tmp, "duplicate", "app", "red-first-check.md").write_text("# red-first-check\n", encoding="utf-8")
@@ -565,41 +566,41 @@ def test_block_fail_closed(tmp):
                        ("add-parent", "../outside.md"), ("add-symlink", "link.md")):
         Path(tmp, name, "app").mkdir(parents=True)
         Path(tmp, name, "outside.md").write_text("# outside\nSECRET\n", encoding="utf-8")
-        cases.append((name, "- build: block:red-first-check\n", PARAMS + f'[add]\nbuild = ["{path}"]\n', (),
+        cases.append((name, RED_BUILD, PARAMS + f'[add]\nbuild = ["{path}"]\n', (),
                       f"[add] {path} leaves the repo"))
     Path(tmp, "add-symlink", "app", "link.md").symlink_to(Path(tmp, "add-symlink", "outside.md"))
     # A repo block whose id equals a kit alias name would mix with the alias.
     Path(tmp, "add-alias", "app", "docs").mkdir(parents=True)
     Path(tmp, "add-alias", "app", "docs", "tech-diagram.md").write_text("# tech-diagram\n", encoding="utf-8")
-    cases.append(("add-alias", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/tech-diagram.md"]\n', (),
+    cases.append(("add-alias", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/tech-diagram.md"]\n', (),
                   "has id tech-diagram, which is an alias"))
     # A TOML syntax error or a wrong value type in the repo file names the file, with no traceback.
     # A top-level key goes before [params], or TOML puts it in that table.
-    cases += [(f"type-{name}", "- build: block:red-first-check\n", toml, (), reason) for name, toml, reason in (
+    cases += [(f"type-{name}", RED_BUILD, toml, (), reason) for name, toml, reason in (
         ("syntax", "[params\nx = 1\n", ".blocks.toml is not valid TOML"),
         ("params", "params = 3\n", ".blocks.toml: params must be a table"),
         ("off", "off = 3\n" + PARAMS, ".blocks.toml: off must be a table"),
         ("add", "add = 3\n" + PARAMS, ".blocks.toml: add must be a table"),
         ("add-string", PARAMS + '[add]\nbuild = "docs/x.md"\n', "must be a list of paths"))]
     cases += [
-        ("add-missing", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/none.md"]\n', (), "[add] docs/none.md in"),
-        ("add-step", "- build: block:red-first-check\n", PARAMS + '[add]\nship = ["docs/x.md"]\n', (), "[add] ship in"),
-        ("table", "- build: block:red-first-check\n", PARAMS + "[extra]\nx = 1\n", (), "unknown table [extra]"),
+        ("add-missing", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/none.md"]\n', (), "[add] docs/none.md in"),
+        ("add-step", RED_BUILD, PARAMS + '[add]\nship = ["docs/x.md"]\n', (), "[add] ship in"),
+        ("table", RED_BUILD, PARAMS + "[extra]\nx = 1\n", (), "unknown table [extra]"),
     ]
     # Bytes that are not UTF-8 in the repo file or in an [add] block name the file, with no traceback.
     Path(tmp, "utf8-toml", "app").mkdir(parents=True)
     Path(tmp, "utf8-toml", "app", ".blocks.toml").write_bytes(PARAMS.encode() + b'x = "\xff"\n')
-    cases.append(("utf8-toml", "- build: block:red-first-check\n", None, (), ".blocks.toml is not UTF-8"))
+    cases.append(("utf8-toml", RED_BUILD, None, (), ".blocks.toml is not UTF-8"))
     Path(tmp, "utf8-add", "app", "docs").mkdir(parents=True)
     Path(tmp, "utf8-add", "app", "docs", "x.md").write_bytes(b"# x\n\xff\n")
-    cases.append(("utf8-add", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["docs/x.md"]\n', (), "x.md is not UTF-8"))
+    cases.append(("utf8-add", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/x.md"]\n', (), "x.md is not UTF-8"))
     # A repo file that cannot be read, an [add] path with a NUL byte, and control characters in repo
     # text each give one clean line.
     Path(tmp, "toml-dir", "app", ".blocks.toml").mkdir(parents=True)
     cases += [
-        ("toml-dir", "- build: block:red-first-check\n", None, (), ".blocks.toml cannot be read"),
-        ("add-nul", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["a\\u0000b.md"]\n', (), "holds a NUL byte"),
-        ("controls", "- build: block:red-first-check\n", PARAMS + '["\\u001b[2Jx\\ny"]\n', (), "unknown table [[2Jx y]"),
+        ("toml-dir", RED_BUILD, None, (), ".blocks.toml cannot be read"),
+        ("add-nul", RED_BUILD, PARAMS + '[add]\nbuild = ["a\\u0000b.md"]\n', (), "holds a NUL byte"),
+        ("controls", RED_BUILD, PARAMS + '["\\u001b[2Jx\\ny"]\n', (), "unknown table [[2Jx y]"),
     ]
     # A catalog skill path that cannot be read, or is not UTF-8, stops start before any step file exists.
     Path(tmp, "skill-dir", "skill").mkdir(parents=True)
