@@ -4,7 +4,7 @@ Serves: design
 Source: skills/ink/SKILL.md:55-57 (step 4); skills/ink/references/site.md:69-73 (site frames); skills/ink/references/qa.md:28-47 (reference match, rounds), :128-129 (visually verified)
 
 ## Rules
-- Render three frames from the real page code with the screenshot tool the workflow names: the hero at 1440 px, the hero at 390 px, and one middle section at 1440 px.
+- Render three frames from the real page code with the screenshot tool the workflow names: the hero at 1440 px, the hero at 390 px, and one middle section at 1440 px. Save them in `{{shots}}`, with one `compare-NN.png` per frame beside the reference.
 - Score every line of the look grammar as `match`, `partial`, or `miss`, each with pixel evidence. Compare one crop of the whole frame and one crop at 100 % zoom.
 - A `miss` on any trait blocks the build step.
 - Do at least two rounds of fix and re-render. Record the scores of each round in `02-design.md`.
@@ -12,14 +12,13 @@ Source: skills/ink/SKILL.md:55-57 (step 4); skills/ink/references/site.md:69-73 
 - Never write "visually verified" unless you inspected pixels of the final page after the last fix.
 
 ## Example
-Initial state: `site/index.html` has the hero in real HTML and CSS, and `DESIGN.md` exists.
-Action: render `hero-1440.png`, `hero-390.png`, `flow-1440.png`, and make `compare-01.png` beside the reference. Round 1: palette `match`, type scale `partial` (headline 3 lines at 390 px), density `miss` (twice the reference's whitespace). Fix the tokens and re-render. Round 2: all `match`.
+Initial state: `{{site}}/index.html` has the hero in real HTML and CSS, and `DESIGN.md` exists.
+Action: render `{{shots}}/hero-1440.png`, `hero-390.png`, and `flow-1440.png`, and make `compare-01.png` to `compare-03.png`, one per frame, beside the reference. Round 1: palette `match`, type scale `partial` (headline 3 lines at 390 px), density `miss` (twice the reference's whitespace). Fix the tokens and re-render. Round 2: all `match`.
 Result: `02-design.md` holds both score tables and the compare image paths. The build may start.
 
 ## Check (script)
-- `ls shots/` shows the three frames and one `compare-NN.png` per frame for the last round: the frames exist.
-- `rg -c -i 'round [0-9]' <flow-folder>/02-design.md` prints 2 or more: at least two rounds are recorded.
+- `ls {{shots}}/hero-1440.png {{shots}}/hero-390.png` exits 0, and `ls {{shots}}/compare-*.png | wc -l` prints 3 or more: the frames and one compare image per frame exist.
 
 ## Check (judge)
-- Does `02-design.md` have a score table per round, one row per grammar line, each with pixel evidence? Quote one table.
+- Does `02-design.md` record two or more rounds, each with a score table, one row per grammar line, each with pixel evidence? Quote each round's table.
 - Does the last round have no `miss`, or does each remaining one have an `accepted miss:` line with the user's words? Quote them.

@@ -21,9 +21,10 @@ Action: put on claim 2:
 Result: the user answers "kept as proposed". The builder draws one static diagram. Had the line read "not opened; default kept", the builder asks once in chat before build.
 
 ## Check (script)
-- `rg -c '^\s*- \(x\)' <step file>` prints a number from 2 to 5, and `rg -n -B6 '^\s*- \(x\)' <step file>` shows one `(x)` per question: each decision has exactly one marked default.
+- none: the decisions live only in the step file, which holds this block's own Example decision.
 
 ## Check (judge)
+- Are there 2 to 5 decisions, and does each have exactly one `(x)` option? Quote each question with its options.
 - Does each decision name the claim number it changes and sit under that claim? Quote the decision and the claim.
 - Is each question 15 words or fewer? Quote each question with its word count.
 - Does each "not opened" answer on an important decision have a follow-up question in chat, or a line that says why none was needed? Quote both.

@@ -17,12 +17,13 @@ Source: references/explain-formats.md:7-8, :16-27, :36-37; html-plan pack: skill
 ## Example
 Initial state: claim 2 needs "how one request flows through `tracer`". The source `docs/architecture.md:10-24` names CLI, agent, collector, and store, with a retry when the collector is down.
 Action: the shape is calls over time, so draw a sequence: 4 lanes, 5 arrows, plus a `retry x3` branch that ends at "dropped, logged". Caption: "The agent buffers spans, so a collector outage loses nothing for 30 s."
-Result: one diagram with 4 nodes and every branch ending at a node.
+Result: one diagram with 5 nodes (4 lanes and "dropped, logged") and every branch ending at a node.
 
 ## Check (script)
-- Count the node elements in each diagram's markup (for example `rg -c 'class="node' index.html`): 12 or fewer, and 8 or fewer for a state diagram.
+- none: what counts as a node depends on each diagram's markup, so the node count is a judge check.
 
 ## Check (judge)
+- Does each diagram have 12 nodes or fewer, and 8 or fewer for a state diagram? Quote each diagram's node names and their count.
 - For each diagram, does `02-design.md` name the trigger it meets and the type picked from the shape? Quote both.
 - Does each branch end at a node or a final state? Quote each branch and its end.
 - Is each caption one sentence that says what to notice? Quote the caption.

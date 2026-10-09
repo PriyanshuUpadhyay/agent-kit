@@ -17,14 +17,14 @@ Action: write in `07-close.md`:
 |---|---|---|
 | Hero states the tool in 20 words | word count script | `checks/hero.mjs -> PASS 18 words` |
 | Diagram 2 matches `docs/architecture.md` | diagram-correctness table | `06-review.md` rows 1-7, all cited |
-| Page looks right on a phone | screenshot at 390 px | `shots/hero-390.png`; taste awaiting the user's review |
+| Page looks right on a phone | screenshot at 390 px | `{{shots}}/hero-390.png`; taste awaiting the user's review |
 Result: two rows proved, one partial row named as partial.
 
 ## Check (script)
-- Count the done-when lines of `<flow-folder>/01-frame.md` and the rows of the table in `<flow-folder>/07-close.md`; the two numbers match: every done-when has a row.
-- `rg -n 'not run' <flow-folder>/07-close.md` prints nothing: no row waits for its check.
-- Line 3 of the last review-check run's `03-verdict.md` starts with `Verdict: APPROVE`, and its `target.json` head equals `git rev-parse HEAD`: the review approved the current head.
+- none: the close table lives only in the step file, which holds this block's own Rules; `take 07-close` already refuses a run without APPROVE on HEAD.
 
 ## Check (judge)
+- Does every done-when line of `01-frame.md` and every accepted constraint have a row? Quote each done-when and its row.
+- Does any row still read "not run"? Quote it, or write "none".
 - Is each row's evidence a command with its output, a path that exists, or "unverified" with a reason? Quote each row's evidence.
 - Is any partial check written as a completed proof? Quote the row.

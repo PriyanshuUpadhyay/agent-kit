@@ -9,7 +9,7 @@ Source: html-plan pack: skills/html-plan/references/blocks.md:101-106 (doc-calls
 - An entrypoint starts at column 2. Each level adds 2 spaces. A blank line starts a new entrypoint.
 - `**bold**` marks a new symbol. A `+` row without bold is a new call to something that exists.
 - End each line with `@ path:line` and, if needed, `-- one clause`. For a new function in a file that exists, cite the line it goes after.
-- Keep one tree under about 15 rows.
+- Keep one tree at 15 rows or fewer.
 - The step names the existing features that change, or says "independent".
 
 ## Example
@@ -25,9 +25,9 @@ Action: write in `04-impact.md`:
 Result: the reader sees two new symbols, one changed entrypoint, and one optional call. Impact: "independent; no other page uses `main.js`."
 
 ## Check (script)
-- `awk '/^```/{f=!f;next} f && NF && !/^[-+~? ] .*@ [^ ]+:[0-9]+/' <flow-folder>/04-impact.md` prints nothing: every tree row has a mark in column 0 and an `@ path:line`.
-- `awk '/^```/{f=!f;next} f && NF' <flow-folder>/04-impact.md | wc -l` prints about 15 or less: the tree stays short.
-- For each `@ path:line` of an existing file, `rg -n '<symbol>' <path>` shows the symbol at that line: each citation is real.
+- none: the tree lives only in the step file, which holds this block's own example tree; impact runs before any commit.
 
 ## Check (judge)
+- Does each tree row have a mark in column 0 and end with `@ path:line`, and does each tree have 15 rows or fewer? Quote each tree.
+- For a row on code that exists, is its symbol at the cited line, and for a `+` row of a new function, is the cited line the one it goes after? Quote each row and the source line.
 - Does `04-impact.md` name the existing features that change, or say "independent"? Quote the line.

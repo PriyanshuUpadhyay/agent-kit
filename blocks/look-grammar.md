@@ -22,13 +22,13 @@ Source: skills/ink/SKILL.md:23-27, :30; skills/ink/references/references.md:79, 
 
 ## Example
 Initial state: the user links the `htmx.org` home page as the reference.
-Action: write the design read ("dev-tool landing for backend engineers, plain technical language, native CSS"). Measure: body 18 px, max width 65ch, one accent `#3b5bdb`. Write `site/DESIGN.md` with those tokens and lint it.
+Action: write the design read ("dev-tool landing for backend engineers, plain technical language, native CSS"). Measure: body 18 px, max width 65ch, one accent `#3b5bdb`. Write `{{site}}/DESIGN.md` with those tokens and lint it.
 Result: lint shows one `contrast-ratio` warning on the muted text, so the grammar marks it `miss` and darkens the token before style frames.
 
 ## Check (script)
-- `npx @google/design.md lint site/DESIGN.md` output has no error and no `contrast-ratio` finding: the tokens pass lint.
-- `rg -n '#[0-9a-fA-F]{3,8}\b|rgb\(' site --glob '!DESIGN.md'` finds color literals only in the one `:root` token block: page code reads only tokens.
-- `rg -c '—|–' site/index.html` prints nothing: visible text has no dash separators.
+- `npx @google/design.md lint {{site}}/DESIGN.md 2>&1 | rg -i 'error|contrast-ratio'` prints nothing: the tokens pass lint with no contrast finding.
+- `rg -n '#[0-9a-fA-F]{3,8}\b|rgb\(' {{site}} --glob '!DESIGN.md'` finds color literals only in the one `:root` token block: page code reads only tokens.
+- `rg -c '—|–' {{site}}/index.html` prints nothing: visible text has no dash separators.
 
 ## Check (judge)
 - Does `02-design.md` have the design-read line and a reference list with an evidence label on each fact? Quote the line and the labels.

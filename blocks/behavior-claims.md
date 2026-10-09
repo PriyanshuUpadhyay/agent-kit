@@ -25,10 +25,10 @@ Done-when: "Claim 2 diagram matches `docs/architecture.md`." Tiger: "The diagram
 Result: read aloud, the three claims tell the whole page.
 
 ## Check (script)
-- `rg -c '^(Worktree|Branch):' <flow-folder>/01-frame.md` prints 2: the frame names its worktree and branch.
-- `rg -n -i '^(goal|user|out of scope|done-when|shared assumptions)' <flow-folder>/01-frame.md` prints one line for each of the five fields: no field is missing.
+- none: the frame writes only its step file, which holds this block's own Rules and Example.
 
 ## Check (judge)
+- Does `01-frame.md` give the goal, the user, out of scope, done-when, and shared assumptions? Quote each field's line.
 - Is each level-1 claim one sentence that can be false, in 12 words or fewer? Quote each claim with its word count.
 - Do the level-1 claims, read alone, tell the whole change, and is no claim a file, a layer, or a step? Quote the claims.
 - Does each done-when name the evidence that will prove it (a command, a screenshot, a `file:line`)? Quote each done-when.

@@ -19,9 +19,10 @@ Action: write `checks/copy.mjs` that loads `index.html` in headless Chrome, clic
 Result: the evidence line reads `node checks/copy.mjs -> FAIL no #copy` then `node checks/copy.mjs -> PASS`.
 
 ## Check (script)
-- `rg -n 'FAIL|PASS' <flow-folder>/05-build.md` shows a FAIL line before the PASS line of each behavior: each check was red first.
+- none: the FAIL and PASS lines live in the step file, which holds this block's own Example lines; the commit range alone cannot show a check failed first.
 
 ## Check (judge)
+- Does each behavior show a FAIL line from its check before the PASS line of the same command? Quote both lines for each behavior.
 - Does each UI behavior have a screenshot and at least one runnable check (overflow, contrast, or timing)? Quote both.
 - Does any claim cite only a build, a lint, or a self-report as proof? Quote it.
 - Does each claim name its ladder step, and is anything below step 4 marked unproven? Quote the claims.

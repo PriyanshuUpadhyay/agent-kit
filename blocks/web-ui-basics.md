@@ -1,7 +1,7 @@
 # web-ui-basics
 Concept: The floor every static one-page site must meet: structure, focus, contrast, layout at each width, and motion.
 Serves: build
-Source: web-interface-guidelines pack: command.md:16-26, :31-35, :53-60, :64, :80, :119-120, :143-146, :153; skills/ink/references/site.md:25, :85-88; skills/ink/references/qa.md:57-58, :110-111; skills/ink/references/story-and-motion.md:59-60; taste-skill pack: skills/taste-skill/SKILL.md:153-154, :225, :260, :522, :529; emilkowalski pack: skills/emil-design-eng/SKILL.md:95-135, :527-531; task brief (375 px)
+Source: web-interface-guidelines pack: command.md:16-26, :31-35, :53-60, :64, :80, :119-120, :143-146, :153; skills/ink/references/site.md:25, :85-88; skills/ink/references/qa.md:57-58, :110-111; skills/ink/references/story-and-motion.md:59-60; taste-skill pack: skills/taste-skill/SKILL.md:153-154, :225, :260, :522, :529; emilkowalski pack: skills/emil-design-eng/SKILL.md:95-135, :527-531; headless-shot block (375 px)
 
 ## Rules
 Structure
@@ -20,24 +20,24 @@ Layout
 Motion
 - Animate only `transform` and `opacity`. Never `transition: all`.
 - UI animations stay under 300 ms. Use ease-out to enter. Never ease-in.
-- Honor `prefers-reduced-motion: reduce`: fewer and gentler, not zero. Keep opacity and color fades; remove movement. Loops and parallax become static.
+- Honor `prefers-reduced-motion: reduce`: fewer and gentler, not zero. Keep opacity fades; remove movement. Loops and parallax become static.
 - Every key fact shows in a settled state and under reduced motion. Content that waits at opacity 0 is blank in full-page screenshots and skipped by checkers, so check with reduced motion on.
 Copy
 - `…` not `...`. Active voice. Specific button labels: "Copy install command", not "Continue".
 
 ## Example
 Initial state: the hero `h1`, three sections, and a copy button exist.
-Action: run `checks/basics.mjs` at 1440, 390, and 375 px. It reports `scrollWidth 412 > 375` from a diagram. Make the diagram fit its column at that width. Run again: all widths pass.
+Action: write and run `checks/basics.mjs` at 1440, 390, and 375 px. It reports `scrollWidth 412 > 375` from a diagram. Make the diagram fit its column at that width. Run again: all widths pass.
 Result: the evidence line shows the FAIL and then the PASS for each width.
 
 ## Check (script)
-- At 1440, 390, and 375 px, a headless-Chrome script prints `scrollWidth <= innerWidth` as true: no sideways scroll.
-- `rg -n 'outline:\s*none|transition:\s*all|user-scalable=no|maximum-scale=1|ease-in[^-]' site` prints nothing, or each `outline: none` has a `:focus-visible` rule beside it: no banned pattern.
-- `rg -n 'prefers-reduced-motion' site` finds a block: reduced motion is handled.
-- `rg -o '<h[1-6]' site/index.html` lists the headings with no skipped level: heading order holds.
-- `rg -n '<img' site` shows `alt`, `width`, and `height` on each image: images are described and sized.
+- `rg -n 'outline:\s*none|transition:\s*all|user-scalable=no|maximum-scale=1|ease-in[^-]' {{site}}` prints nothing, or each `outline: none` has a `:focus-visible` rule beside it: no banned pattern.
+- `rg -n 'prefers-reduced-motion' {{site}}` finds a block: reduced motion is handled.
+- `rg -o '<h[1-6]' {{site}}/index.html` lists the headings with no skipped level: heading order holds.
+- `rg -n '<img' {{site}}` shows `alt`, `width`, and `height` on each image: images are described and sized.
 
 ## Check (judge)
+- In the shots at 1440, 390, and 375 px, is any content cut off at the right edge or scrolled sideways? Quote each shot path.
 - With reduced motion emulated, does a screenshot show every key fact? Quote the path and the facts.
 - Does a Tab walk show a visible ring on each link and button, with the skip link first? Quote the screenshot paths.
 - Does each diagram have a text description? Quote it.

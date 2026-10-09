@@ -15,9 +15,9 @@ Source: blocks trial 2026-10-09: round 1 judge (the HTML diagrams had no layout 
 Initial state: the concept block chose a 4-part flow, chair → swarm → worker → inbox. Action: one `<ol class="flow">` with 4 `<li>` boxes in a CSS grid of 4 columns, arrows as `::after` with "→", and one column with "↓" under 600 px, because each target now sits below its source. Result: at 375 px the 4 boxes stack, each arrow still points from source to target, and no label clips.
 
 ## Check (script)
-- `rg -n '<svg|<canvas|position:\s*absolute' index.html style*.css` shows nothing inside a diagram: the diagrams reflow.
-- At 375 px a headless-Chrome script prints `scrollWidth <= clientWidth` as true for each diagram element: no diagram is wider than its column.
-- `rg -c '<figcaption' index.html` equals the number of diagrams: each diagram is a `<figure>` with a caption.
+- `rg -n '<svg|<canvas|position:\s*absolute' {{site}}` shows nothing inside a diagram: the diagrams reflow.
+- `rg -o '<figure[ >]' {{site}} | wc -l` and `rg -o '<figcaption' {{site}} | wc -l` print the same number: each figure has a caption.
 
 ## Check (judge)
+- In each 375 px shot, is any diagram wider than its column, cut off or scrolled sideways? Quote the shot path.
 - At 375 px, does each arrow still point from its source to its target? Quote the screenshot path and, for each arrow, its source box, its target box, and its direction.

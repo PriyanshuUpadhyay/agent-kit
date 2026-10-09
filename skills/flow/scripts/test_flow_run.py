@@ -431,7 +431,7 @@ def test_closed_stdout(repo, env, folder):
         file.write_text(original)
 
 
-PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\n'
+PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\nsite = "site"\nshots = "tmp/shots"\n'
 
 
 def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None):
@@ -612,7 +612,7 @@ def test_block_checks(tmp):
     assert out.returncode == 0, out.stderr
     build, review = step_text(folder, "05-build"), step_text(folder, "06-review")
     todo = build.split(flow_run.TODO_HEAD)[1]
-    script = "- [ ] block html-diagram script: `rg -n '<svg|<canvas|position:\\s*absolute' index.html style*.css` shows nothing inside a diagram: the diagrams reflow.: "
+    script = "- [ ] block html-diagram script: `rg -n '<svg|<canvas|position:\\s*absolute' site` shows nothing inside a diagram: the diagrams reflow.: "
     assert script + "\n" in todo, todo
     judge = "At 375 px, does each arrow still point from its source to its target?"
     assert judge not in build, "a judge check must not be a build todo"
