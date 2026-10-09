@@ -603,6 +603,7 @@ def test_block_fail_closed(tmp):
     for toml, reason in (('base = []\n[blocks]\na = "a.md"\n[aliases]\na = ["a"]\n[profiles.default]\n', "alias a is also a block id"),
                          ("[blocks\n", "blocks.toml is not valid TOML"),
                          ('[blocks]\na = "a.md"\n[aliases]\nb = ["nope"]\n[profiles.default]\n', "unknown block id nope in alias b"),
+                         ('base = ["nope"]\n[blocks]\na = "a.md"\n[profiles.default]\n', "unknown block id nope in base of"),
                          ('[blocks]\na = "a.md"\n[profiles.default]\nmerge = ["a"]\n', "merges a, which is not an alias")):
         (kit / "blocks.toml").write_text(toml, encoding="utf-8")
         with patch.object(flow_run, "BLOCKS", kit):

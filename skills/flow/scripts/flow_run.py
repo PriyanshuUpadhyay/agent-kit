@@ -182,6 +182,8 @@ def resolve_blocks(root, wanted, profile_name):
             raise SystemExit(f"alias {alias} is also a block id in {kit_file}; rename one")
         if unknown := [m for m in members if m not in files]:
             raise SystemExit(f"unknown block id {unknown[0]} in alias {alias} of {kit_file}")
+    if unknown := [b for b in kit.get("base", []) if b not in files]:
+        raise SystemExit(f"unknown block id {unknown[0]} in base of {kit_file}")
     profile = kit.get("profiles", {}).get(profile_name)
     if profile is None:
         raise SystemExit(f"unknown profile {profile_name}; {kit_file} has {', '.join(kit.get('profiles', {}))}")
