@@ -450,6 +450,9 @@ def test_closed_stdout(repo, env, folder):
         file.write_text(original)
 
 
+# Every git call and flow run in this file: no global or system git config (signing, hooks, aliases), a fixed author.
+GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\nsite = "site"\nshots = "tmp/shots"\n'
 RED_BUILD = "- build: block:red-first-check\n"  # the catalog line most block tests start from
 
@@ -461,11 +464,11 @@ def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None):
     (home / ".flow" / "domains.md").write_text("## any\n" + catalog, encoding="utf-8")
     (home / ".flow" / "app" / "profile.md").write_text("Domains: any\nRepo rules: none\n", encoding="utf-8")
     repo.mkdir(exist_ok=True)
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, env={**os.environ, **GIT_ENV}, check=True)
     if repo_toml is not None:
         (repo / ".blocks.toml").write_text(repo_toml, encoding="utf-8")
     run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], cwd=repo,
-                                    env={**os.environ, "HOME": str(home), **(env or {})}, capture_output=True, text=True)
+                                    env={**os.environ, **GIT_ENV, "HOME": str(home), **(env or {})}, capture_output=True, text=True)
     out = run("start", *args)
     folder = Path(out.stdout.splitlines()[0]) if out.returncode == 0 else None
     return out, folder, repo, run
@@ -767,7 +770,7 @@ def test_review_read_encoding(tmp):
     assert_ascii_locale()
     out, folder, repo, run = blocks_start(tmp, "review-ascii", "- review: block:web-ui-basics\n", env=ASCII_ENV)
     assert out.returncode == 0 and "…" in step_text(folder, "06-review"), out.stderr
-    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "one"],
+    subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "one"], env={**os.environ, **GIT_ENV},
                    cwd=repo, check=True)
 
     def mark(step, extra=""):
@@ -778,7 +781,8 @@ def test_review_read_encoding(tmp):
         mark(step)
     out = run("take", folder, "06-review", "a")
     assert out.returncode == 0, out.stderr
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env={**os.environ, **GIT_ENV},
+                          capture_output=True, text=True, check=True).stdout.strip()
     review = repo / "tmp" / "review-check" / "range-1"
     review.mkdir(parents=True)
     (review / "03-verdict.md").write_text("Status: done x\nUses:\nVerdict: APPROVE (1 of 1 units; 0 fix)\n- note: …\n", encoding="utf-8")
@@ -928,8 +932,7 @@ with tempfile.TemporaryDirectory() as tmp:
     (home / ".flow" / "domains.md").write_text(f"## any\n- build: {rule}\n## web\n- build: {rule}, /nope.md\n")
     (home / ".flow" / "app" / "profile.md").write_text("Domains: any\nRepo rules: none\n")
     repo.mkdir()
-    env = {**os.environ, "HOME": str(home), "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+    env = {**os.environ, **GIT_ENV, "HOME": str(home)}
     run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], cwd=repo, env=env, capture_output=True, text=True)
     git = lambda *a: subprocess.run(["git", *a], cwd=repo, env=env, capture_output=True, text=True, check=True).stdout.strip()
     git("init", "-q", "-b", "main")
