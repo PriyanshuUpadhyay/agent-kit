@@ -15,8 +15,8 @@ Source: references/explain-formats.md:7-8, :16-27, :36-37; html-plan pack: skill
 - The caption is one sentence: what to notice.
 
 ## Example
-Initial state: claim 2 needs "how one request flows through `tracer`". The source `docs/architecture.md:10-24` names CLI, agent, collector, and store, with a retry when the collector is down.
-Action: the shape is calls over time, so draw a sequence: 4 lanes, 5 arrows, plus a `retry x3` branch that ends at "dropped, logged". Caption: "The agent buffers spans, so a collector outage loses nothing for 30 s."
+Initial state: claim 2 needs "how one request flows through `tracer`". The source `docs/architecture.md:10-24` names CLI, agent, collector, and store, with 3 retries when the collector is down, after which the span is dropped and logged.
+Action: the shape is calls over time, so draw a sequence: 4 lanes, 5 arrows, plus a `retry x3` branch that ends at "dropped, logged". Caption: "When the collector is down, a span gets 3 retries and is then dropped and logged." Each node and the caption trace to that source line.
 Result: one diagram with 5 nodes (4 lanes and "dropped, logged") and every branch ending at a node.
 
 ## Check (script)
