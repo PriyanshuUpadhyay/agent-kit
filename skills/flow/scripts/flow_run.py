@@ -222,7 +222,7 @@ def resolve_blocks(root, wanted, profile_name):
     for block, reason in off.items():
         if block not in files:
             raise SystemExit(f"unknown block id {block} in [off] of {repo_file}")
-        if not str(reason).strip():
+        if not isinstance(reason, str) or not reason.strip():
             raise SystemExit(f"[off] {block} needs a reason in {repo_file}")
 
     named = {}

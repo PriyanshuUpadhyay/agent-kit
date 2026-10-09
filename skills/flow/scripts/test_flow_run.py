@@ -549,6 +549,10 @@ def test_block_fail_closed(tmp):
     cases = [
         ("unknown", "- build: block:nope\n", PARAMS, (), "unknown block id nope"),
         ("off-empty", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = " "\n', (), "[off] html-diagram needs a reason"),
+        ("off-list", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = []\n', (), "[off] html-diagram needs a reason"),
+        ("off-table", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = {}\n', (), "[off] html-diagram needs a reason"),
+        ("off-number", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = 3\n', (), "[off] html-diagram needs a reason"),
+        ("off-false", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = false\n', (), "[off] html-diagram needs a reason"),
         ("off-unknown", "- design: block:tech-diagram\n", PARAMS + '[off]\nnope = "x"\n', (), "unknown block id nope"),
         ("duplicate", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["red-first-check.md"]\n', (), "duplicate block id red-first-check"),
         ("profile", "- build: block:red-first-check\n", PARAMS, ("--profile", "nope"), "unknown profile nope"),
