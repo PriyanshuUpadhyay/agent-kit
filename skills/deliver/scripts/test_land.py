@@ -97,9 +97,36 @@ class LandTests(unittest.TestCase):
         result = self.run_land({self.one: [name], self.two: []})
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_filename_with_carriage_return(self):
+        name = "carriage\rreturn.txt"
+        self.commit(self.one, name, "carriage return file")
+        result = self.run_land({self.one: [name], self.two: []})
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_terminal_controls(self):
+        original = self.one
+        self.one = self.root / "one\x1b[2J\x85"
+        self.git(self.main, "worktree", "move", str(original), str(self.one))
+        self.commit(self.one, "one.txt", "\x1b[2Jsubject\x01\x7f\x85")
+        result = self.run_land({self.one: ["one.txt"], self.two: []})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for control in ("\x1b", "\x01", "\x7f", "\x85"):
+            self.assertNotIn(control, result.stdout)
+        self.assertIn("one[2J", result.stdout)
+        self.assertIn("[2Jsubject", result.stdout)
+
+    def test_closed_stdout(self):
+        self.run_land({self.one: [], self.two: []})
+        with subprocess.Popen([sys.executable, SCRIPT, self.decl, self.one, self.two],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+            child.stdout.close()
+            errors = child.stderr.read()
+            self.assertEqual(child.wait(), 0, errors)
+            self.assertEqual(errors, b"")
+
     def test_base_override(self):
         self.commit(self.one, "one.txt", "first fix")
-        result = self.run_land({self.one: [], self.two: []}, order=(self.one,), base="HEAD")
+        result = self.run_land({self.one: [], self.two: []}, base="HEAD")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("first fix", result.stdout)
         result = self.run_land({self.one: ["one.txt"], self.two: []}, base=self.base)
@@ -129,6 +156,12 @@ class LandTests(unittest.TestCase):
 
     def test_missing_worktree_declaration(self):
         self.refuse(self.run_land({self.one: []}), "has no declared files")
+
+    def test_declared_worktree_missing_from_command_line(self):
+        result = self.run_land({self.one: [], self.two: []}, order=(self.one,))
+        self.refuse(result, f"{self.two} is declared but missing from the command line")
+        result = self.run_land({self.one: [], self.two: []}, order=(self.two,), base="HEAD")
+        self.refuse(result, f"{self.one} is declared but missing from the command line")
 
 
 if __name__ == "__main__":

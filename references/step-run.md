@@ -26,7 +26,7 @@ names its own script. `start <folder> <SKILL.md>` writes one file per table row,
 the row holds and a `## Result` section. `take <folder> <step> <agent>` marks a step active and fills
 its `Uses:` line. `done <folder> <step>` sets the step done only when every todo is checked with its
 evidence after the colon. `status <folder>` also names each stale step. Never set a step done by hand.
-`take` refuses a step active for another agent; use `--force` after confirming that run is gone.
+`take` refuses a step active for another agent; use `--force` after confirming that run is gone; it also clears a stale `<folder>/<step>.lock`.
 `take` and `done` add one line to `<folder>/events.log` with the time, the step, and the event, so the
 path of a run, and not only its last state, stays readable. A skill script with its own step graph
 or revision, such as flow's `flow_run.py`, imports these functions and passes its own.

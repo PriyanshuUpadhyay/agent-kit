@@ -4,7 +4,12 @@ import os
 import subprocess
 import sys
 import tempfile
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
+
+import flow_run
 
 SCRIPT = Path(__file__).with_name("flow_run.py")
 
@@ -13,6 +18,55 @@ def fill(f, evidence="evidence"):
     """Check every todo of a step file with evidence, as an agent would."""
     f.write_text("".join(l.replace("- [ ]", "- [x]").rstrip() + (f" {evidence}\n" if l.startswith("- [") and l.rstrip().endswith(":") else "\n")
                          for l in f.read_text().splitlines()))
+
+
+def test_take_force(run, folder):
+    file = folder / "01-frame.md"
+    original = file.read_text()
+    assert run("take", folder, "01-frame", "agent-a").returncode == 0
+    refused = run("take", folder, "01-frame", "agent-b")
+    assert refused.returncode != 0 and "active for agent-a" in refused.stderr
+    for args, who in (([folder, "01-frame", "agent-b", "--force"], "agent-b"),
+                      (["--force", folder, "01-frame", "agent-c"], "agent-c"),
+                      ([folder, "01-frame", "--force", "agent-d"], "agent-d")):
+        out = run("take", *args)
+        assert out.returncode == 0, out.stderr
+        assert file.read_text().startswith(f"Status: active {who}\n")
+        assert not (folder / "01-frame.lock").exists()
+        assert (folder / "events.log").read_text().splitlines()[-1].endswith(f"\t01-frame\ttake {who}")
+    file.write_text(original)
+
+
+def test_take_requires_who(run, folder):
+    file = folder / "01-frame.md"
+    original = file.read_text()
+    events = (folder / "events.log").read_text()
+    for args in ((folder, "01-frame"), (folder, "01-frame", "--force")):
+        out = run("take", *args)
+        assert out.returncode != 0, "take without who must refuse the claim"
+        assert "who" in out.stderr and "Traceback" not in out.stderr, out.stderr
+        assert file.read_text() == original
+        assert (folder / "events.log").read_text() == events
+        assert not (folder / "01-frame.lock").exists()
+
+
+def test_atomic_skip(folder):
+    file = folder / "02-design.md"
+    original = file.read_text()
+    real_replace = os.replace
+    replaced = []
+
+    def check_replace(source, destination):
+        assert file.read_text() == original, "skip must preserve the old file until replacement"
+        assert source == file.with_suffix(".md.tmp") and destination == file
+        real_replace(source, destination)
+        replaced.append(destination)
+
+    with redirect_stdout(StringIO()), patch.object(flow_run.step_run.os, "replace", check_replace):
+        flow_run.skip(folder, "02-design", "no", "UI")
+    assert replaced == [file], "skip must replace the file atomically"
+    assert file.read_text().startswith("Status: skipped no UI\n")
+    file.write_text(original)
 
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -47,12 +101,16 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "\nRevision: HEAD\n" in (folder / "05-build.md").read_text()
     assert "Revision:" not in (folder / "06-review.md").read_text()
 
-    blocked = run("take", folder, "05-build")
+    test_take_force(run, folder)
+    test_take_requires_who(run, folder)
+
+    blocked = run("take", folder, "05-build", "a")
     assert blocked.returncode != 0 and "needs 04-impact, 02-design" in blocked.stderr
 
     # Only design, contracts, and impact can be skipped, and only with a reason.
     assert "cannot be skipped" in run("skip", folder, "05-build", "small").stderr
     assert "needs a reason" in run("skip", folder, "02-design").stderr
+    test_atomic_skip(folder)
     assert run("skip", folder, "02-design", "no", "UI").returncode == 0
     assert (folder / "02-design.md").read_text().startswith("Status: skipped no UI\n")
 

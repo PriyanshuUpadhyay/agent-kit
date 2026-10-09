@@ -41,8 +41,9 @@ python3 $C verdict <run>            # exits 1 with the gaps, or writes 03-verdic
 
 Use `build <run>` for a pushed head. Use `--run` for an unpushed head or `local`. A range build
 uses a persistent detached worktree at `<repo>/tmp/review-check/verify`, checked out at the
-reviewed head. The live checkout can move while the build runs. A dirty verify worktree blocks
-the build. A `local` build uses the live tree and prints that limit.
+reviewed head. The live checkout can move while the build runs. `build --run` resets and cleans
+the scratch verify worktree before checkout; ignored files stay. A `local` build uses the live tree and prints that limit.
+If CI needs untracked files (`node_modules`, `.env`, generated code), use `build <run>` or install them in `tmp/review-check/verify` once; only ignored files stay between builds.
 Build may run while seats work, because seats never judge build-gate IDs.
 
 Run it from the repo root. The run folder is `<repo-root>/tmp/review-check/<run>/`, where `<run>`

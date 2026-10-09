@@ -8,6 +8,8 @@ Without --base, use each worktree's merge-base with the main checkout's HEAD.
 """
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -15,10 +17,10 @@ from pathlib import Path
 
 def git(worktree, *args):
     result = subprocess.run(["git", "-C", str(worktree), *args],
-                            capture_output=True, text=True, encoding="utf-8")
+                            capture_output=True)
     if result.returncode:
-        raise ValueError(f"Git failed in {worktree}: {result.stderr.strip()}")
-    return result.stdout
+        raise ValueError(f"Git failed in {worktree}: {result.stderr.decode('utf-8').strip()}")
+    return result.stdout.decode("utf-8")
 
 
 def file_list(value, label):
@@ -35,6 +37,9 @@ def land(declaration, worktrees, base=None):
                 for w, files in payload["worktrees"].items()}
     frozen = file_list(payload.get("frozen_interfaces"), "frozen_interfaces")
     worktrees = [Path(w).resolve() for w in worktrees]
+    for worktree in declared:
+        if worktree not in worktrees:
+            raise ValueError(f"{worktree} is declared but missing from the command line")
     main_head = None
     if base is None:
         first = git(worktrees[0], "worktree", "list", "--porcelain", "-z").split("\0", 1)[0]
@@ -60,9 +65,9 @@ def land(declaration, worktrees, base=None):
         commits = git(worktree, "log", "--oneline", f"{start}..HEAD", "--").rstrip("\n")
         order.append((worktree, commits))
     for index, (worktree, commits) in enumerate(order, 1):
-        print(f"{index}. {worktree}")
+        print(re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "", f"{index}. {worktree}"))
         if commits:
-            print(commits)
+            print(re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "", commits))
 
 
 def main():
@@ -80,4 +85,14 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
+    try:
+        code = main()
+        sys.stdout.flush()
+    except BrokenPipeError:
+        fd = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(fd, sys.stdout.fileno())
+        os.close(fd)
+        code = 0
+    sys.exit(code)

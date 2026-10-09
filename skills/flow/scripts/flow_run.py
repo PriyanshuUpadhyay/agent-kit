@@ -3,7 +3,7 @@
 
   start                        make tmp/flow/<date>-<branch>/ with the seven step files
   status [<folder>]            print each step's status, whether it is ready, and whether it is stale
-  take <folder> <step> [<who>] mark the step active and print its file with the skills the catalog gives it
+  take <folder> <step> <who> [--force] mark the step active and print its file with the skills the catalog gives it
   done <folder> <step>         set the step done, only when every todo is checked with evidence
   skip <folder> <step> <why>   skip design, contracts, or impact, with the reason
 
@@ -140,7 +140,7 @@ def skill_paths(step):
     return list(dict.fromkeys(paths)) + [str(root / r) for r in repo_rules]
 
 
-def take(folder, step, who="agent"):
+def take(folder, step, who, force=False):
     need = graph().get(step)
     if need is None:
         raise SystemExit(f"unknown step {step}; steps are {', '.join(graph())}")
@@ -155,7 +155,7 @@ def take(folder, step, who="agent"):
         approved(folder)
     if step == "04-impact":
         write_callers(Path(folder))
-    step_run.take(folder, step, who, need, rev)
+    step_run.take(folder, step, who, need, rev, force=force)
 
 
 def done(folder, step):
@@ -171,7 +171,7 @@ def skip(folder, step, *why):
     file = Path(folder) / f"{step}.md"
     if status_of(folder, step).split()[0] not in ("open", "active"):
         raise SystemExit(f"{step} is {status_of(folder, step)}; only an open or active step can be skipped")
-    file.write_text(f"Status: skipped {reason}\n" + file.read_text().split("\n", 1)[1])
+    step_run.write_step(file, f"Status: skipped {reason}\n" + file.read_text(encoding="utf-8").split("\n", 1)[1])
     step_run.log(folder, step, f"skip {reason}")
     print(f"{step}: skipped {reason}")
 
@@ -245,4 +245,12 @@ if __name__ == "__main__":
     commands = {"start": start, "status": status, "take": take, "done": done, "skip": skip}
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
-    commands[sys.argv[1]](*sys.argv[2:])
+    args = sys.argv[2:]
+    if sys.argv[1] == "take":
+        force = "--force" in args
+        args = [arg for arg in args if arg != "--force"]
+        if len(args) != 3:
+            raise SystemExit("take needs <folder> <step> <who> [--force]; who is required")
+        take(*args, force=force)
+    else:
+        commands[sys.argv[1]](*args)

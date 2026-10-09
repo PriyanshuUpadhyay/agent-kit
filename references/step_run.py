@@ -79,6 +79,12 @@ def log(folder, step, event):
         f.write(f"{datetime.datetime.now().isoformat(timespec='seconds')}\t{step}\t{event}\n")
 
 
+def write_step(file, text):
+    temporary = file.with_suffix(".md.tmp")
+    temporary.write_text(text, encoding="utf-8")
+    os.replace(temporary, file)
+
+
 def start(folder, skill_md):
     folder = Path(folder)
     rows = table(skill_md)
@@ -104,14 +110,16 @@ def status(folder, need_of=None, rev=revision):
 
 def take(folder, step, who, need=None, rev=revision, force=False):
     lock = Path(folder) / f"{step}.lock"
+    if force:
+        lock.unlink(missing_ok=True)
     try:
         fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
-        raise SystemExit(f"{step} is being claimed; try again")
+        raise SystemExit(f"{step} is being claimed; try again. If the run is gone, delete {lock} or use --force to clear it") from None
     try:
         os.close(fd)
         file = Path(folder) / f"{step}.md"
-        lines = file.read_text().split("\n")
+        lines = file.read_text(encoding="utf-8").split("\n")
         owner = lines[0].removeprefix("Status: ")
         if owner.startswith("active ") and owner != f"active {who}" and not force:
             raise SystemExit(f"{step} is active for {owner.removeprefix('active ')}; use --force if that run is gone")
@@ -120,7 +128,7 @@ def take(folder, step, who, need=None, rev=revision, force=False):
             raise SystemExit(f"{step} is not ready; it needs {', '.join(need)}")
         uses = ", ".join(f"{n}@{rev(folder, n)}" for n in need)
         text = "\n".join([f"Status: active {who}", f"Uses: {uses}", *lines[2:]])
-        file.write_text(text)
+        write_step(file, text)
     finally:
         lock.unlink()
     log(folder, step, f"take {who}")
@@ -129,25 +137,34 @@ def take(folder, step, who, need=None, rev=revision, force=False):
 
 def done(folder, step, rev=None):
     file = Path(folder) / f"{step}.md"
-    text = file.read_text()
+    text = file.read_text(encoding="utf-8")
     todo = text.split(TODO_HEAD, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_HEAD in text else ""
     open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
     empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.split(":", 1)[-1].strip()]
     if open_items or empty:
         raise SystemExit(f"{step} is not done:\n" + "\n".join(open_items + [f"no evidence: {l}" for l in empty]))
     rev = rev or revision(folder, step)
-    file.write_text(f"Status: done {rev}\n" + text.split("\n", 1)[1])
+    write_step(file, f"Status: done {rev}\n" + text.split("\n", 1)[1])
     log(folder, step, f"done {rev}")
     print(f"{step}: done {rev}")
 
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="backslashreplace")
     commands = {"start": start, "status": status, "take": take, "done": done}
     if len(sys.argv) < 3 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
-    args = sys.argv[2:]
-    if sys.argv[1] == "take":
-        force = "--force" in args
-        take(*(arg for arg in args if arg != "--force"), force=force)
-    else:
-        commands[sys.argv[1]](*args)
+    try:
+        args = sys.argv[2:]
+        if sys.argv[1] == "take":
+            force = "--force" in args
+            take(*(arg for arg in args if arg != "--force"), force=force)
+        else:
+            commands[sys.argv[1]](*args)
+        sys.stdout.flush()
+    except BrokenPipeError:
+        fd = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(fd, sys.stdout.fileno())
+        os.close(fd)
+        sys.exit(0)

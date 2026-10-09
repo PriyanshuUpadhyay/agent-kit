@@ -141,8 +141,9 @@ def test_build_gate():
 
 
 def test_shards():
-    catalog = [{"id": f"C-{n}", "source": "lens.md"} for n in range(1, 501)]
-    catalog += [{"id": "PY-1", "source": "lens-python.md"}, {"id": "T-1", "source": "project.md"}]
+    catalog = [{"id": f"C-{n}", "source": "lens.md", "aspect": "lens"} for n in range(1, 501)]
+    catalog += [{"id": "PY-1", "source": "lens-python.md", "aspect": "lang"},
+                {"id": "T-1", "source": "project.md", "aspect": "repo"}]
     checklist = {f"u{i}": {"rules": [f"C-{n}" for n in range(1, size + 1)], "tool": [], "refs": {}}
                  for i, size in enumerate([80, 70, 70, 70, 70, 70, 70], 1)}
     checklist["u1"]["rules"] += ["PY-1", "T-1", "REF"]
@@ -164,6 +165,32 @@ def test_shards():
     assert list(rc.seat_map(large_unit, catalog)) == ["lens"], "a whole unit cannot be split"
 
 
+def test_repo_rules_origin():
+    previous = Path.cwd()
+    with tempfile.TemporaryDirectory() as folder:
+        try:
+            repo = Path(folder) / "lens-api"
+            repo.mkdir()
+            os.chdir(repo)
+            sh("git", "init", "-qb", "main")
+            sh("git", "config", "user.email", "t@t")
+            sh("git", "config", "user.name", "t")
+            base = commit({"value.py": "value = 1\n"}, "base")
+            head = commit({"value.py": "value = 2\n"}, "head")
+            rules = Path.home() / ".review-check" / "rules" / "lens-api.md"
+            rules.parent.mkdir(parents=True, exist_ok=True)
+            rules.write_text("Files: `**/*.py`\n- `REPO-901` a project rule\n")
+            rc.start(f"{base}..{head}")
+            run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
+            checklist = load_checklist(run)
+            unit = next(iter(checklist.values()))
+            assert unit["owners"]["REPO-901"] == "repo", unit
+            seats = json.loads((run / "checklist.json").read_text())["seats"]
+            assert seats["repo"]["checks"] == 1 and seats["repo"]["route"] == "review.check"
+        finally:
+            os.chdir(previous)
+
+
 def test_seat_gaps():
     previous = Path.cwd()
     with tempfile.TemporaryDirectory() as folder:
@@ -172,15 +199,16 @@ def test_seat_gaps():
             sh("git", "init", "-qb", "main")
             sh("git", "config", "user.email", "t@t")
             sh("git", "config", "user.name", "t")
-            base = commit({"util.py": "value = 1\n"}, "base")
-            head = commit({"util.py": "value = 2\n"}, "head")
-            catalog = [{"id": f"C-{n}", "source": "lens.md", "files": ["**/*"], "applies": None,
+            base = commit({"util.py": "value = 1\n", "README.md": "old docs\n"}, "base")
+            head = commit({"util.py": "value = 2\n", "README.md": "new docs\n"}, "head")
+            catalog = [{"id": f"C-{n}", "source": "lens.md", "aspect": "lens", "files": ["**/*.py"], "applies": None,
                         "check": [], "scope": None} for n in range(1, 6)]
             with patch.object(rc, "load_rules", return_value=catalog):
                 rc.start(f"{base}..{head}")
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
             checklist = load_checklist(run)
-            uid = next(iter(checklist))
+            units = {u["file"]: u["id"] for u in json.loads((run / "units.json").read_text())}
+            uid, docs = units["util.py"], units["README.md"]
             # Keep this test small, with two named owners and one foreign answer.
             checklist[uid]["rules"] = ["C-1", "PY-1"]
             checklist[uid]["owners"] = {"C-1": "lens-1", "PY-1": "lang"}
@@ -188,9 +216,9 @@ def test_seat_gaps():
             (run / "checklist.json").write_text(json.dumps(checklist | {"seats": seats}))
             row = f"| {uid} | PY-1 | util.py:1 | `value = 2` | pass | | the value has no caller |\n"
             (run / "02-review-lens-1.md").write_text(row)
-            # Neither a stray seat nor the solo file can fill a named owner's gap.
+            # A stray seat cannot fill a named owner's gap. The chair covers a unit with no rules.
             (run / "02-review-stray.md").write_text(row)
-            rows(run, row)
+            rows(run, f"| {docs} | - | README.md:1 | `new docs` | pass | | this unit only changes prose |")
             with redirect_stdout(StringIO()) as out:
                 assert rc.verdict(run.name) == 1
             text = out.getvalue()
@@ -205,6 +233,83 @@ def test_seat_gaps():
             assert "Verdict: APPROVE" in (run / "03-verdict.md").read_text()
         finally:
             os.chdir(previous)
+
+
+def test_missing_verify_directory(run, verify, head):
+    shutil.rmtree(verify)
+    rc.build(run.name, "--run")
+    assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
+    assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
+
+
+def test_verify_tree_cleanup(run, verify, head):
+    (verify / "value.txt").write_text("dirty verify tree\n")
+    (verify / "staged.txt").write_text("staged output\n")
+    sh("git", "-C", str(verify), "add", "staged.txt")
+    (verify / "output.txt").write_text("untracked output\n")
+    (verify / "ignored.txt").write_text("cached input\n")
+    exclude = Path(sh("git", "rev-parse", "--git-common-dir")) / "info" / "exclude"
+    with exclude.open("a") as file:
+        file.write("ignored.txt\n")
+    rc.build(run.name, "--run")
+    assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
+    assert (verify / "value.txt").read_text() == "later\n"
+    assert not (verify / "staged.txt").exists() and not (verify / "output.txt").exists()
+    assert (verify / "ignored.txt").read_text() == "cached input\n"
+    assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
+
+
+def test_verify_build_lock(run, verify):
+    lock = verify.with_suffix(".lock")
+    original = (run / "build.json").read_text()
+    head = sh("git", "-C", str(verify), "rev-parse", "HEAD")
+    lock.write_text("")
+    try:
+        try:
+            rc.build(run.name, "--run")
+            raise AssertionError("build must refuse an existing verify lock")
+        except SystemExit as error:
+            assert str(error) == "verify worktree busy; wait for the other build", error
+        assert lock.exists() and (run / "build.json").read_text() == original
+        assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
+    finally:
+        lock.unlink()
+    target = json.loads((run / "target.json").read_text())
+    checking_lock = {**target, "ci": {**target["ci"], "cmd": "test -f ../verify.lock"}}
+    (run / "target.json").write_text(json.dumps(checking_lock))
+    try:
+        rc.build(run.name, "--run")
+        assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
+        assert not lock.exists(), "build must release the lock after its command"
+        checking_lock["ci"]["cmd"] = "false"
+        (run / "target.json").write_text(json.dumps(checking_lock))
+        rc.build(run.name, "--run")
+        assert json.loads((run / "build.json").read_text())["conclusion"] == "failure"
+        assert not lock.exists(), "a failed command must release the lock"
+    finally:
+        (run / "target.json").write_text(json.dumps(target))
+
+
+def test_pushed_build_without_verify(run, verify, head):
+    verify.mkdir()
+    gh_result = {"check_runs": [{"id": 1, "status": "completed", "conclusion": "success",
+                                 "html_url": "https://example.invalid/check/1"}]}
+    real_run = subprocess.run
+    calls = []
+
+    def stub_gh(args, **kwargs):
+        if args[0] == "gh":
+            calls.append((args, kwargs))
+            return subprocess.CompletedProcess(args, 0, json.dumps(gh_result), "")
+        return real_run(args, **kwargs)
+
+    with patch.object(rc.subprocess, "run", stub_gh):
+        rc.build(run.name)
+    result = json.loads((run / "build.json").read_text())
+    assert result["source"] == "check-run" and result["head"] == head
+    assert result["conclusion"] == "success" and result["tail"] == ["https://example.invalid/check/1"]
+    assert len(calls) == 1 and Path(calls[0][1]["cwd"]).resolve() == Path.cwd().resolve()
+    assert verify.is_dir() and not (verify.parent / "verify.lock").exists()
 
 
 def test_frozen_build():
@@ -223,7 +328,7 @@ def test_frozen_build():
                 rc.start(f"{base}..{head}")
             run = Path("tmp/review-check") / f"range-{base[:7]}-{head[:7]}-01"
             verify = Path("tmp/review-check/verify").resolve()
-            verify.mkdir()
+            test_pushed_build_without_verify(run, verify, head)
             try:
                 rc.build(run.name, "--run")
                 raise AssertionError("an ordinary directory was used as a verify worktree")
@@ -240,18 +345,16 @@ def test_frozen_build():
             assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3
             rc.build(run.name, "--run")
             assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3, "verify was not reused"
+            test_missing_verify_directory(run, verify, head)
+            test_verify_build_lock(run, verify)
             target = json.loads((run / "target.json").read_text())
             target["head"] = moved
             target["ci"]["cmd"] = "test $(cat value.txt) = later"
             (run / "target.json").write_text(json.dumps(target))
             rc.build(run.name, "--run")
             assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == moved, "verify did not move to the next head"
-            Path(verify / "value.txt").write_text("dirty verify tree\n")
-            try:
-                rc.build(run.name, "--run")
-                raise AssertionError("a dirty verify tree gave proof")
-            except SystemExit as e:
-                assert "verify worktree is not clean" in str(e), e
+            test_verify_tree_cleanup(run, verify, moved)
+            assert Path("value.txt").read_text() == "dirty live tree\n", "cleanup changed the live tree"
             target["head"] = None
             target["ci"]["cmd"] = 'test "$(cat value.txt)" = "dirty live tree"'
             (run / "target.json").write_text(json.dumps(target))
@@ -978,6 +1081,7 @@ if __name__ == "__main__":
         sh("git", "config", "user.name", "t")
         main()
         test_build_gate()
+        test_repo_rules_origin()
         test_seat_gaps()
         test_frozen_build()
         test_cli_encoding()

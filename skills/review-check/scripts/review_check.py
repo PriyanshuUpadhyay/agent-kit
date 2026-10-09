@@ -19,7 +19,7 @@ only from it.
 `--patch` reviews that patch instead of the whole range, for example review-walk's diff since view.
 `verdict` exits 1 when the gate fails, so a caller cannot read an APPROVE that no one earned.
 """
-import fnmatch, hashlib, json, re, shutil, subprocess, sys, urllib.parse
+import fnmatch, hashlib, json, os, re, shutil, subprocess, sys, urllib.parse
 from pathlib import Path
 
 KINDS = ("pass", "fix", "ask", "note", "n/a")
@@ -72,10 +72,11 @@ def globs_of(text):
     return [g.strip() for g in re.split(r",(?![^{]*\})", text)]  # a comma inside {a,b} is not a separator
 
 
-def load_rules(files):
-    """[{id, files, applies, source}] from every rule line; a file's `Files:` header is the default."""
+def load_rules(files, repo_file=None):
+    """[{id, files, applies, source, aspect}] from rule lines, with the repo file identified by its caller."""
     rules = []
     for f in files:
+        aspect = "repo" if f == repo_file else "lens" if f.name == "lens.md" else "lang"
         default = ["**/*"]
         for line in f.read_text(encoding="utf-8").splitlines():
             head = re.match(r"^Files: `([^`]+)`", line)
@@ -88,7 +89,7 @@ def load_rules(files):
             applies = re.search(r"Applies: `([^`]+)`", m.group(2))
             check = re.search(r"Check: `([^`]+)`", m.group(2))
             scope = re.search(r"Scope: (\w+)", m.group(2))
-            rules.append({"id": m.group(1), "source": f.name,
+            rules.append({"id": m.group(1), "source": f.name, "aspect": aspect,
                           "files": globs_of(globs.group(1)) if globs else default,
                           "applies": re.compile(applies.group(1)) if applies else None,
                           "check": [c.strip() for c in check.group(1).split(",")] if check else [],
@@ -254,8 +255,7 @@ def units_of(path, info, source):
 
 def seat_map(checklist, catalog):
     """Assign whole units to contiguous shards, minimizing the largest check count."""
-    aspects = {r["id"]: "lens" if r["source"] == "lens.md" else
-               "lang" if r["source"].startswith("lens-") else "repo" for r in catalog}
+    aspects = {r["id"]: r["aspect"] for r in catalog}
     aspects["REF"] = "refs"
     seats = {}
     for aspect in ("lens", "lang", "repo", "refs"):
@@ -361,7 +361,7 @@ def start(target, *opts):
 
     rules = Path.home() / ".review-check" / "rules" / f"{repo_name()}.md"
     catalog = load_rules(sorted((Path(__file__).resolve().parent.parent / "references").glob("lens*.md"))
-                         + ([rules] if rules.exists() else []))
+                         + ([rules] if rules.exists() else []), repo_file=rules)
     ci = ci_of(rules)
     cfg = lint_config(ci, head)
     (d / "target.json").write_text(json.dumps({"target": target, "base": base, "head": head, "ci": ci,
@@ -418,13 +418,14 @@ def verify_tree(head):
     """Keep range builds apart from the live checkout, at the reviewed commit."""
     verify = home() / "verify"
     if not verify.exists():
+        git("worktree", "prune")
         git("worktree", "add", "--detach", str(verify), head)
     else:
         root = git("-C", str(verify), "rev-parse", "--show-toplevel", check=False).strip()
         if not root or Path(root).resolve() != verify.resolve():
             raise SystemExit(f"verify path is not its own git worktree: {verify}")
-        if git("-C", str(verify), "status", "--porcelain"):
-            raise SystemExit(f"verify worktree is not clean: {verify}; keep its changes before running build again")
+        git("-C", str(verify), "reset", "-q", "--hard")
+        git("-C", str(verify), "clean", "-qfd")
         git("-C", str(verify), "checkout", "--detach", head)
     return verify
 
@@ -436,11 +437,24 @@ def build(name, *opts):
     ci, head = t["ci"], t["head"]
     if not ci:
         raise SystemExit("the repo rules file has no `CI:` line, so this run has no build gate")
-    cwd = verify_tree(head) if head else Path.cwd()
+    cwd = Path.cwd()
     if opts[:1] == ("--run",):
         if not head:
             print("build: local target; proof is from the live tree")
-        r = subprocess.run(["bash", "-c", ci["cmd"]], cwd=cwd, capture_output=True, text=True)
+        lock = home() / "verify.lock" if head else None
+        if lock:
+            try:
+                fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                raise SystemExit("verify worktree busy; wait for the other build") from None
+        try:
+            if lock:
+                os.close(fd)
+                cwd = verify_tree(head)
+            r = subprocess.run(["bash", "-c", ci["cmd"]], cwd=cwd, capture_output=True, text=True)
+        finally:
+            if lock:
+                lock.unlink()
         result = {"source": "command", "name": ci["cmd"], "conclusion": "success" if r.returncode == 0 else "failure",
                   "tail": (r.stdout + r.stderr).splitlines()[-40:]}
     elif not head:
@@ -466,9 +480,10 @@ def build(name, *opts):
 
 
 def review_files(d, seats):
-    files = [d / f"02-review-{seat}.md" for seat in seats]
-    named = [f for f in files if f.exists()]
-    return named if named else [d / "02-review.md"] if seats else sorted(d.glob("02-review*.md"))
+    if not seats:
+        return sorted(d.glob("02-review*.md"))
+    files = [d / "02-review.md", *(d / f"02-review-{seat}.md" for seat in seats)]
+    return [f for f in files if f.exists()]
 
 
 def rows(d, seats=None):
