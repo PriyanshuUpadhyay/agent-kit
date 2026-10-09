@@ -28,6 +28,18 @@ def test_skip_text_encoding():
     assert not missing, f"skip test reads or writes without UTF-8 encoding at {missing}"
 
 
+def test_review_read_encoding():
+    """take and approved read 06-review.md, which holds UTF-8 block text; macOS reads UTF-8 under any
+    locale, so this parses the code instead of running it under LC_ALL=C."""
+    import ast
+    tree = ast.parse(Path(SCRIPT).read_text(encoding="utf-8"))
+    missing = [call.lineno for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in ("take", "approved")
+               for call in ast.walk(node) if isinstance(call, ast.Call)
+               and isinstance(call.func, ast.Attribute) and call.func.attr == "read_text"
+               and not any(kw.arg == "encoding" for kw in call.keywords)]
+    assert not missing, f"take or approved reads without UTF-8 encoding at {missing}"
+
+
 def test_command_wrong_count(run, folder):
     for command, args in (("start", ("extra",)), ("start", ("--profile",)), ("status", (folder, "extra")),
                           ("take", ()), ("take", (folder, "01-frame", "a", "extra")),
@@ -671,6 +683,7 @@ with tempfile.TemporaryDirectory() as tmp:
                for text in (p.read_text(encoding="utf-8") for p in folder.glob("0*.md")))
 
     test_skip_text_encoding()
+    test_review_read_encoding()
     test_command_wrong_count(run, folder)
     test_done_wrong_count(run, folder)
     test_take_force(run, folder)

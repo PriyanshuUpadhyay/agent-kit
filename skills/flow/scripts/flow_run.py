@@ -309,7 +309,7 @@ def take(folder, step, who, force=False):
         waiting = [u for u in need if status_of(folder, u).split()[0] not in ("done", "skipped")]
         raise SystemExit(f"{step} is not ready; it needs {', '.join(waiting)}")
     if step == "06-review":
-        runs = len(re.findall(r"^Run:", (Path(folder) / "06-review.md").read_text(), re.M))
+        runs = len(re.findall(r"^Run:", (Path(folder) / "06-review.md").read_text(encoding="utf-8"), re.M))
         if runs >= 2:
             print(f"06-review already lists {runs} runs; bring the open rows to the user before a new range")
     if step == "07-close":
@@ -340,16 +340,16 @@ def skip(folder, step, *why):
 def approved(folder):
     """Refuse 07-close unless 06-review names a review-check run whose verdict is APPROVE on HEAD.
     The verdict is read from the run's own 03-verdict.md, not from what the step file says."""
-    text = (Path(folder) / "06-review.md").read_text()
+    text = (Path(folder) / "06-review.md").read_text(encoding="utf-8")
     runs = re.findall(r"^Run: (\S+)", text, re.M)
     if not runs:
         raise SystemExit("07-close needs a `Run: tmp/review-check/<run>` line in 06-review.md")
     run = Path(git("rev-parse", "--show-toplevel")) / runs[-1]
-    lines = (run / "03-verdict.md").read_text().splitlines() if (run / "03-verdict.md").exists() else []
+    lines = (run / "03-verdict.md").read_text(encoding="utf-8").splitlines() if (run / "03-verdict.md").exists() else []
     verdict = lines[2] if len(lines) > 2 else f"no verdict in {run}/03-verdict.md"
     if not verdict.startswith("Verdict: APPROVE"):
         raise SystemExit(f"07-close needs an APPROVE verdict on HEAD. {runs[-1]} says: {verdict}")
-    head = json.loads((run / "target.json").read_text()).get("head", "") if (run / "target.json").exists() else ""
+    head = json.loads((run / "target.json").read_text(encoding="utf-8")).get("head", "") if (run / "target.json").exists() else ""
     if not head.startswith(rev(folder, "05-build")):
         raise SystemExit(f"{runs[-1]} covers {head[:12] or 'no head'}, but the build is now {rev(folder, '05-build')}; "
                          "run review-check on the new range")
