@@ -882,16 +882,21 @@ def test_look_grammar_colors(tmp):
 
 
 def test_diagram_shot_check(tmp):
-    """The diagram-correctness script check passes only with one 375 px diagram shot per figure on the page."""
+    """The diagram-correctness script check passes only with at least one figure on the page and one 375 px
+    diagram shot per figure."""
     root = Path(tmp, "shot-count")
-    (root / "site").mkdir(parents=True)
-    (root / "shots").mkdir()
-    (root / "site" / "index.html").write_text('<figure\n  class="a"><figcaption>A</figcaption></figure>\n'
-                                              "<figure><figcaption>B</figcaption></figure>\n", encoding="utf-8")
-    (root / "site" / "DESIGN.md").write_text("Wrap each diagram in <figure>.\n", encoding="utf-8")
+    root.mkdir()
     text = (flow_run.BLOCKS / "diagram-correctness.md").read_text(encoding="utf-8")
     command = re.search(r"`([^`]+)`", text.split("## Check (script)\n", 1)[1])[1].replace("{{site}}", "site").replace("{{shots}}", "shots")
     sh = lambda: subprocess.run(command, shell=True, cwd=root, capture_output=True, text=True).returncode
+    assert sh() != 0, "no site and no shots must fail"
+    (root / "site").mkdir()
+    (root / "shots").mkdir()
+    (root / "site" / "index.html").write_text("<p>no diagram</p>\n", encoding="utf-8")
+    assert sh() != 0, "a page with no figure and no shot must fail"
+    (root / "site" / "index.html").write_text('<figure\n  class="a"><figcaption>A</figcaption></figure>\n'
+                                              "<figure><figcaption>B</figcaption></figure>\n", encoding="utf-8")
+    (root / "site" / "DESIGN.md").write_text("Wrap each diagram in <figure>.\n", encoding="utf-8")
     (root / "shots" / "diagram-one-375.png").write_bytes(b"")
     assert sh() != 0, "two diagrams and one shot must fail"
     (root / "shots" / "diagram-two-375.png").write_bytes(b"")

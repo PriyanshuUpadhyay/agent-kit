@@ -19,7 +19,7 @@ Action: build the table. CLI `:11 match`, agent `:13 match`, collector `:15 matc
 Result: two findings, `site/index.html:88 - node "cache" not in docs/architecture.md` and `site/index.html:95 - retry arrow crosses "collector" label at 375 px`.
 
 ## Check (script)
-- `test "$(rg -o -g '*.html' '<figure(\s|>|$)' {{site}} | wc -l)" -eq "$(ls {{shots}}/diagram-*-375.png | wc -l)"` exits 0: there is one `diagram-<diagram>-375.png` shot per `<figure>` on the page, as html-diagram wraps each diagram in one, so every diagram was seen at phone width.
+- `n=$(rg -o -g '*.html' '<figure(\s|>|$)' {{site}} | wc -l); test "$n" -ge 1 && test "$n" -eq "$(ls {{shots}}/diagram-*-375.png | wc -l)"` exits 0: the page has at least one `<figure>`, and there is one `diagram-<diagram>-375.png` shot per `<figure>` on it, as html-diagram wraps each diagram in one, so every diagram was seen at phone width.
 
 ## Check (judge)
 - Does each source `path:line` in the tables hold the item its row maps? Quote each row and its source line.
