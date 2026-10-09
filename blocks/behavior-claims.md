@@ -13,8 +13,8 @@ Source: html-plan pack: skills/html-plan/SKILL.md:20-30 (tree levels), :75-78 (r
 - `01-frame.md` holds `Worktree:`, `Branch:`, goal, user, out of scope, done-when, and the shared assumptions for design and contracts.
 - Each done-when names the evidence that will prove it: a command, a screenshot, or a `file:line`.
 - Pre-mortem: imagine the page ships in 14 days and fails. Ask what went wrong, what you missed, and what you were overconfident about.
-- Sort each failure as a Tiger (real, has evidence), a Paper Tiger (overblown), or an Elephant (unsure, nobody checks it). If unsure, call it a Tiger.
-- Each launch-blocking Tiger gets one concrete mitigation.
+- Sort each failure as a Tiger (a real risk, with evidence), a Paper Tiger (a concern that is overblown), or an Elephant (a risk that nobody is discussing or checking). When you are not sure which kind a failure is, call it a Tiger.
+- Each launch-blocking Tiger gets one concrete mitigation. Each Elephant gets one step that investigates it before launch.
 
 ## Example
 Initial state: the user asks for "a landing page for `tracer`, our CLI, with three diagrams".
@@ -33,4 +33,4 @@ Result: read aloud, the three claims tell the whole page.
 - Is each level-1 claim one sentence that can be false, in 12 words or fewer? Quote each claim with its word count.
 - Do the level-1 claims, read alone, tell the whole change, and is no claim a file, a layer, or a step? Quote the claims.
 - Does each done-when name the evidence that will prove it (a command, a screenshot, a `file:line`)? Quote each done-when.
-- Does the pre-mortem list at least one Tiger, and does each launch-blocking Tiger have a mitigation? Quote each Tiger and its mitigation.
+- Does the pre-mortem list at least one Tiger, does each launch-blocking Tiger have a mitigation, and does each Elephant have an investigation step? Quote each Tiger and its mitigation, and each Elephant and its step.
