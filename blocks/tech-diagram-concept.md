@@ -4,7 +4,7 @@ Serves: design, build
 Source: references/explain-formats.md:7-8, :16-27, :36-37; html-plan pack: skills/html-plan/references/blocks.md:79-83 (doc-machine), :188, :192-193 (doc-flow), skills/html-plan/SKILL.md:119 (caption)
 
 ## Rules
-- Draw a diagram when the subject calls across three or more parts in an order that matters; adds, removes, or reorders a branch, a guard, or an async step; moves through a lifecycle, a status, or a retry flow; or changes a schema.
+- Draw a diagram when the subject calls across three or more parts in an order that matters; adds, removes, or reorders a branch, a guard, or an async step; moves through a lifecycle, a status, or a retry flow; or changes a schema or a data model.
 - Skip it for one file, a rename, a config value, or a list. Text already shows those.
 - Pick the type from the shape: a sequence for calls over time, a flowchart for decisions, a state diagram for a lifecycle, an entity diagram for a schema.
 - Every branch leads somewhere, so the diagram also shows the edge cases.
