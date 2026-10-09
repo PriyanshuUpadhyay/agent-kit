@@ -28,15 +28,16 @@ TODO_MARK = "## Todo ("
 RESULT_HEAD = "## Result"
 
 
-def todo_start(text, ends=(RESULT_HEAD,)):
-    """Where the step's own todo list starts, or -1. Rules text above it and agent text below it may both
-    hold a TODO_MARK line, so this is the first TODO_MARK line followed only by todo items or blank lines
-    up to a heading in `ends`: rules text never reaches one before the real list, and agent text comes
-    after it. A file with no such line has no todo list to trust, so callers refuse it."""
-    for head in re.finditer(rf"^{re.escape(TODO_MARK)}.*\n((?:- \[[ x]\].*\n|[ \t]*\n)*)(.*)", text, re.M):
-        if head[2] in ends:
-            return head.start()
-    return -1
+def todo_span(text, ends=(RESULT_HEAD,)):
+    """(start, end) of the step's own todo list, or (-1, -1). Rules text above it and agent text below it
+    may both hold a TODO_MARK line, so the head is the first TODO_MARK line whose next `## ` line is exactly
+    one of `ends`: rules text never reaches one before the real head, and agent text comes after it. The
+    list runs from the head to that end line; any other text (evidence, notes) may sit inside it. A file
+    with no such head has no todo list to trust, so callers refuse it."""
+    for head in re.finditer(rf"^(?={re.escape(TODO_MARK)}.*\n(?:(?!## ).*\n)*(## .*)$)", text, re.M):
+        if head[1] in ends:
+            return head.start(), head.start(1)
+    return -1, -1
 
 
 def plain(text, *, keep_newlines=False):
@@ -181,11 +182,12 @@ def done(folder, step, rev=None, ends=(RESULT_HEAD,)):
     with step_lock(folder, step, command="done"):
         file = Path(folder) / f"{step}.md"
         text = file.read_text(encoding="utf-8")
-        start = todo_start(text, ends)
+        start, end = todo_span(text, ends)
         if start < 0:
             raise SystemExit(f"{step} is not done: no todo list ({TODO_MARK}... head, its items, then {RESULT_HEAD}) found")
-        todo = text[start:].split(RESULT_HEAD, 1)[0]
-        open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
+        todo = text[start:end]
+        # Only `- [x]` counts as checked; `- [X]` is named as open, so it is never passed unread.
+        open_items = [l for l in todo.splitlines() if l.startswith(("- [ ]", "- [X]"))]
         empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.rsplit(":", 1)[-1].strip()]
         if open_items or empty:
             raise SystemExit(f"{step} is not done:\n" + "\n".join(open_items + [f"no evidence: {l}" for l in empty]))

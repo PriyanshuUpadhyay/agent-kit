@@ -342,6 +342,27 @@ def test_result_todo_heading(folder):
             path.unlink(missing_ok=True)
 
 
+def test_todo_list_shapes(folder):
+    """Any text may sit between todo items (multi-line evidence, a note); `- [X]` is not a checked box, so
+    done names it; and evidence that holds `## Result` does not end the list early."""
+    file, head, result = folder / "09-shape.md", step_run.TODO_HEAD, step_run.RESULT_HEAD
+    cases = [(f"- [x] one: first line\n  second line of evidence\n- [x] two: ok\n", 0, "done"),
+             (f"- [x] one: a\nnote: wrapped\n<!-- comment -->\n- [x] two: b\n", 0, "done"),
+             (f"- [X] one: a\n", 1, "- [X] one: a"),
+             (f"- [x] a: moved {result} up\n- [ ] b: \n", 1, "- [ ] b:")]
+    events = (folder / "events.log").read_text(encoding="utf-8")
+    try:
+        for items, code, said in cases:
+            file.write_text(f"Status: open\n\n{head}\n{items}\n{result}\n", encoding="utf-8")
+            out = run("done", folder, "09-shape")
+            assert out.returncode == code and said in out.stdout + out.stderr, (items, out.stdout, out.stderr)
+            assert "no todo list" not in out.stderr, (items, out.stderr)
+    finally:
+        for path in (file, folder / "09-shape.lock"):
+            path.unlink(missing_ok=True)
+        (folder / "events.log").write_text(events, encoding="utf-8")
+
+
 def test_step_mode(folder):
     file = folder / "01-ask.md"
     original = file.read_text(encoding="utf-8")
@@ -387,6 +408,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_old_todo_head(folder)
     test_rules_todo_heading(folder)
     test_result_todo_heading(folder)
+    test_todo_list_shapes(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)
     test_atomic_step_writes(folder)
