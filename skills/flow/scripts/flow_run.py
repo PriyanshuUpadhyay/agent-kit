@@ -239,11 +239,13 @@ def resolve_blocks(root, wanted, profile_name):
         """The block's content hash and its filled sections, read once."""
         if block not in loaded:
             raw = read_utf8(files[block])
-            if missing := [p for p in PARAM.findall(raw) if p not in params]:
-                raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
             # Repo text goes to agents and to take's output: a param is one line, and no text keeps control bytes.
+            # The param check reads the filtered text, the same text the fill reads.
+            text = plain(raw, keep_newlines=True)
+            if missing := [p for p in PARAM.findall(text) if p not in params]:
+                raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
             loaded[block] = (hashlib.sha256(raw.encode()).hexdigest()[:8],
-                             sections(PARAM.sub(lambda m: one_line(str(params[m.group(1)])), plain(raw, keep_newlines=True))))
+                             sections(PARAM.sub(lambda m: one_line(str(params[m.group(1)])), text)))
         return loaded[block]
 
     out, judge = {}, {}

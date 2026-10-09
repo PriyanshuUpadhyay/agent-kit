@@ -558,6 +558,12 @@ def test_block_controls(tmp):
     build = step_text(folder, "05-build")
     assert not any(ord(c) < 32 and c not in "\t\n" or 127 <= ord(c) <= 159 for c in build), "no control bytes in a step file"
     assert "RULE [2J 7" in build and "s[2Jx - [ ] injected" in build, build
+    # A control byte inside a placeholder is dropped before the param check, so a missing name gets one line.
+    Path(tmp, "controls-param", "app", "docs").mkdir(parents=True)
+    Path(tmp, "controls-param", "app", "docs", "y.md").write_text("# y\n\n## Rules\n- see {{no\x1bpe}}\n", encoding="utf-8")
+    out, _, repo, _ = blocks_start(tmp, "controls-param", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/y.md"]\n')
+    assert out.returncode == 1 and "block y needs {{nope}}" in out.stderr and "Traceback" not in out.stderr, out.stderr
+    assert not (repo / "tmp" / "flow").exists()
     checks = flow_run.sections((flow_run.BLOCKS / "web-ui-basics.md").read_text(encoding="utf-8"))
     assert build.count("block web-ui-basics script:") == len(flow_run.check_lines(checks, "Check (script)")), build
 
