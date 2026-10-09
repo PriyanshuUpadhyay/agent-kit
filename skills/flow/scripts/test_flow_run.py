@@ -2,6 +2,8 @@
 import fcntl
 import json
 import os
+import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -683,8 +685,8 @@ def test_block_checks(tmp):
     assert out.returncode == 0, out.stderr
     build, review = step_text(folder, "05-build"), step_text(folder, "06-review")
     todo = build.split(flow_run.TODO_HEAD)[1]
-    script = ("- [ ] block html-diagram script: `rg -c '<figure[ >]' site` prints a count of 1 or more, and "
-              r"`rg -U --pcre2 -n '<figure[ >](?:(?!</figure>|<figcaption)[\s\S])*</figure>|<figure[ >](?:(?!</figure>)[\s\S])*?"
+    script = (r"- [ ] block html-diagram script: `rg -c '<figure(\s|>|$)' site` prints a count of 1 or more, and "
+              r"`rg -U --pcre2 -n '<figure[\s>](?:(?!</figure>|<figcaption)[\s\S])*</figure>|<figure[\s>](?:(?!</figure>)[\s\S])*?"
               r"<figcaption(?:(?!</figure>)[\s\S])*?<figcaption' site` prints nothing and exits 1: the page has a figure, "
               "and each figure has exactly one caption.: ")
     assert script + "\n" in todo, todo
@@ -700,6 +702,28 @@ def test_block_checks(tmp):
     f.write_text(text.replace(script.replace("- [ ]", "- [x]").rstrip() + " evidence", script.replace("- [ ]", "- [x]").rstrip()), encoding="utf-8")
     refused = run("done", folder, "05-build")
     assert refused.returncode == 1 and "no evidence: - [x] block html-diagram script:" in refused.stderr, refused.stderr
+
+
+def test_html_diagram_check(tmp):
+    """The html-diagram script check, run as written, passes a page only when it has a figure and each
+    figure has exactly one caption, also when the figure tag's attributes start on the next line."""
+    text = (flow_run.BLOCKS / "html-diagram.md").read_text(encoding="utf-8")
+    count, captions = re.findall(r"`([^`]+)`", text.split("## Check (script)\n", 1)[1].splitlines()[0])
+    pages = {'<figure\n  class="x"><p>a</p><figcaption>A</figcaption></figure>\n': True,
+             '<figure class="x"><figcaption>A</figcaption></figure>\n<figure><figcaption>B</figcaption></figure>\n': True,
+             '<figure\n  class="x"><p>a</p></figure>\n': False,
+             '<figure><p>a</p></figure>\n': False,
+             '<figure><figcaption>A</figcaption><figcaption>B</figcaption></figure>\n': False,
+             '<figure-card><figcaption>A</figcaption></figure-card>\n': False}
+    for index, (html, good) in enumerate(pages.items()):
+        page = Path(tmp, f"diagram-{index}.html")
+        page.write_text(html, encoding="utf-8")
+        sh = lambda command: subprocess.run(command.replace("{{site}}", shlex.quote(str(page))), shell=True,
+                                            capture_output=True, text=True)
+        counted, captioned = sh(count), sh(captions)
+        assert captioned.returncode in (0, 1) and counted.returncode in (0, 1), (captioned.stderr, counted.stderr)
+        passed = counted.returncode == 0 and int(counted.stdout) >= 1 and captioned.returncode == 1 and not captioned.stdout
+        assert passed == good, (html, counted, captioned)
 
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -857,6 +881,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
     test_block_checks(tmp)
+    test_html_diagram_check(tmp)
     test_block_ascii_locale(tmp)
     test_review_read_encoding(tmp)
     print("ok")
