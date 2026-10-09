@@ -19,7 +19,8 @@ def git(worktree, *args):
     result = subprocess.run(["git", "-C", str(worktree), *args],
                             capture_output=True)
     if result.returncode:
-        raise ValueError(f"Git failed in {worktree}: {result.stderr.decode('utf-8').strip()}")
+        error = result.stderr.decode("utf-8", errors="backslashreplace").strip()
+        raise ValueError(plain(f"Git failed in {worktree}: {error}"))
     return result.stdout.decode("utf-8")
 
 
@@ -27,6 +28,10 @@ def file_list(value, label):
     if not isinstance(value, list) or any(not isinstance(p, str) or not p for p in value):
         raise ValueError(f"{label} must be a list of file paths")
     return set(value)
+
+
+def plain(text):
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", text)
 
 
 def land(declaration, worktrees, base=None):
@@ -65,9 +70,10 @@ def land(declaration, worktrees, base=None):
         commits = git(worktree, "log", "--oneline", f"{start}..HEAD", "--").rstrip("\n")
         order.append((worktree, commits))
     for index, (worktree, commits) in enumerate(order, 1):
-        print(re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "", f"{index}. {worktree}"))
+        print(plain(f"{index}. {worktree}"))
         if commits:
-            print(re.sub(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]", "", commits))
+            for line in commits.split("\n"):
+                print(plain(line))
 
 
 def main():
@@ -78,8 +84,10 @@ def main():
     args = parser.parse_args()
     try:
         land(args.declaration, args.worktrees, args.base)
+    except BrokenPipeError:
+        raise
     except (OSError, ValueError, UnicodeError) as error:
-        print(str(error), file=sys.stderr)
+        print(plain(str(error)), file=sys.stderr)
         return 1
     return 0
 

@@ -21,6 +21,7 @@ of 05-build is HEAD, take 04-impact lists the places that name the contracts' co
 
 import datetime
 import json
+import os
 import re
 import subprocess
 import sys
@@ -153,9 +154,9 @@ def take(folder, step, who, force=False):
             print(f"06-review already lists {runs} runs; bring the open rows to the user before a new range")
     if step == "07-close":
         approved(folder)
+    step_run.take(folder, step, who, need, rev, force=force)
     if step == "04-impact":
         write_callers(Path(folder))
-    step_run.take(folder, step, who, need, rev, force=force)
 
 
 def done(folder, step):
@@ -169,9 +170,10 @@ def skip(folder, step, *why):
     if not reason:
         raise SystemExit("skip needs a reason, for example: skip <folder> 02-design no UI")
     file = Path(folder) / f"{step}.md"
-    if status_of(folder, step).split()[0] not in ("open", "active"):
-        raise SystemExit(f"{step} is {status_of(folder, step)}; only an open or active step can be skipped")
-    step_run.write_step(file, f"Status: skipped {reason}\n" + file.read_text(encoding="utf-8").split("\n", 1)[1])
+    with step_run.step_lock(folder, step):
+        if status_of(folder, step).split()[0] not in ("open", "active"):
+            raise SystemExit(f"{step} is {status_of(folder, step)}; only an open or active step can be skipped")
+        step_run.write_step(file, f"Status: skipped {reason}\n" + file.read_text(encoding="utf-8").split("\n", 1)[1])
     step_run.log(folder, step, f"skip {reason}")
     print(f"{step}: skipped {reason}")
 
@@ -242,15 +244,26 @@ def skills_text(paths):
 
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        # Escape non-ASCII output when the console uses an ASCII encoding.
+        sys.stdout.reconfigure(errors="backslashreplace")
     commands = {"start": start, "status": status, "take": take, "done": done, "skip": skip}
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
-    args = sys.argv[2:]
-    if sys.argv[1] == "take":
-        force = "--force" in args
-        args = [arg for arg in args if arg != "--force"]
-        if len(args) != 3:
-            raise SystemExit("take needs <folder> <step> <who> [--force]; who is required")
-        take(*args, force=force)
-    else:
-        commands[sys.argv[1]](*args)
+    try:
+        args = sys.argv[2:]
+        if sys.argv[1] == "take":
+            force = "--force" in args
+            args = [arg for arg in args if arg != "--force"]
+            if len(args) != 3:
+                raise SystemExit("take needs <folder> <step> <who> [--force]; who is required")
+            take(*args, force=force)
+        else:
+            commands[sys.argv[1]](*args)
+        sys.stdout.flush()
+    except BrokenPipeError:
+        fd = os.open(os.devnull, os.O_WRONLY)
+        # Python flushes stdout at exit; devnull prevents another error from the closed pipe.
+        os.dup2(fd, sys.stdout.fileno())
+        os.close(fd)
+        sys.exit(0)

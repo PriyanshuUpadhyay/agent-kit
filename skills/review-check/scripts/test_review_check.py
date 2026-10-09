@@ -30,7 +30,21 @@ def commit(files, msg):
 
 
 def rows(run, *lines):
-    (run / "02-review.md").write_text("Status: done x\nUses: 01-units@x\n\n" + "".join(l + "\n" for l in lines))
+    checklist = load_checklist(run)
+    files = {"02-review.md": []}
+    for line in lines:
+        cells = [cell.strip() for cell in line.split("|")[1:-1]]
+        uid, rules = cells[:2]
+        owned = checklist[uid].get("owners", {})
+        groups = {}
+        for rule in rules.split(","):
+            owner = owned.get(rule.strip().strip("`"))
+            name = f"02-review-{owner}.md" if owner else "02-review.md"
+            groups.setdefault(name, []).append(rule.strip())
+        for name, ids in groups.items():
+            files.setdefault(name, []).append("| " + " | ".join([uid, ", ".join(ids), *cells[2:]]) + " |")
+    for name, values in files.items():
+        (run / name).write_text("Status: done x\nUses: 01-units@x\n\n" + "".join(l + "\n" for l in values))
 
 
 def load_checklist(run):
@@ -210,11 +224,11 @@ def test_seat_gaps():
             units = {u["file"]: u["id"] for u in json.loads((run / "units.json").read_text())}
             uid, docs = units["util.py"], units["README.md"]
             # Keep this test small, with two named owners and one foreign answer.
-            checklist[uid]["rules"] = ["C-1", "PY-1"]
-            checklist[uid]["owners"] = {"C-1": "lens-1", "PY-1": "lang"}
+            checklist[uid]["rules"] = ["C-1", "PY-3"]
+            checklist[uid]["owners"] = {"C-1": "lens-1", "PY-3": "lang"}
             seats = {"lens-1": {"units": [uid], "checks": 1}, "lang": {"units": [uid], "checks": 1}}
             (run / "checklist.json").write_text(json.dumps(checklist | {"seats": seats}))
-            row = f"| {uid} | PY-1 | util.py:1 | `value = 2` | pass | | the value has no caller |\n"
+            row = f"| {uid} | PY-3 | util.py:1 | `value = 2` | pass | | the value has no caller |\n"
             (run / "02-review-lens-1.md").write_text(row)
             # A stray seat cannot fill a named owner's gap. The chair covers a unit with no rules.
             (run / "02-review-stray.md").write_text(row)
@@ -224,9 +238,19 @@ def test_seat_gaps():
             text = out.getvalue()
             assert "seat lens-1:" in text and "checks owned by another seat" in text, text
             assert f"seat lens-1: {uid}: no result for C-1" in text, text
-            assert f"seat lang: {uid}: no result for PY-1" in text, text
-            assert text.index("no result for C-1") < text.index("no result for PY-1"), text
-            (run / "02-review-lens-1.md").write_text(row.replace("PY-1", "C-1"))
+            assert f"seat lang: {uid}: no result for PY-3" in text, text
+            assert text.index("no result for C-1") < text.index("no result for PY-3"), text
+            (run / "02-review-lens-1.md").write_text(row.replace("PY-3", "C-1"))
+            chair = run / "02-review.md"
+            docs_row = chair.read_text()
+            chair.write_text(docs_row + row)
+            with redirect_stdout(StringIO()) as out:
+                assert rc.verdict(run.name) == 1, "a chair row cannot replace the lang seat's answer"
+            text = out.getvalue()
+            assert "chair row names PY-3 owned by seat lang" in text, text
+            assert f"seat lang: {uid}: no result for PY-3" in text, text
+            assert "Verdict: APPROVE" not in (run / "03-verdict.md").read_text()
+            chair.write_text(docs_row)
             (run / "02-review-lang.md").write_text(row)
             with redirect_stdout(StringIO()):
                 assert rc.verdict(run.name) == 0
@@ -236,8 +260,12 @@ def test_seat_gaps():
 
 
 def test_missing_verify_directory(run, verify, head):
+    other = verify.parent / "other"
+    sh("git", "worktree", "add", "--detach", str(other), head)
+    shutil.rmtree(other)
     shutil.rmtree(verify)
     rc.build(run.name, "--run")
+    assert f"worktree {other}\n" in sh("git", "worktree", "list", "--porcelain"), "another missing worktree was pruned"
     assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
     assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
 
@@ -269,11 +297,14 @@ def test_verify_build_lock(run, verify):
             rc.build(run.name, "--run")
             raise AssertionError("build must refuse an existing verify lock")
         except SystemExit as error:
-            assert str(error) == "verify worktree busy; wait for the other build", error
+            assert str(lock) in str(error) and "--force" in str(error), error
         assert lock.exists() and (run / "build.json").read_text() == original
         assert sh("git", "-C", str(verify), "rev-parse", "HEAD") == head
+        rc.build(run.name, "--run", "--force")
+        assert json.loads((run / "build.json").read_text())["conclusion"] == "success"
+        assert not lock.exists(), "--force must clear the stale lock and release its own lock"
     finally:
-        lock.unlink()
+        lock.unlink(missing_ok=True)
     target = json.loads((run / "target.json").read_text())
     checking_lock = {**target, "ci": {**target["ci"], "cmd": "test -f ../verify.lock"}}
     (run / "target.json").write_text(json.dumps(checking_lock))
@@ -286,6 +317,21 @@ def test_verify_build_lock(run, verify):
         rc.build(run.name, "--run")
         assert json.loads((run / "build.json").read_text())["conclusion"] == "failure"
         assert not lock.exists(), "a failed command must release the lock"
+    finally:
+        (run / "target.json").write_text(json.dumps(target))
+
+
+def test_build_timeout(run, verify):
+    target = json.loads((run / "target.json").read_text())
+    slow = {**target, "ci": {**target["ci"], "cmd": "sleep 5"}}
+    (run / "target.json").write_text(json.dumps(slow))
+    try:
+        with patch.object(rc, "BUILD_TIMEOUT", 0.05, create=True):
+            rc.build(run.name, "--run")
+        result = json.loads((run / "build.json").read_text())
+        assert result["conclusion"] == "failure", result
+        assert result["tail"][-1] == "timed out after 0.05 s", result
+        assert not verify.with_suffix(".lock").exists(), "a timed out build must release its lock"
     finally:
         (run / "target.json").write_text(json.dumps(target))
 
@@ -347,6 +393,7 @@ def test_frozen_build():
             assert len(sh("git", "worktree", "list", "--porcelain").split("worktree ")) == 3, "verify was not reused"
             test_missing_verify_directory(run, verify, head)
             test_verify_build_lock(run, verify)
+            test_build_timeout(run, verify)
             target = json.loads((run / "target.json").read_text())
             target["head"] = moved
             target["ci"]["cmd"] = "test $(cat value.txt) = later"
@@ -979,6 +1026,17 @@ def test_run_numbering():
             os.chdir(previous)
 
 
+def test_patch_errors():
+    script = HERE / "review_check.py"
+    for args, message in ((["--patch"], "--patch needs a file"),
+                          (["--patch", "missing.patch"], "missing.patch")):
+        result = subprocess.run([sys.executable, script, "start", "local", *args],
+                                capture_output=True, text=True)
+        assert result.returncode == 1, result
+        assert message in result.stderr and "Traceback" not in result.stderr, result.stderr
+        assert len(result.stderr.splitlines()) == 1, result.stderr
+
+
 def test_cli_encoding():
     """An ASCII console escapes Unicode rows without changing the verdict or exit code."""
     previous = Path.cwd()
@@ -1080,6 +1138,7 @@ if __name__ == "__main__":
         sh("git", "config", "user.email", "t@t")
         sh("git", "config", "user.name", "t")
         main()
+        test_patch_errors()
         test_build_gate()
         test_repo_rules_origin()
         test_seat_gaps()

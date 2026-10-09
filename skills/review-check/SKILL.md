@@ -55,7 +55,7 @@ is `range-<base7>-<head7>-NN` or `local-NN`, as `references/run-folder.md` descr
 | `checklist.json` | script | unit entries hold `rules`, build-gate IDs under `tool`, references under `refs`, and one owner seat for each rule under `owners`; `seats` maps each seat name to its unit IDs, check count, and route |
 | `target.json` | script | base, head, and the repo's `CI:` line |
 | `build.json` | script | the CI result for the head, or the `--run` result for the tree |
-| `02-review-<seat>.md` | seat | results for the unit-rule pairs it owns; a single reviewer uses `02-review.md` |
+| `02-review-<seat>.md` | seat | results for the unit-rule pairs it owns, checked by `verdict <run>` |
 | `answers.md` | chair or user | answers for this run, with a file and a whole trimmed source line |
 | `answers-before.md` | script | answers from a prior run, for history only |
 | `03-verdict.md` | script | line 3 is `Verdict: <word> (<n> of <m> units, <c> of <t> checks; <fix> fix, <ask> ask, <note> note, <answered> answered, <limit> limit; rules: <file>; build: pass\|fail\|none)`, then each gap or kept row |
@@ -176,8 +176,8 @@ REF stays on `review.deep`, because it judges a changed signature, return shape,
 each caller, and it must search past the first 20 references on its own.
 
 `verdict` reads each named seat file in the map and checks every result against its owner.
-It lists missing results together for each seat. With one session and no seat files, write
-`02-review.md` alone, but only when that session did not write the change.
+It lists missing results together for each seat. One review session writes the named seat files.
+The chair uses `02-review.md` for findings without an owner; `verdict <run>` checks ownership.
 Older runs without a seat map still use `02-review*.md`.
 
 ## Rules for each repo

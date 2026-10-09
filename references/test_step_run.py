@@ -1,5 +1,5 @@
 """Run: python3 test_step_run.py"""
-import os, subprocess, sys, tempfile
+import os, subprocess, sys, tempfile, time
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -21,6 +21,12 @@ def test_stale_lock_recovery(folder, claimed):
     assert claimed.read_text() == original and lock.exists()
     assert (folder / "events.log").read_text() == original_events
     out = run("take", folder, "02-look", "agent-d", "--force")
+    assert out.returncode != 0, "--force must preserve a fresh lock"
+    assert claimed.read_text() == original and lock.exists()
+    assert (folder / "events.log").read_text() == original_events
+    old = time.time() - 61
+    os.utime(lock, (old, old))
+    out = run("take", folder, "02-look", "agent-d", "--force")
     assert out.returncode == 0, out.stderr
     assert claimed.read_text().startswith("Status: active agent-d\n") and not lock.exists()
     assert (folder / "events.log").read_text().splitlines()[-1].endswith("\t02-look\ttake agent-d")
@@ -28,23 +34,29 @@ def test_stale_lock_recovery(folder, claimed):
 
 
 def test_utf8_and_lock_context(folder):
-    file = folder / "01-ask.md"
+    file = folder / "02-look.md"
     original = file.read_text()
+    dependency = folder / "01-ask.md"
+    original_dependency = dependency.read_text(encoding="utf-8")
+    dependency.write_text(original_dependency + "合意\n", encoding="utf-8")
     original_events = (folder / "events.log").read_text()
     file.write_text(original + "合意\n", encoding="utf-8")
-    read_text, write_text = Path.read_text, Path.write_text
-
-    def ascii_read(path, *args, **kwargs):
-        kwargs.setdefault("encoding", "ascii")
-        return read_text(path, *args, **kwargs)
-
-    def ascii_write(path, *args, **kwargs):
-        kwargs.setdefault("encoding", "ascii")
-        return write_text(path, *args, **kwargs)
-
-    with redirect_stdout(StringIO()), patch.object(Path, "read_text", ascii_read), patch.object(Path, "write_text", ascii_write):
-        step_run.take(folder, "01-ask", "合意", need=[])
-        step_run.done(folder, "01-ask", rev="unicode")
+    env = dict(os.environ, LC_ALL="C", PYTHONUTF8="0", PYTHONCOERCECLOCALE="0", PYTHONIOENCODING="ascii")
+    out = subprocess.run([sys.executable, SCRIPT, "take", str(folder), "02-look", "合意"],
+                         env=env, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert "active \\u5408\\u610f" in out.stdout
+    assert "Uses: 01-ask@" in file.read_text(encoding="utf-8")
+    assert (folder / "events.log").read_text(encoding="utf-8").splitlines()[-1].endswith("\t02-look\ttake 合意")
+    out = subprocess.run([sys.executable, SCRIPT, "status", str(folder)],
+                         env=env, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert "02-look: active \\u5408\\u610f" in out.stdout
+    file.write_text(file.read_text(encoding="utf-8").replace("- [ ] what the sources say: ",
+                                                         "- [x] what the sources say: 合意"), encoding="utf-8")
+    out = subprocess.run([sys.executable, SCRIPT, "done", str(folder), "02-look"],
+                         env=env, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
     assert "合意" in file.read_text(encoding="utf-8")
     lock = folder / "01-ask.lock"
     lock.write_text("")
@@ -57,7 +69,23 @@ def test_utf8_and_lock_context(folder):
     finally:
         lock.unlink()
     file.write_text(original)
+    dependency.write_text(original_dependency, encoding="utf-8")
     (folder / "events.log").write_text(original_events)
+
+
+def test_done_lock(folder):
+    file = folder / "01-ask.md"
+    original = file.read_text(encoding="utf-8")
+    events = (folder / "events.log").read_text(encoding="utf-8")
+    lock = folder / "01-ask.lock"
+    lock.write_text("")
+    try:
+        out = run("done", folder, "01-ask")
+        assert out.returncode == 1 and "is being claimed; try again" in out.stderr, out
+        assert file.read_text(encoding="utf-8") == original and lock.exists()
+        assert (folder / "events.log").read_text(encoding="utf-8") == events
+    finally:
+        lock.unlink()
 
 
 def test_cli_output(folder):
@@ -71,13 +99,32 @@ def test_cli_output(folder):
     assert "active \\u5408\\u610f" in out.stdout
     assert file.read_text(encoding="utf-8").startswith("Status: active 合意\n")
     file.write_text(original)
-    child = subprocess.Popen([sys.executable, SCRIPT, "take", str(folder), "01-ask", "a"],
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    child.stdout.close()
-    errors = child.stderr.read()
-    assert child.wait() == 0 and not errors, errors
+    with subprocess.Popen([sys.executable, SCRIPT, "take", str(folder), "01-ask", "a"],
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+        child.stdout.close()
+        errors = child.stderr.read()
+        assert child.wait() == 0 and not errors, errors
     file.write_text(original)
     (folder / "events.log").write_text(original_events)
+
+
+def test_removed_take_lock(folder):
+    file = folder / "01-ask.md"
+    original = file.read_text(encoding="utf-8")
+    events = (folder / "events.log").read_text(encoding="utf-8")
+    write_step = step_run.write_step
+
+    def remove_lock(path, text):
+        write_step(path, text)
+        (folder / "01-ask.lock").unlink()
+
+    try:
+        with redirect_stdout(StringIO()), patch.object(step_run, "write_step", remove_lock):
+            step_run.take(folder, "01-ask", "removed-lock")
+        assert file.read_text(encoding="utf-8").startswith("Status: active removed-lock\n")
+    finally:
+        file.write_text(original, encoding="utf-8")
+        (folder / "events.log").write_text(events, encoding="utf-8")
 
 
 def test_atomic_step_writes(folder):
@@ -87,16 +134,19 @@ def test_atomic_step_writes(folder):
     real_replace = os.replace
     previous = original
     replacements = []
+    sources = []
 
     def check_replace(source, destination):
         nonlocal previous
-        assert source == file.with_suffix(".md.tmp") and destination == file
+        assert source.parent == file.parent and source.suffix == ".tmp" and destination == file
+        assert (folder / "01-ask.lock").exists(), "take and done must hold the step lock during replacement"
         assert file.read_text(encoding="utf-8") == previous, "readers must keep seeing the complete old file"
         next_text = source.read_text(encoding="utf-8")
         assert next_text and next_text.startswith("Status: ")
         real_replace(source, destination)
         previous = next_text
         replacements.append(destination)
+        sources.append(source)
 
     with redirect_stdout(StringIO()), patch.object(step_run.os, "replace", check_replace):
         step_run.take(folder, "01-ask", "atomic", need=[])
@@ -104,6 +154,7 @@ def test_atomic_step_writes(folder):
         step_run.done(folder, "01-ask", rev="atomic")
         assert replacements == [file, file], "done must replace the file atomically"
     assert file.read_text(encoding="utf-8") == previous and not file.with_suffix(".md.tmp").exists()
+    assert len(set(sources)) == 2 and not any(source.exists() for source in sources), "each write needs its own temporary file"
     file.write_text(original)
     (folder / "events.log").write_text(original_events)
 
@@ -121,8 +172,10 @@ with tempfile.TemporaryDirectory() as tmp:
     f = folder / "01-ask.md"
     f.write_text(f.read_text().replace("- [ ] the question: ", "- [x] the question: why is the sky blue"))
     assert run("done", folder, "01-ask").returncode == 0 and f.read_text().startswith("Status: done ")
+    test_done_lock(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)
+    test_removed_take_lock(folder)
     test_atomic_step_writes(folder)
     out = run("take", folder, "02-look", "agent-b")
     assert out.returncode == 0 and "Uses: 01-ask@" in (folder / "02-look.md").read_text()

@@ -16,6 +16,9 @@ import hashlib
 import os
 import re
 import sys
+import tempfile
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 TODO_HEAD = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
@@ -25,7 +28,7 @@ RESULT_HEAD = "## Result"
 def table(skill_md):
     """Rows of the first table whose header starts with | File | Needs | Holds |."""
     rows, inside = [], False
-    for line in Path(skill_md).read_text().splitlines():
+    for line in Path(skill_md).read_text(encoding="utf-8").splitlines():
         if re.match(r"\|\s*File\s*\|\s*Needs\s*\|\s*Holds\s*\|", line):
             inside = True
         elif inside and line.startswith("|") and not line.startswith("|---"):
@@ -45,17 +48,17 @@ def need_files(need, names):
 
 
 def needs(folder, step):
-    line = (Path(folder) / f"{step}.md").read_text().splitlines()[1]
+    line = (Path(folder) / f"{step}.md").read_text(encoding="utf-8").splitlines()[1]
     return [n.strip().split("@")[0] for n in line.removeprefix("Uses:").split(",") if n.strip()]
 
 
 def revision(folder, step):
-    rest = (Path(folder) / f"{step}.md").read_text().split("\n", 1)[1]
+    rest = (Path(folder) / f"{step}.md").read_text(encoding="utf-8").split("\n", 1)[1]
     return hashlib.sha1(rest.encode()).hexdigest()[:12]
 
 
 def status_of(folder, step):
-    return (Path(folder) / f"{step}.md").read_text().splitlines()[0].removeprefix("Status: ")
+    return (Path(folder) / f"{step}.md").read_text(encoding="utf-8").splitlines()[0].removeprefix("Status: ")
 
 
 def steps(folder):
@@ -69,20 +72,25 @@ def ready(folder, step, need=None):
 
 def stale(folder, step, rev=revision):
     """The needed steps whose revision changed after this step took them."""
-    line = (Path(folder) / f"{step}.md").read_text().splitlines()[1]
+    line = (Path(folder) / f"{step}.md").read_text(encoding="utf-8").splitlines()[1]
     used = dict(u.strip().split("@", 1) for u in line.removeprefix("Uses:").split(",") if "@" in u)
     return [n for n, r in used.items() if rev(folder, n) != r]
 
 
 def log(folder, step, event):
-    with (Path(folder) / "events.log").open("a") as f:
+    with (Path(folder) / "events.log").open("a", encoding="utf-8") as f:
         f.write(f"{datetime.datetime.now().isoformat(timespec='seconds')}\t{step}\t{event}\n")
 
 
 def write_step(file, text):
-    temporary = file.with_suffix(".md.tmp")
-    temporary.write_text(text, encoding="utf-8")
-    os.replace(temporary, file)
+    fd, name = tempfile.mkstemp(dir=file.parent, prefix=f"{file.stem}.", suffix=".tmp")
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(text)
+        os.replace(temporary, file)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def start(folder, skill_md):
@@ -95,7 +103,7 @@ def start(folder, skill_md):
         if file.exists():
             continue
         file.write_text(f"Status: open\nUses: {', '.join(need_files(need, names))}\n\n"
-                        f"{TODO_HEAD}\n- [ ] {holds}: \n\n{RESULT_HEAD}\n")
+                        f"{TODO_HEAD}\n- [ ] {holds}: \n\n{RESULT_HEAD}\n", encoding="utf-8")
     print(folder)
 
 
@@ -108,16 +116,24 @@ def status(folder, need_of=None, rev=revision):
         print(f"{step}: {s}{note}")
 
 
-def take(folder, step, who, need=None, rev=revision, force=False):
+@contextmanager
+def step_lock(folder, step, force=False):
     lock = Path(folder) / f"{step}.lock"
-    if force:
-        lock.unlink(missing_ok=True)
+    if force and lock.exists() and time.time() - lock.stat().st_mtime > 60:
+        lock.unlink()
     try:
         fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError:
         raise SystemExit(f"{step} is being claimed; try again. If the run is gone, delete {lock} or use --force to clear it") from None
     try:
         os.close(fd)
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def take(folder, step, who, need=None, rev=revision, force=False):
+    with step_lock(folder, step, force):
         file = Path(folder) / f"{step}.md"
         lines = file.read_text(encoding="utf-8").split("\n")
         owner = lines[0].removeprefix("Status: ")
@@ -129,28 +145,28 @@ def take(folder, step, who, need=None, rev=revision, force=False):
         uses = ", ".join(f"{n}@{rev(folder, n)}" for n in need)
         text = "\n".join([f"Status: active {who}", f"Uses: {uses}", *lines[2:]])
         write_step(file, text)
-    finally:
-        lock.unlink()
     log(folder, step, f"take {who}")
     print(text)
 
 
 def done(folder, step, rev=None):
-    file = Path(folder) / f"{step}.md"
-    text = file.read_text(encoding="utf-8")
-    todo = text.split(TODO_HEAD, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_HEAD in text else ""
-    open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
-    empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.split(":", 1)[-1].strip()]
-    if open_items or empty:
-        raise SystemExit(f"{step} is not done:\n" + "\n".join(open_items + [f"no evidence: {l}" for l in empty]))
-    rev = rev or revision(folder, step)
-    write_step(file, f"Status: done {rev}\n" + text.split("\n", 1)[1])
+    with step_lock(folder, step):
+        file = Path(folder) / f"{step}.md"
+        text = file.read_text(encoding="utf-8")
+        todo = text.split(TODO_HEAD, 1)[1].split(RESULT_HEAD, 1)[0] if TODO_HEAD in text else ""
+        open_items = [l for l in todo.splitlines() if l.startswith("- [ ]")]
+        empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.split(":", 1)[-1].strip()]
+        if open_items or empty:
+            raise SystemExit(f"{step} is not done:\n" + "\n".join(open_items + [f"no evidence: {l}" for l in empty]))
+        rev = rev or revision(folder, step)
+        write_step(file, f"Status: done {rev}\n" + text.split("\n", 1)[1])
     log(folder, step, f"done {rev}")
     print(f"{step}: done {rev}")
 
 
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
+        # Escape non-ASCII output when the console uses an ASCII encoding.
         sys.stdout.reconfigure(errors="backslashreplace")
     commands = {"start": start, "status": status, "take": take, "done": done}
     if len(sys.argv) < 3 or sys.argv[1] not in commands:
@@ -165,6 +181,7 @@ if __name__ == "__main__":
         sys.stdout.flush()
     except BrokenPipeError:
         fd = os.open(os.devnull, os.O_WRONLY)
+        # Python flushes stdout at exit; devnull prevents another error from the closed pipe.
         os.dup2(fd, sys.stdout.fileno())
         os.close(fd)
         sys.exit(0)

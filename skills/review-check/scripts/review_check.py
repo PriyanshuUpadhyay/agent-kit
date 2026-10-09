@@ -13,7 +13,7 @@ the unit's file. `build` records the CI result for the run's head, and `verdict`
 only from it.
 
   start <local|base..head> [--patch FILE]   make <repo>/tmp/review-check/<run>/ with 01-units.md
-  build <run> [--run]                        record CI for the head, or run its command in the verify worktree
+  build <run> [--run [--force]]               record CI for the head, or run its command in the verify worktree
   verdict <run>                              gate the rows of 02-review*.md and write 03-verdict.md
 
 `--patch` reviews that patch instead of the whole range, for example review-walk's diff since view.
@@ -25,6 +25,7 @@ from pathlib import Path
 KINDS = ("pass", "fix", "ask", "note", "n/a")
 RULE = re.compile(r"^- `([A-Z][A-Z0-9-]*-\d+)` (.*)$")
 REFS_CAP = 20  # a symbol with more references than this gets the first 20; the seat searches the rest
+BUILD_TIMEOUT = 3600
 FUNC_KINDS = {"function", "method", "subroutine", "func", "procedure"}
 PLAIN = ("--no-ext-diff", "--no-color", "--src-prefix=a/", "--dst-prefix=b/")  # user config may change these
 GENERIC = {"", "n/a", "na", "none", "ok", "okay", "fine", "good", "looks fine", "looks good", "checked",
@@ -305,7 +306,12 @@ def start(target, *opts):
         raise SystemExit("target is `local` or `<base>..<head>`")
     is_patch = opts[:1] == ("--patch",)
     if is_patch:
-        patch = Path(opts[1]).read_text(encoding="utf-8")
+        if len(opts) < 2:
+            raise SystemExit("--patch needs a file")
+        try:
+            patch = Path(opts[1]).read_text(encoding="utf-8")
+        except OSError as error:
+            raise SystemExit(f"cannot read patch {opts[1]}: {error.strerror}") from None
 
     d = home()
     prior = []
@@ -418,8 +424,7 @@ def verify_tree(head):
     """Keep range builds apart from the live checkout, at the reviewed commit."""
     verify = home() / "verify"
     if not verify.exists():
-        git("worktree", "prune")
-        git("worktree", "add", "--detach", str(verify), head)
+        git("worktree", "add", "--force", "--detach", str(verify), head)
     else:
         root = git("-C", str(verify), "rev-parse", "--show-toplevel", check=False).strip()
         if not root or Path(root).resolve() != verify.resolve():
@@ -443,20 +448,27 @@ def build(name, *opts):
             print("build: local target; proof is from the live tree")
         lock = home() / "verify.lock" if head else None
         if lock:
+            if "--force" in opts[1:]:
+                lock.unlink(missing_ok=True)
             try:
                 fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
             except FileExistsError:
-                raise SystemExit("verify worktree busy; wait for the other build") from None
+                raise SystemExit(f"verify worktree busy; wait for the other build. If the run is gone, "
+                                 f"delete {lock} or use --run --force to clear it") from None
         try:
             if lock:
                 os.close(fd)
                 cwd = verify_tree(head)
-            r = subprocess.run(["bash", "-c", ci["cmd"]], cwd=cwd, capture_output=True, text=True)
+            try:
+                r = subprocess.run(["bash", "-c", ci["cmd"]], cwd=cwd, capture_output=True, text=True,
+                                   timeout=BUILD_TIMEOUT)
+                conclusion, tail = ("success" if r.returncode == 0 else "failure"), (r.stdout + r.stderr).splitlines()[-40:]
+            except subprocess.TimeoutExpired:
+                conclusion, tail = "failure", [f"timed out after {BUILD_TIMEOUT} s"]
         finally:
             if lock:
                 lock.unlink()
-        result = {"source": "command", "name": ci["cmd"], "conclusion": "success" if r.returncode == 0 else "failure",
-                  "tail": (r.stdout + r.stderr).splitlines()[-40:]}
+        result = {"source": "command", "name": ci["cmd"], "conclusion": conclusion, "tail": tail}
     elif not head:
         raise SystemExit("uncommitted changes have no CI result; use `build <run> --run`")
     else:
@@ -554,7 +566,15 @@ def verdict(name):
         if ids & set(checklist[uid].get("tool", [])):
             problems.append(f"{uid}: {', '.join(sorted(ids & set(checklist[uid]['tool'])))} belongs to the build gate, not a seat")
             continue
-        if seats and src != "02-review.md":
+        if seats and src == "02-review.md":
+            owners = checklist[uid].get("owners", {})
+            owned = {r for r in ids if r in owners}
+            if owned:
+                for seat in sorted({owners[r] for r in owned}):
+                    names = ', '.join(sorted(r for r in owned if owners[r] == seat))
+                    problems.append(f"{uid}: chair row names {names} owned by seat {seat}")
+                continue
+        elif seats:
             seat = src.removeprefix("02-review-").removesuffix(".md")
             wrong = {r for r in ids if checklist[uid].get("owners", {}).get(r) != seat}
             if wrong or uid not in seats[seat]["units"]:

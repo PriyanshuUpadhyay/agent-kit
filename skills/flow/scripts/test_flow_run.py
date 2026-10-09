@@ -58,7 +58,8 @@ def test_atomic_skip(folder):
 
     def check_replace(source, destination):
         assert file.read_text() == original, "skip must preserve the old file until replacement"
-        assert source == file.with_suffix(".md.tmp") and destination == file
+        assert source.parent == file.parent and source.suffix == ".tmp" and destination == file
+        assert (folder / "02-design.lock").exists(), "skip must hold the step lock during replacement"
         real_replace(source, destination)
         replaced.append(destination)
 
@@ -67,6 +68,61 @@ def test_atomic_skip(folder):
     assert replaced == [file], "skip must replace the file atomically"
     assert file.read_text().startswith("Status: skipped no UI\n")
     file.write_text(original)
+
+
+def test_skip_lock(run, folder):
+    file = folder / "02-design.md"
+    original = file.read_text()
+    events = (folder / "events.log").read_text()
+    lock = folder / "02-design.lock"
+    lock.write_text("")
+    try:
+        out = run("skip", folder, "02-design", "no", "UI")
+        assert out.returncode == 1 and "is being claimed; try again" in out.stderr, out
+        assert file.read_text() == original and lock.exists()
+        assert (folder / "events.log").read_text() == events
+    finally:
+        lock.unlink()
+
+
+def test_callers_after_claim(run, folder):
+    file = folder / "04-impact.md"
+    original = file.read_text()
+    lock = folder / "04-impact.lock"
+    lock.write_text("")
+    try:
+        out = run("take", folder, "04-impact", "a")
+        assert out.returncode == 1 and "is being claimed; try again" in out.stderr, out
+        assert file.read_text() == original, "a refused claim must not write callers"
+    finally:
+        lock.unlink()
+    seen = []
+
+    def write_callers(path):
+        assert file.read_text().startswith("Status: active a\n"), "the claim must finish before callers are written"
+        seen.append(path)
+
+    with redirect_stdout(StringIO()), patch.object(flow_run, "write_callers", write_callers):
+        flow_run.take(folder, "04-impact", "a")
+    assert seen == [folder]
+    file.write_text(original)
+
+
+def test_closed_stdout(repo, env, folder):
+    file = folder / "01-frame.md"
+    original = file.read_text()
+    file.write_text(original + "large output\n" * 10000)
+    try:
+        with subprocess.Popen([sys.executable, SCRIPT, "take", str(folder), "01-frame", "pipe"],
+                              cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+            with subprocess.Popen(["head", "-c", "10"], stdin=child.stdout, stdout=subprocess.PIPE) as consumer:
+                child.stdout.close()
+                output, _ = consumer.communicate()
+                assert consumer.returncode == 0 and len(output) == 10
+            errors = child.stderr.read()
+            assert child.wait() == 0 and not errors, errors
+    finally:
+        file.write_text(original)
 
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -103,6 +159,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     test_take_force(run, folder)
     test_take_requires_who(run, folder)
+    test_closed_stdout(repo, env, folder)
 
     blocked = run("take", folder, "05-build", "a")
     assert blocked.returncode != 0 and "needs 04-impact, 02-design" in blocked.stderr
@@ -110,6 +167,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # Only design, contracts, and impact can be skipped, and only with a reason.
     assert "cannot be skipped" in run("skip", folder, "05-build", "small").stderr
     assert "needs a reason" in run("skip", folder, "02-design").stderr
+    test_skip_lock(run, folder)
     test_atomic_skip(folder)
     assert run("skip", folder, "02-design", "no", "UI").returncode == 0
     assert (folder / "02-design.md").read_text().startswith("Status: skipped no UI\n")
@@ -122,6 +180,7 @@ with tempfile.TemporaryDirectory() as tmp:
     c.write_text(c.read_text() + "`parse_phone()` rejects an empty string. `app.py` and `init` stay.\n")
 
     # take 04-impact writes the places that name each code name of the contracts.
+    test_callers_after_claim(run, folder)
     assert run("take", folder, "04-impact", "a").returncode == 0
     impact = (folder / "04-impact.md").read_text()
     assert "### parse_phone (2 places)" in impact and "app.py:1:" in impact and "### init" not in impact
