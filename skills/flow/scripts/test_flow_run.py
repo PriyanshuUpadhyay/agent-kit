@@ -865,6 +865,23 @@ def test_look_grammar_colors(tmp):
     assert lines == [1, 5, 6, 9, 12, 13, 14], (lines, colors.stdout)
 
 
+def test_diagram_shot_check(tmp):
+    """The diagram-correctness script check passes only with one 375 px diagram shot per figure on the page."""
+    root = Path(tmp, "shot-count")
+    (root / "site").mkdir(parents=True)
+    (root / "shots").mkdir()
+    (root / "site" / "index.html").write_text('<figure\n  class="a"><figcaption>A</figcaption></figure>\n'
+                                              "<figure><figcaption>B</figcaption></figure>\n", encoding="utf-8")
+    (root / "site" / "DESIGN.md").write_text("Wrap each diagram in <figure>.\n", encoding="utf-8")
+    text = (flow_run.BLOCKS / "diagram-correctness.md").read_text(encoding="utf-8")
+    command = re.search(r"`([^`]+)`", text.split("## Check (script)\n", 1)[1])[1].replace("{{site}}", "site").replace("{{shots}}", "shots")
+    sh = lambda: subprocess.run(command, shell=True, cwd=root, capture_output=True, text=True).returncode
+    (root / "shots" / "diagram-one-375.png").write_bytes(b"")
+    assert sh() != 0, "two diagrams and one shot must fail"
+    (root / "shots" / "diagram-two-375.png").write_bytes(b"")
+    assert sh() == 0, "two diagrams and two shots must pass"
+
+
 def test_web_ui_basics_checks(tmp):
     """The web-ui-basics rg checks read the page files, not DESIGN.md prose beside them."""
     site = Path(tmp, "basics-site")
@@ -1055,6 +1072,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_checks(tmp)
     test_html_diagram_check(tmp)
     test_look_grammar_colors(tmp)
+    test_diagram_shot_check(tmp)
     test_web_ui_basics_checks(tmp)
     test_block_ascii_locale(tmp)
     test_review_read_encoding(tmp)
