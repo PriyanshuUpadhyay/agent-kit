@@ -1,7 +1,7 @@
 # html-diagram
 Concept: Draw a tech diagram with HTML and CSS boxes that reflow, so labels never clip or cross at any width.
 Serves: design, build
-Source: blocks trial 2026-10-09: round 1 judge (the HTML diagrams had no layout defect at 1440 or 375 px, while both inline-SVG pages had crossed or touching labels); round 2 judge (the old stacking rule gave wrong-way arrows)
+Source: impeccable pack: plugin/skills/impeccable/reference/adapt.md:140 (grid and flexbox reflow), reference/layout.md:52 (structural reflow); blocks/web-ui-basics.md:10 (a diagram needs a text description)
 
 ## Rules
 - Build each node as an HTML element with real text, laid out with CSS grid or flexbox. Draw arrows with CSS borders, pseudo-elements, or text arrows (→ ↓), never with absolute pixel positions.

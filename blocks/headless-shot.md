@@ -1,7 +1,7 @@
 # headless-shot
 Concept: Take page screenshots with Playwright's chrome-headless-shell, and know its limits.
 Serves: design, build, review
-Source: style-frames-concept block (split out 2026-10-09); blocks trial 2026-10-09, rounds 1 and 2 (downscaled view, tall shots found 2 defects)
+Source: skills/ink/references/build.md:156-158 (chrome-headless-shell, Playwright cache); skills/ink/references/qa.md:30-38 (compare image at the same scale, 100 % crop)
 
 ## Rules
 - Command: `<chrome-headless-shell> --headless --screenshot="$PWD/{{shots}}/<name>-<W>.png" --window-size=W,H "file://$PWD/{{site}}/index.html"`, run from the repo root. Widths are 1440,900 and 390,844 and 375,812.

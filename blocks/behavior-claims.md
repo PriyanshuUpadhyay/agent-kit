@@ -11,6 +11,7 @@ Source: html-plan pack: skills/html-plan/SKILL.md:20-30 (tree levels), :75-78 (r
 - At most 5 children and 3 levels.
 - If the change has no visible behavior, level 1 states the guarantees: "Nothing a caller sees changes."
 - `01-frame.md` holds `Worktree:`, `Branch:`, goal, user, out of scope, done-when, and the shared assumptions for design and contracts.
+- Each done-when names the evidence that will prove it: a command, a screenshot, or a `file:line`.
 - Pre-mortem: imagine the page ships in 14 days and fails. Ask what went wrong, what you missed, and what you were overconfident about.
 - Sort each failure as a Tiger (real, has evidence), a Paper Tiger (overblown), or an Elephant (unsure, nobody checks it). If unsure, call it a Tiger.
 - Each launch-blocking Tiger gets one concrete mitigation.
@@ -21,7 +22,7 @@ Action: write `01-frame.md` with three level-1 claims:
 1. A visitor learns what `tracer` does from the hero, in 20 words.
 2. A visitor sees how one request flows through `tracer` in a diagram.
 3. A visitor can copy the install command with one click.
-Done-when: "Claim 2 diagram matches `docs/architecture.md`." Tiger: "The diagram shows a part the tool does not have." Mitigation: cite the source line for each node.
+Done-when: "Claim 2 diagram has the nodes of `docs/architecture.md:10-24`; evidence: each node cites its line there." Tiger: "The diagram shows a part the tool does not have." Mitigation: cite the source line for each node.
 Result: read aloud, the three claims tell the whole page.
 
 ## Check (script)

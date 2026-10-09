@@ -18,11 +18,12 @@ Action: write in `04-impact.md`:
 ```
 ~ <body>                                  @ site/index.html:12
 +   <section id="flow"> **flowDiagram**   @ site/index.html:48   -- the diagram
-~   initNav()                             @ site/main.js:3
-+     **copyInstall()**                   @ site/main.js:21      -- new click handler
+
+~ initNav()                               @ site/main.js:3
++   **copyInstall()**                     @ site/main.js:21      -- new click handler
 ?     trackCopy()                         @ site/main.js:30      -- strike if not wanted
 ```
-Result: the reader sees two new symbols, one changed entrypoint, and one optional call. Impact: "independent; no other page uses `main.js`."
+Result: the reader sees two new symbols, two changed entrypoints, and one optional call. Impact: "independent; no other page uses `main.js`."
 
 ## Check (script)
 - none: the tree lives only in the step file, which holds this block's own example tree; impact runs before any commit.

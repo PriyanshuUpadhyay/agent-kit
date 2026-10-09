@@ -11,7 +11,7 @@ Structure
 Focus
 - Every link and control takes focus with Tab and shows a ring. Use `:focus-visible`. Never `outline: none` without a replacement. A sticky header must not cover the focused element.
 Contrast
-- Text meets WCAG AA: 4.5:1 for body, 3:1 for large text (18 px and up). Text over an image passes in the screenshot, not only in `DESIGN.md`.
+- Text meets WCAG AA: 4.5:1 for body, 3:1 for large text (24 px and up, or 18.7 px and up when bold). Text over an image passes in the screenshot, not only in `DESIGN.md`.
 Layout
 - Check widths are 1440 px, 390 px, and 375 px.
 - No sideways scroll at any check width: `document.documentElement.scrollWidth <= innerWidth`.
