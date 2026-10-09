@@ -592,6 +592,14 @@ def test_block_fail_closed(tmp):
         ("add-nul", "- build: block:red-first-check\n", PARAMS + '[add]\nbuild = ["a\\u0000b.md"]\n', (), "holds a NUL byte"),
         ("controls", "- build: block:red-first-check\n", PARAMS + '["\\u001b[2Jx\\ny"]\n', (), "unknown table [[2Jx y]"),
     ]
+    # A catalog skill path that cannot be read, or is not UTF-8, stops start before any step file exists.
+    Path(tmp, "skill-dir", "skill").mkdir(parents=True)
+    Path(tmp, "skill-utf8").mkdir()
+    Path(tmp, "skill-utf8", "skill.md").write_bytes(b"# skill\n\xff\n")
+    cases += [
+        ("skill-dir", f"- build: {Path(tmp, 'skill-dir', 'skill')}\n", PARAMS, (), "skill cannot be read"),
+        ("skill-utf8", f"- build: {Path(tmp, 'skill-utf8', 'skill.md')}\n", PARAMS, (), "skill.md is not UTF-8"),
+    ]
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
@@ -644,11 +652,13 @@ def assert_ascii_locale():
 
 
 def test_block_ascii_locale(tmp):
-    """start writes the UTF-8 block text (`…` in web-ui-basics) under an ASCII locale."""
+    """start writes the UTF-8 block text (`…` in web-ui-basics) and catalog skill text under an ASCII locale."""
     assert_ascii_locale()
-    out, folder, _, _ = blocks_start(tmp, "ascii", "- build: block:web-ui-basics\n", env=ASCII_ENV)
+    skill = Path(tmp, "ascii-skill.md")
+    skill.write_text("# skill\nRULE § 9\n", encoding="utf-8")
+    out, folder, _, _ = blocks_start(tmp, "ascii", f"- build: block:web-ui-basics, {skill}\n", env=ASCII_ENV)
     assert out.returncode == 0, out.stderr
-    assert "…" in step_text(folder, "05-build")
+    assert "…" in step_text(folder, "05-build") and "RULE § 9" in step_text(folder, "05-build")
 
 
 def test_review_read_encoding(tmp):

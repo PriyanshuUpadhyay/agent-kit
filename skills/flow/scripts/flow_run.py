@@ -112,9 +112,10 @@ def start(profile="default"):
     if not folder.exists():
         steps = graph()
         catalog = {step: skill_paths(step) for step in steps}
-        # Resolve every step before the folder exists, so a config error leaves no half-made run.
+        # Read every step's text before the folder exists, so a config or read error leaves no half-made run.
         try:
             blocks, judge = resolve_blocks(Path(root), {s.split("-", 1)[1]: ids for s, (_, ids) in catalog.items()}, profile)
+            skills = {step: skills_text(catalog[step][0]) for step in steps}
         except SystemExit as error:  # its reasons quote table names, keys, and paths from the repo's .blocks.toml
             raise SystemExit(one_line(str(error.code))) from None
         folder.mkdir(parents=True)
@@ -124,7 +125,7 @@ def start(profile="default"):
             uses = f"Uses: {', '.join(need)}".rstrip()
             paths = catalog[step][0]
             read, text, todos = blocks[step.split("-", 1)[1]]
-            rules = "\n".join(part for part in (skills_text(paths), text) if part)
+            rules = "\n".join(part for part in (skills[step], text) if part)
             judged = f"{JUDGE_HEAD}\n{judge}\n\n" if step == "06-review" and judge else ""
             (folder / f"{step}.md").write_text(
                 f"Status: open\n{uses}\n{extra}Take with: python3 {Path(__file__).resolve()} take {folder} {step} <agent>\n"
@@ -445,7 +446,7 @@ def skills_text(paths):
         if not p.exists():
             parts.append(f"===== {path} (missing) =====")
             continue
-        text = p.read_text()
+        text = read_utf8(p)
         cut = f" (first {CAP} characters; read the file for the rest)" if len(text) > CAP else ""
         parts.append(f"===== {path}{cut} =====\n{text[:CAP]}")
     return "\n".join(parts)
