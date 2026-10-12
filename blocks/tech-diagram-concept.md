@@ -24,7 +24,7 @@ Result: one diagram with 5 nodes (4 lanes and "dropped, logged") and every branc
 - none: what counts as a node depends on each diagram's markup, so the node count is a judge check.
 
 ## Check (judge)
-- Does each diagram have 12 nodes or fewer, and 8 or fewer for a state diagram? Quote each diagram's node names and their count.
+- Does each parts diagram have 12 nodes or fewer, and each state diagram 8 states or fewer (other types have no node limit)? Quote each diagram's type, its node names, and their count.
 - For each diagram, does `02-design.md` name the trigger it meets and the type picked from the shape? Quote both.
 - Does each branch end at a node or a final state? Quote each branch and its end.
 - Is each caption one sentence that says what to notice? Quote the caption.
