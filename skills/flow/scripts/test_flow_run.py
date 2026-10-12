@@ -1,4 +1,5 @@
-"""Run: python3 test_flow_run.py  (uses a temporary repo and a temporary HOME)."""
+"""Run: python3 test_flow_run.py  (uses a temporary repo and a temporary HOME). Needs Python 3.11 or later,
+because start reads TOML with tomllib."""
 import fcntl
 import hashlib
 import json
@@ -13,6 +14,9 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
+
+if sys.version_info < (3, 11):
+    raise SystemExit(f"test_flow_run.py needs Python 3.11 or later (tomllib); this is Python {sys.version.split()[0]}")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I does not add the script's folder
 import flow_run  # noqa: E402
