@@ -477,7 +477,7 @@ PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\nsite = "site"\nshots = "tm
 RED_BUILD = "- build: block:red-first-check\n"  # the catalog line most block tests start from
 
 
-def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None):
+def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None, python=sys.executable):
     """Start a flow in a new repo whose catalog `any` section has the given step lines, with the kit's blocks."""
     home, repo = Path(tmp, name, "home"), Path(tmp, name, "app")
     (home / ".flow" / "app").mkdir(parents=True)
@@ -487,7 +487,7 @@ def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None):
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, env={**os.environ, **GIT_ENV}, check=True)
     if repo_toml is not None:
         (repo / ".blocks.toml").write_text(repo_toml, encoding="utf-8")
-    run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], cwd=repo,
+    run = lambda *a: subprocess.run([python, SCRIPT, *map(str, a)], cwd=repo,
                                     env={**os.environ, **GIT_ENV, "HOME": str(home), **(env or {})}, capture_output=True, text=True)
     out = run("start", *args)
     folder = Path(out.stdout.splitlines()[0]) if out.returncode == 0 else None
@@ -687,6 +687,22 @@ def test_start_without_tomllib(tmp):
     assert out.returncode == 1 and out.stderr == f"{flow_run.BLOCKS / 'blocks.toml'}: reading TOML needs Python 3.11 or later (tomllib)\n", out
     out = run("status")
     assert out.returncode == 0 and "01-frame" in out.stdout, out
+
+
+def test_add_path_errors(tmp):
+    """An [add] path that is a symlink loop or a too-long name gives the one-line "is not a file" reason, also
+    on Python 3.11 and 3.12, where resolve and is_file raise for them; those run when uv can find them."""
+    found = [subprocess.run(["uv", "python", "find", v], capture_output=True, text=True).stdout.strip()
+             for v in ("3.11", "3.12")] if shutil.which("uv") else []
+    for python in [sys.executable] + [p for p in found if p]:
+        for case, path in (("loop", "loop.md"), ("long", "a" * 300 + ".md")):
+            name = f"add-{case}-{Path(python).name}"
+            Path(tmp, name, "app").mkdir(parents=True)
+            if case == "loop":
+                Path(tmp, name, "app", path).symlink_to(path)
+            out, _, _, _ = blocks_start(tmp, name, RED_BUILD, PARAMS + f'[add]\nbuild = ["{path}"]\n', python=python)
+            assert out.returncode == 1 and out.stderr.startswith(f"[add] {path} in ") and out.stderr.endswith(
+                " is not a file\n") and len(out.stderr.splitlines()) == 1, (python, case, out.stderr[-300:])
 
 
 def test_block_fail_closed(tmp):
@@ -1196,6 +1212,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_headings(tmp)
     test_skill_fenced_headings(tmp)
     test_start_without_tomllib(tmp)
+    test_add_path_errors(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
     test_block_checks(tmp)

@@ -215,8 +215,13 @@ def resolve_blocks(root, wanted, profile_name):
         for path in paths:
             if "\0" in path:
                 raise SystemExit(f"[add] {path} in {repo_file} holds a NUL byte")
+            try:  # Python 3.11 and 3.12 raise for a symlink loop (RuntimeError) or a too-long name (OSError)
+                outside = Path(path).is_absolute() or not (root / path).resolve().is_relative_to(root.resolve())
+                is_file = (root / path).is_file()
+            except (OSError, RuntimeError):
+                raise SystemExit(f"[add] {path} in {repo_file} is not a file") from None
             # The repo file is repo-owned input, and the step text goes to agents, so no file outside the repo.
-            if Path(path).is_absolute() or not (root / path).resolve().is_relative_to(root.resolve()):
+            if outside:
                 raise SystemExit(f"[add] {path} leaves the repo; {repo_file} takes repo-relative paths")
             block = Path(path).stem
             # The id goes into the step file and take's output, so it is one plain word.
@@ -227,7 +232,7 @@ def resolve_blocks(root, wanted, profile_name):
                 raise SystemExit(f"[add] {path} in {repo_file} has id {block}, which is an alias in {kit_file}; rename the file")
             if files.get(block, root / path) != root / path:
                 raise SystemExit(f"duplicate block id {block}: {path} in {repo_file} and {files[block]}")
-            if not (root / path).is_file():
+            if not is_file:
                 raise SystemExit(f"[add] {path} in {repo_file} is not a file")
             files[block] = root / path
             added.setdefault(key, []).append(block)
