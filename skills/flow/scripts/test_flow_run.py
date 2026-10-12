@@ -640,6 +640,17 @@ def test_block_headings(tmp):
         assert done.returncode == 1 and "- [ ] " in done.stderr and "no todo list" not in done.stderr, (name, done.stderr)
 
 
+def test_skill_fenced_headings(tmp):
+    """A catalog skill's `## ` line inside a ``` or ~~~ fence is quoted format and stays as is; one outside a
+    fence becomes `### `, and so does a fenced `## Todo (` line, which could still pass for a todo head."""
+    skill = Path(tmp, "fenced-skill.md")
+    skill.write_text("# s\n## Report\n```text\n## src/Button.tsx\n## Todo (x)\n```\n~~~\n## also kept\n~~~\n## After\n",
+                     encoding="utf-8")
+    lines = flow_run.skills_text([str(skill)]).splitlines()[1:]
+    assert lines == ["# s", "### Report", "```text", "## src/Button.tsx", "### Todo (x)", "```", "~~~", "## also kept",
+                     "~~~", "### After"], lines
+
+
 def test_block_fail_closed(tmp):
     """D5: start stops with a one-line reason and makes no folder."""
     cases = [
@@ -1144,6 +1155,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_params(tmp)
     test_block_controls(tmp)
     test_block_headings(tmp)
+    test_skill_fenced_headings(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
     test_block_checks(tmp)

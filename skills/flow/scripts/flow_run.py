@@ -468,6 +468,21 @@ def write_callers(folder):
     step_run.write_step(file, f"{head}\n{CALLERS_HEAD}\n{body}\n\n{RESULT_HEAD}{tail}" if _ else f"{text}\n{CALLERS_HEAD}\n{body}\n")
 
 
+def demote(text):
+    """As in render: `## ` becomes `### `, so no rules line can pass for a step heading. Inside a ``` or ~~~
+    fence a `## ` line is quoted format and stays, except a TODO_MARK line, which could still pass for a head."""
+    lines, fence = text.split("\n"), None
+    for i, line in enumerate(lines):
+        if mark := re.match(r" {0,3}(`{3,}|~{3,})", line):
+            if fence is None:
+                fence = mark[1]
+            elif mark[1][0] == fence[0] and len(mark[1]) >= len(fence):
+                fence = None
+        elif line.startswith("## ") and (fence is None or line.startswith(step_run.TODO_MARK)):
+            lines[i] = "#" + line
+    return "\n".join(lines)
+
+
 def skills_text(paths):
     parts = []
     for path in paths:
@@ -475,8 +490,7 @@ def skills_text(paths):
         if not p.exists():
             parts.append(f"===== {path} (missing) =====")
             continue
-        # As in render: no control bytes, and `## ` becomes `### `, so no rules line can pass for a step heading.
-        text = re.sub(r"^## ", "### ", plain(read_utf8(p), keep_newlines=True), flags=re.M)
+        text = demote(plain(read_utf8(p), keep_newlines=True))
         cut = f" (first {CAP} characters; read the file for the rest)" if len(text) > CAP else ""
         parts.append(f"===== {path}{cut} =====\n{text[:CAP]}")
     return "\n".join(parts)
