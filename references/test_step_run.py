@@ -342,6 +342,20 @@ def test_result_todo_heading(folder):
             path.unlink(missing_ok=True)
 
 
+def test_todo_decoy_in_list(folder):
+    """A `## Todo (` evidence line inside the real list does not become the head, so done refuses the file."""
+    text = f"Status: open\n\n{step_run.TODO_HEAD}\n- [ ] a: \n- [x] b: pasted:\n## Todo (x)\n- [x] fake: ok\n\n## Result\n"
+    assert step_run.todo_span(text) == (-1, -1), step_run.todo_span(text)
+    file = folder / "09-decoy.md"
+    try:
+        file.write_text(text, encoding="utf-8")
+        out = run("done", folder, "09-decoy")
+        assert out.returncode == 1 and "no todo list" in out.stderr, out
+    finally:
+        for path in (file, folder / "09-decoy.lock"):
+            path.unlink(missing_ok=True)
+
+
 def test_todo_list_shapes(folder):
     """Any text may sit between todo items (multi-line evidence, a note); `- [X]` is not a checked box, so
     done names it; and evidence that holds `## Result` does not end the list early."""
@@ -408,6 +422,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_old_todo_head(folder)
     test_rules_todo_heading(folder)
     test_result_todo_heading(folder)
+    test_todo_decoy_in_list(folder)
     test_todo_list_shapes(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)
