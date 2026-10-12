@@ -383,7 +383,7 @@ def test_callers_controls(repo, run, folder):
         assert out.returncode == 0, out.stderr
         assert "]0;title" in out.stdout
         assert ":\t# " in out.stdout, "tab-indented hits must keep their indentation"
-        assert not any(ord(c) < 32 and c not in "\n\t" or 127 <= ord(c) <= 159 for c in out.stdout), repr(out.stdout)
+        assert not has_control(out.stdout), repr(out.stdout)
         assert "parse_phone" in file.read_text(encoding="utf-8")
     finally:
         app.write_bytes(source)
@@ -477,6 +477,11 @@ def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None):
 
 def step_text(folder, step):
     return (folder / f"{step}.md").read_text(encoding="utf-8")
+
+
+def has_control(text, keep="\t\n"):
+    """True if text holds a C0 or C1 control character or DEL, other than those in keep."""
+    return any(ord(c) < 32 and c not in keep or 127 <= ord(c) <= 159 for c in text)
 
 
 def test_block_in_step(tmp):
@@ -604,7 +609,7 @@ def test_block_controls(tmp):
     out, folder, _, _ = blocks_start(tmp, "controls-text", "- build: block:web-ui-basics\n", params + '[add]\nbuild = ["docs/x.md"]\n')
     assert out.returncode == 0, out.stderr
     build = step_text(folder, "05-build")
-    assert not any(ord(c) < 32 and c not in "\t\n" or 127 <= ord(c) <= 159 for c in build), "no control bytes in a step file"
+    assert not has_control(build), "no control bytes in a step file"
     assert "RULE [2J 7" in build and "s[2Jx - [ ] injected" in build, build
     # A control byte inside a placeholder is dropped before the param check, so a missing name gets one line.
     Path(tmp, "controls-param", "app", "docs").mkdir(parents=True)
@@ -633,7 +638,7 @@ def test_block_headings(tmp):
         out, folder, _, run = blocks_start(tmp, name, catalog, repo_toml)
         assert out.returncode == 0, out.stderr
         design = step_text(folder, "02-design")
-        assert not any(ord(c) < 32 and c not in "\t\n" or 127 <= ord(c) <= 159 for c in design), design
+        assert not has_control(design), design
         rules = design.split(flow_run.RULES_HEAD, 1)[1].split(flow_run.TODO_HEAD, 1)[0]
         assert all(k in rules for k in kept) and not any(line.startswith("## ") for line in rules.splitlines()), rules
         done = run("done", folder, "02-design")
@@ -737,7 +742,7 @@ def test_block_fail_closed(tmp):
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
         assert len(out.stderr.strip().splitlines()) == 1, (name, out.stderr)
-        assert not any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in out.stderr.rstrip("\n")), (name, out.stderr)
+        assert not has_control(out.stderr.rstrip("\n"), keep=""), (name, out.stderr)
         assert not (repo / "tmp" / "flow").exists(), name
     # A bad block catalog stops the load with a reason that names it.
     kit = Path(tmp, "kit")
