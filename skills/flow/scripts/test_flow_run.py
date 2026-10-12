@@ -1054,12 +1054,13 @@ def block_rg(name, site):
 
 def test_look_grammar_colors(tmp):
     """The look-grammar color check finds each color literal in a declaration (also before a comma or on a
-    later line of a value) and in :root, and not a selector that looks like a hex color."""
+    later line of a value), and not a selector that looks like a hex color. A literal in the :root token block,
+    or in a :root that is all of @media (prefers-color-scheme: dark), is no hit; a :root anywhere else is."""
     site = Path(tmp, "colors-site")
     site.mkdir()
     (site / "index.html").write_text("<p>colors</p>\n", encoding="utf-8")  # the block's other checks read it
     (site / "a.css").write_text("\n".join([
-        ":root { --bg: #fff; --fg: oklch(0.2 0 0); }",  # 1
+        ":root { --bg: #fff; --fg: oklch(0.2 0 0); }",  # 1 the token block
         "#face .x { color: var(--fg); }",  # 2 selector
         "#bad,",  # 3 selector list
         "#cafe { color: var(--bg); }",  # 4 selector
@@ -1076,11 +1077,18 @@ def test_look_grammar_colors(tmp):
         "@media (min-width: 40em) { #dead { color: var(--fg); } }",  # 15 selector inside a block
         ".card { color: #fff; &:hover { color: var(--fg); } }",  # 16 a hex before a nested rule
         ".card { &#fff-id { color: var(--fg); } }",  # 17 a nested selector that looks like a hex
+        "@media (prefers-color-scheme: dark) {",  # 18 the dark-mode token block
+        "  :root { --bg: #111; --fg: oklch(0.9 0 0); }",  # 19
+        "}",  # 20
+        "@media (min-width: 40em) { :root { --bg: #222; } }",  # 21 a :root in another media query
+        "g { color: #123456; }",  # 22 a stray literal
+        ":root{--bg:#fff}@media (prefers-color-scheme: dark){:root{--bg:#111}}",  # 23 both blocks, minified
+        "@media (prefers-color-scheme: dark) { :root { --bg: #111; } h { color: #333; } }",  # 24 more than :root
     ]) + "\n", encoding="utf-8")
     colors = block_rg("look-grammar", site)[0]
     assert colors.returncode == 0, colors.stderr
     lines = sorted(int(line.split(":")[1]) for line in colors.stdout.splitlines())
-    assert lines == [1, 5, 6, 9, 12, 13, 14, 16], (lines, colors.stdout)
+    assert lines == [5, 6, 9, 12, 13, 14, 16, 21, 22, 24], (lines, colors.stdout)
 
 
 def test_diagram_shot_check(tmp):
