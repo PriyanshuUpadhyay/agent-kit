@@ -43,10 +43,9 @@ the git common dir (`git rev-parse --git-common-dir`), not the worktree folder n
    ```
 
    A catalog step line may also name `block:<id>`, a block or an alias in the kit's `blocks/`
-   folder. `start` writes each block into the step file, turns its `Check (script)` lines into
-   todos, and puts its `Check (judge)` lines into `06-review.md`. `--profile` picks how the blocks
-   are packed (default `default`). The repo's own `.blocks.toml` fills block params, adds repo
-   blocks, and turns a block off with a reason. `blocks/blocks.toml` owns the format.
+   folder; `start --profile <name>` packs them, and the repo's `.blocks.toml` configures them.
+   `blocks/blocks.toml` owns the block format, what each check line becomes, and the
+   `.blocks.toml` tables.
 
 3. Read `01-frame.md`. If `Worktree:` or `Branch:` is not the current worktree and branch, stop and
    tell the user. If two open folders exist for one branch, stop and tell the user.
