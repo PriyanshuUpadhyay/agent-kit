@@ -24,7 +24,7 @@ Result: two rows proved, one partial row named as partial.
 - none: the close table lives only in the step file, which holds this block's own Rules; `take 07-close` already refuses a run without APPROVE on HEAD.
 
 ## Check (judge)
-- Does every done-when line of `01-frame.md` and every accepted constraint have a row? Quote each done-when and its row.
-- Does any row still read "not run"? Quote it, or write "none".
-- Is each row's evidence a command with its output, a path that exists, or "unverified" with a reason? Quote each row's evidence.
-- Is any partial check written as a completed proof? Quote the row.
+- Does every done-when line of `01-frame.md` and every accepted constraint have its evidence in the `## Result` of `05-build.md`? Quote each done-when and its evidence.
+- Does any done-when there still read "not run" or have no evidence? Quote it, or write "none".
+- Is each piece of that evidence a command with its output, a path that exists, or "unverified" with a reason? Quote each piece.
+- Is any partial check in that Result written as a completed proof? Quote the line.
