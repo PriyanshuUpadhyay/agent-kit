@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -268,7 +269,12 @@ def resolve_blocks(root, wanted, profile_name):
             text = plain(raw, keep_newlines=True)
             if missing := [p for p in PARAM.findall(text) if p not in params]:
                 raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
-            parts = sections(PARAM.sub(lambda m: one_line(str(params[m.group(1)])), text))
+            def fill(part, quote=False):
+                return PARAM.sub(lambda m: (shlex.quote if quote else str)(one_line(str(params[m[1]]))), part)
+
+            # A script check runs in a shell, so a value in its command is one quoted word; other text stays plain.
+            parts = [(head, [re.sub(r"`[^`]*`", lambda span: fill(span[0], True), line) if head == CHECKS[0] else fill(line)
+                             for line in lines]) for head, lines in sections(text)]
             # A misspelled check heading would drop its checks without a word.
             if bad := [h for h, _ in parts[1:] if h.lower().startswith("check") and h not in CHECKS]:
                 raise SystemExit(f"block {block} has the section heading ## {bad[0]}; a check section is "

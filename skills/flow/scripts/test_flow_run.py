@@ -717,6 +717,23 @@ def test_start_no_block_reads_no_toml(tmp):
         assert "profile " not in next(l for l in b.splitlines() if l.startswith("Skills read:")), b
 
 
+def test_param_quoted_in_script_checks(tmp):
+    """A [params] value fills a Check (script) command as one shell word, so a space or an option inside it
+    stays one path; rules text gets the value as written."""
+    toml = PARAMS.replace('site = "site"', 'site = "my site --files"')
+    out, folder, repo, _ = blocks_start(tmp, "param-quote", "- build: block:web-ui-basics\n- design: block:look-grammar\n", toml)
+    assert out.returncode == 0, out.stderr
+    build = step_text(folder, "05-build")
+    todo = next(l for l in build.splitlines() if "'prefers-reduced-motion'" in l)
+    command = re.search(r"`([^`]+)`", todo)[1]
+    assert command.endswith(" 'my site --files'"), todo
+    assert "`my site --files/DESIGN.md`" in step_text(folder, "02-design").split(flow_run.TODO_HEAD)[0], "rules stay plain"
+    (repo / "my site --files").mkdir()
+    (repo / "my site --files" / "a.css").write_text("@media (prefers-reduced-motion: reduce) {}\n", encoding="utf-8")
+    ran = subprocess.run(command, shell=True, cwd=repo, capture_output=True, text=True)
+    assert ran.returncode == 0 and ran.stdout.startswith("my site --files/a.css:1:"), ran
+
+
 def test_add_path_errors(tmp):
     """An [add] path that is a symlink loop or a too-long name gives the one-line "is not a file" reason, also
     on Python 3.11 and 3.12, where resolve and is_file raise for them; those run when uv can find them."""
@@ -1267,6 +1284,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_skill_fenced_headings(tmp)
     test_start_without_tomllib(tmp)
     test_start_no_block_reads_no_toml(tmp)
+    test_param_quoted_in_script_checks(tmp)
     test_add_path_errors(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
