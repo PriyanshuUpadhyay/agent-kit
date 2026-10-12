@@ -262,6 +262,11 @@ def resolve_blocks(root, wanted, profile_name):
             if bad := [h for h, _ in parts[1:] if h.lower().startswith("check") and h not in CHECKS]:
                 raise SystemExit(f"block {block} has the section heading ## {bad[0]}; a check section is "
                                  f"## {CHECKS[0]} or ## {CHECKS[1]}")
+            # So would a check line that is not a `- ` item, as `* ` or an indented `- ` is.
+            if bad := next(((h, l) for h, lines in parts[1:] if h in CHECKS for l in lines
+                            if l.strip() and not l.startswith("- ")), None):
+                raise SystemExit(f"block {block} has the line {bad[1]!r} under ## {bad[0]}; "
+                                 f"each check is one line that starts with '- '")
             # The hash is of the file's bytes (C4); read_text turns CRLF into LF, so the text cannot give it.
             loaded[block] = (hashlib.sha256(files[block].read_bytes()).hexdigest()[:8], parts)
         return loaded[block]

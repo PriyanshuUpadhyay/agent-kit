@@ -715,6 +715,13 @@ def test_block_fail_closed(tmp):
         Path(tmp, name, "app", "docs").mkdir(parents=True)
         Path(tmp, name, "app", "docs", "c.md").write_text(f"# c\n\n## Rules\n- r\n\n## {head}\n- `true` runs: ok\n", encoding="utf-8")
         cases.append((name, RED_BUILD, PARAMS + '[add]\nbuild = ["docs/c.md"]\n', (), f"block c has the section heading ## {head}"))
+    # A check line that is not a `- ` item would be dropped without a word too.
+    for name, line in (("check-star", "* `true` runs: ok"), ("check-indent", "  - `false` runs: indented")):
+        Path(tmp, name, "app", "docs").mkdir(parents=True)
+        Path(tmp, name, "app", "docs", "c.md").write_text(f"# c\n\n## Rules\n- r\n\n## Check (script)\n- `true` runs: ok\n{line}\n",
+                                                          encoding="utf-8")
+        cases.append((name, RED_BUILD, PARAMS + '[add]\nbuild = ["docs/c.md"]\n', (),
+                      f"block c has the line {line!r} under ## Check (script)"))
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
