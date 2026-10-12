@@ -756,6 +756,16 @@ def test_start_no_block_reads_no_toml(tmp):
         assert "profile " not in next(l for l in b.splitlines() if l.startswith("Skills read:")), b
 
 
+def test_toml_no_block_adds_no_base(tmp):
+    """A repo with a .blocks.toml and a catalog that names no block gets no base block, so a live repo that adds
+    the file before it names a block writes what it wrote before."""
+    out, folder, _, _ = blocks_start(tmp, "toml-no-block", "", PARAMS)
+    assert out.returncode == 0, out.stderr
+    for file in sorted(folder.glob("0*.md")):
+        text = file.read_text(encoding="utf-8")
+        assert "Skills read: none" in text.splitlines() and "first-principles" not in text, (file.name, text)
+
+
 def test_param_quoted_in_script_checks(tmp):
     """A [params] value fills a Check (script) command as one shell word, so a space or an option inside it
     stays one path; rules text gets the value as written."""
@@ -1420,6 +1430,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_skill_fenced_headings(tmp)
     test_start_without_tomllib(tmp)
     test_start_no_block_reads_no_toml(tmp)
+    test_toml_no_block_adds_no_base(tmp)
     test_param_quoted_in_script_checks(tmp)
     test_param_outside_span_in_script_check(tmp)
     test_add_path_errors(tmp)
