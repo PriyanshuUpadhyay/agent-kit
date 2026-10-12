@@ -374,10 +374,26 @@ def test_callers_end_only_in_impact(tmp):
             flow_run.done(folder, "03-contracts")
         raise AssertionError("03-contracts with an open item after a Callers line must not be done")
     except SystemExit as error:
-        assert "no todo list" in str(error.code), error.code
+        assert f"no todo list: the line {flow_run.CALLERS_HEAD!r} inside the list ends it" in str(error.code), error.code
     with redirect_stdout(StringIO()):
         flow_run.done(folder, "04-impact")
     assert (folder / "04-impact.md").read_text(encoding="utf-8").startswith("Status: done "), "04-impact ends at Callers"
+
+
+def test_callers_cut_list(folder):
+    """A todo list that a `## ` line cuts still keeps the rules text out: callers come from the todo head on."""
+    file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
+    original, original_contracts = file.read_text(encoding="utf-8"), contracts.read_text(encoding="utf-8")
+    try:
+        contracts.write_text(f"## Rules\n`rule_name()`\n{flow_run.TODO_HEAD}\n- [x] names: below\n## Open questions\n"
+                             f"`real_name()`\n\n{flow_run.RESULT_HEAD}\n`result_name()`\n", encoding="utf-8")
+        with patch.object(flow_run, "git", return_value=str(folder)), \
+                patch.object(flow_run.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"", b"")) as search:
+            flow_run.write_callers(folder)
+        assert sorted(call.args[0][6] for call in search.call_args_list) == ["real_name", "result_name"], search.call_args_list
+    finally:
+        file.write_text(original, encoding="utf-8")
+        contracts.write_text(original_contracts, encoding="utf-8")
 
 
 def test_callers_below_rules(folder):
@@ -1223,6 +1239,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_callers_deadline(folder)
     test_callers_name_cap(folder)
     test_callers_below_rules(folder)
+    test_callers_cut_list(folder)
     test_callers_end_only_in_impact(tmp)
     test_callers_controls(repo, run, folder)
     out = run("take", folder, "04-impact", "a")

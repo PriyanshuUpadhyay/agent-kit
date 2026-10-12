@@ -446,7 +446,8 @@ def decode_prefix(chunk):
 
 def write_callers(folder):
     contracts = (folder / "03-contracts.md").read_text(encoding="utf-8")
-    names = code_names(contracts[max(step_run.todo_span(contracts)[0], 0):])  # below the rules, which quote other code
+    # Below the rules, which quote other code; a list cut by a `## ` line still has its head.
+    names = code_names(contracts[max(step_run.todo_scan(contracts)[0], 0):])
     omitted = max(0, len(names) - NAME_CAP)
     names = names[:NAME_CAP]
     root = git("rev-parse", "--show-toplevel")
