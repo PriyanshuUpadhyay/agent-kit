@@ -1168,22 +1168,24 @@ def test_diagram_shot_check(tmp):
 
 
 def test_look_grammar_page_code_colors(tmp):
-    """The look-grammar page-code check finds a quoted hex color or a color function in JS and TS files, and
-    not a private field or a selector string; a page whose code reads only tokens prints nothing."""
+    """The look-grammar page-code check finds a color function in JS and TS files, and not a quoted hex, which
+    could be an id selector such as "#feed" (the judge line asks about quoted hex colors), nor a private field;
+    a page whose code reads only tokens prints nothing."""
     site = Path(tmp, "code-colors-site")
     site.mkdir()
     (site / "index.html").write_text("<p>colors</p>\n", encoding="utf-8")  # the block's other checks read it
     (site / "main.js").write_text("\n".join([
-        'el.style.color = "#ff0000";',  # 1
+        'el.style.color = "#ff0000";',  # 1 a quoted hex, for the judge
         'ctx.fillStyle = "rgb(1,2,3)";',  # 2
         'document.querySelector("#main");',  # 3 not a hex
         "class A { #abc = 1; }",  # 4 a private field
         "el.style.color = 'var(--fg)';",  # 5
+        'document.querySelector("#feed");',  # 6 an id selector made of hex letters
     ]) + "\n", encoding="utf-8")
     (site / "view.tsx").write_text("const c = `#abc`;\nconst d = hsl(1, 2, 3);\n", encoding="utf-8")
     code = block_rg("look-grammar", site)[2]
     hits = sorted(line.split(":", 2)[0].rsplit("/", 1)[1] + ":" + line.split(":", 2)[1] for line in code.stdout.splitlines())
-    assert hits == ["main.js:1", "main.js:2", "view.tsx:1", "view.tsx:2"], (hits, code.stdout)
+    assert hits == ["main.js:2", "view.tsx:2"], (hits, code.stdout)
     (site / "main.js").write_text("el.style.color = 'var(--fg)';\nclass A { #abc = 1; }\n", encoding="utf-8")
     (site / "view.tsx").unlink()
     code = block_rg("look-grammar", site)[2]
