@@ -281,6 +281,11 @@ def resolve_blocks(root, wanted, profile_name):
             # the line, and other sections, get the value as written. Odd split parts are the spans.
             parts = [(head, ["".join(fill(p, head == CHECKS[0] and i % 2) for i, p in enumerate(re.split(r"(`[^`]*`)", line)))
                              for line in lines]) for head, lines in sections(text)]
+            # sections() split the raw text, so a `## ` line here was made by a param; in the step file it
+            # would be a step heading, such as `## Todo (` or `## Result`, that done takes for the todo list.
+            if made := next((l for _, lines in parts for l in lines if l.startswith("## ")), None):
+                raise SystemExit(f"block {block} has the line {made!r} once its params are filled; "
+                                 f"a param must not make a '## ' heading")
             # A misspelled check heading would drop its checks without a word.
             if bad := [h for h, _ in parts[1:] if h.lower().startswith("check") and h not in CHECKS]:
                 raise SystemExit(f"block {block} has the section heading ## {bad[0]}; a check section is "

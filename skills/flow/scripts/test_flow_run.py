@@ -867,6 +867,13 @@ def test_block_fail_closed(tmp):
                                                                    encoding="utf-8")
     cases.append(("param-heading", RED_BUILD, PARAMS + 'a = "## Todo (x)"\nb = "## Result"\n[add]\ndesign = ["docs/fake.md"]\n', (),
                   "[params] a starts with '#'"))
+    # A block line that a param fills into a `## ` line would also be a step heading in the rules text.
+    Path(tmp, "param-filled-heading", "app", "docs").mkdir(parents=True)
+    Path(tmp, "param-filled-heading", "app", "docs", "fake.md").write_text(
+        "# fake\n\n## Rules\n##{{a}}\n- [x] nothing: ok\n##{{b}}\n", encoding="utf-8")
+    cases.append(("param-filled-heading", RED_BUILD,
+                  PARAMS + 'a = " Todo (x)"\nb = " Result"\n[add]\ndesign = ["docs/fake.md"]\n', (),
+                  "block fake has the line '## Todo (x)' once its params are filled"))
     # A check line that is not a `- ` item would be dropped without a word too.
     for name, line in (("check-star", "* `true` runs: ok"), ("check-indent", "  - `false` runs: indented")):
         Path(tmp, name, "app", "docs").mkdir(parents=True)
