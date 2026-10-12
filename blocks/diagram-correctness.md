@@ -19,9 +19,10 @@ Action: build the table. CLI `:11 match`, agent `:13 match`, collector `:15 matc
 Result: two findings, `site/index.html:88 - node "cache" not in docs/architecture.md` and `site/index.html:95 - retry arrow crosses "collector" label at 375 px`.
 
 ## Check (script)
-- `n=$(rg -o -g '*.html' '<figure(\s|>|$)' {{site}} | wc -l); test "$n" -ge 1 && test "$n" -eq "$(ls {{shots}}/diagram-*-375.png | wc -l)"` exits 0: the page has at least one `<figure>`, and there is one `diagram-<diagram>-375.png` shot per `<figure>` on it, as html-diagram wraps each diagram in one, so every diagram was seen at phone width.
+- `file {{shots}}/diagram-*-375.png` prints `PNG image data, 375 x` on every line: each diagram shot exists and is a real screenshot 375 px wide.
 
 ## Check (judge)
+- Does each diagram on the page have its own `{{shots}}/diagram-<diagram>-375.png` shot? Quote each diagram's caption and its shot name.
 - Does each source `path:line` in the tables hold the item its row maps? Quote each row and its source line.
 - Does any node, arrow, or label say something that {{source_of_truth}} does not say? Quote the diagram text and the source line, or write "no source line".
 - Does `06-review.md` hold one table per diagram, with one row per node and per arrow? Quote one table.

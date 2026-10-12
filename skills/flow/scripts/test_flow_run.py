@@ -918,25 +918,24 @@ def test_look_grammar_colors(tmp):
 
 
 def test_diagram_shot_check(tmp):
-    """The diagram-correctness script check passes only with at least one figure on the page and one 375 px
-    diagram shot per figure."""
-    root = Path(tmp, "shot-count")
-    root.mkdir()
+    """The diagram-correctness script check prints a 375 px PNG line for each diagram shot, and another line
+    for a missing, empty, or wrong-width shot; it reads no page markup, which another block may own."""
+    root = Path(tmp, "shot-check")
     text = (flow_run.BLOCKS / "diagram-correctness.md").read_text(encoding="utf-8")
-    command = re.search(r"`([^`]+)`", text.split("## Check (script)\n", 1)[1])[1].replace("{{site}}", "site").replace("{{shots}}", "shots")
-    sh = lambda: subprocess.run(command, shell=True, cwd=root, capture_output=True, text=True).returncode
-    assert sh() != 0, "no site and no shots must fail"
-    (root / "site").mkdir()
-    (root / "shots").mkdir()
-    (root / "site" / "index.html").write_text("<p>no diagram</p>\n", encoding="utf-8")
-    assert sh() != 0, "a page with no figure and no shot must fail"
-    (root / "site" / "index.html").write_text('<figure\n  class="a"><figcaption>A</figcaption></figure>\n'
-                                              "<figure><figcaption>B</figcaption></figure>\n", encoding="utf-8")
-    (root / "site" / "DESIGN.md").write_text("Wrap each diagram in <figure>.\n", encoding="utf-8")
-    (root / "shots" / "diagram-one-375.png").write_bytes(b"")
-    assert sh() != 0, "two diagrams and one shot must fail"
-    (root / "shots" / "diagram-two-375.png").write_bytes(b"")
-    assert sh() == 0, "two diagrams and two shots must pass"
+    command = re.search(r"`([^`]+)`", text.split("## Check (script)\n", 1)[1])[1].replace("{{shots}}", "shots")
+    png = lambda width: (b"\x89PNG\r\n\x1a\n" + (13).to_bytes(4, "big") + b"IHDR" + width.to_bytes(4, "big")
+                         + (812).to_bytes(4, "big") + bytes([8, 6, 0, 0, 0]) + bytes(4))
+    def ok():
+        lines = subprocess.run(command, shell=True, cwd=root, capture_output=True, text=True).stdout.splitlines()
+        return bool(lines) and all("PNG image data, 375 x" in line for line in lines)
+    (root / "shots").mkdir(parents=True)
+    assert not ok(), "no shot must fail"
+    (root / "shots" / "diagram-one-375.png").write_bytes(png(375))
+    (root / "shots" / "diagram-two-375.png").write_bytes(png(375))
+    assert ok(), "two 375 px shots must pass"
+    for bad in (b"", png(390)):
+        (root / "shots" / "diagram-two-375.png").write_bytes(bad)
+        assert not ok(), bad
 
 
 def test_look_grammar_dashes(tmp):
