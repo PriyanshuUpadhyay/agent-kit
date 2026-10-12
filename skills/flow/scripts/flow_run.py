@@ -297,6 +297,10 @@ def resolve_blocks(root, wanted, profile_name):
                             if l.strip() and not l.startswith("- ")), None):
                 raise SystemExit(f"block {block} has the line {bad[1]!r} under ## {bad[0]}; "
                                  f"each check is one line that starts with '- '")
+            # So would a missing check section; blocks/blocks.toml says every block has both.
+            if missing := next((h for h in CHECKS if h not in [head for head, _ in parts[1:]]), None):
+                raise SystemExit(f"block {block} has no ## {missing} section" + (f" in its first {CAP} characters" if cut else "")
+                                 + "; every block has one, with `- none: <why>` when it has no check")
             if cut:  # a header line, so render writes it under the block's marker
                 parts[0][1].append(f"{plain(str(files[block]))} (first {CAP} characters; read the file for the rest)")
             # The hash is of the file's bytes; the text has LF for CRLF, so it cannot give it.

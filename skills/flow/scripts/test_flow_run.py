@@ -559,7 +559,7 @@ def test_block_alias_and_base(tmp):
 def test_block_hash_bytes(tmp):
     """The Skills read hash is the sha256 of the block file's bytes, also for a file with CRLF line ends."""
     Path(tmp, "crlf", "app", "docs").mkdir(parents=True)
-    data = b"# crlf\r\n\r\n## Rules\r\n- CRLF RULE 3\r\n"
+    data = b"# crlf\r\n\r\n## Rules\r\n- CRLF RULE 3\r\n## Check (script)\r\n- none: x\r\n## Check (judge)\r\n- Is it CRLF?\r\n"
     Path(tmp, "crlf", "app", "docs", "crlf.md").write_bytes(data)
     out, folder, _, _ = blocks_start(tmp, "crlf", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/crlf.md"]\n')
     assert out.returncode == 0, out.stderr
@@ -668,7 +668,8 @@ def test_block_headings(tmp):
     skill's control bytes are dropped too."""
     Path(tmp, "fake-todo", "app", "docs").mkdir(parents=True)
     Path(tmp, "fake-todo", "app", "docs", "fake.md").write_text(
-        "# fake\n\n## Todo (fake)\n- [x] nothing: ok\n\n## Result\nall good\n", encoding="utf-8")
+        "# fake\n\n## Todo (fake)\n- [x] nothing: ok\n\n## Result\nall good\n\n## Check (script)\n- none: x\n\n## Check (judge)\n- Is it fake?\n",
+        encoding="utf-8")
     skill = Path(tmp, "fake-skill.md")
     skill.write_text("# skill\n\n## Todo (x)\n- [x] a: ok\n\n## Result\nfine \x1b[2J\n", encoding="utf-8")
     for name, catalog, repo_toml, kept in (
@@ -755,7 +756,7 @@ def test_param_outside_span_in_script_check(tmp):
     inside a span is it quoted."""
     Path(tmp, "param-prose", "app", "docs").mkdir(parents=True)
     Path(tmp, "param-prose", "app", "docs", "x.md").write_text(
-        "# x\n\n## Rules\n- r\n\n## Check (script)\n- Look at {{site}} outside backticks and run `ls {{site}}`: prose.\n",
+        "# x\n\n## Rules\n- r\n\n## Check (script)\n- Look at {{site}} outside backticks and run `ls {{site}}`: prose.\n\n## Check (judge)\n",
         encoding="utf-8")
     toml = PARAMS.replace('site = "site"', 'site = "my site"') + '[add]\nbuild = ["docs/x.md"]\n'
     out, folder, _, _ = blocks_start(tmp, "param-prose", RED_BUILD, toml)
@@ -881,6 +882,12 @@ def test_block_fail_closed(tmp):
                                                           encoding="utf-8")
         cases.append((name, RED_BUILD, PARAMS + '[add]\nbuild = ["docs/c.md"]\n', (),
                       f"block c has the line {line!r} under ## Check (script)"))
+    # Every block has both check sections; `- none: <why>` is the way to have no check, so a missing one stops start.
+    for name, text, head in (("no-checks", "# c\n\n## Rules\n- r\n", "Check (script)"),
+                             ("no-judge", "# c\n\n## Rules\n- r\n\n## Check (script)\n- none: no command\n", "Check (judge)")):
+        Path(tmp, name, "app", "docs").mkdir(parents=True)
+        Path(tmp, name, "app", "docs", "c.md").write_text(text, encoding="utf-8")
+        cases.append((name, RED_BUILD, PARAMS + '[add]\nbuild = ["docs/c.md"]\n', (), f"block c has no ## {head} section"))
     for name, catalog, repo_toml, args, reason in cases:
         out, _, repo, _ = blocks_start(tmp, name, catalog, repo_toml, *args)
         assert out.returncode == 1 and reason in out.stderr and "Traceback" not in out.stderr, (name, out.stderr)
@@ -903,6 +910,16 @@ def test_block_fail_closed(tmp):
                 raise AssertionError(f"start must stop: {reason}")
             except SystemExit as error:
                 assert reason in str(error) and "\n" not in str(error), error
+
+
+def test_kit_blocks_load(tmp):
+    """Every kit block loads, so each has both check sections and its params are the documented ones."""
+    root = Path(tmp, "kit-blocks")
+    root.mkdir()
+    (root / ".blocks.toml").write_text(PARAMS, encoding="utf-8")
+    ids = list(flow_run.read_toml(flow_run.BLOCKS / "blocks.toml")["blocks"])
+    out, _ = flow_run.resolve_blocks(root, {"build": ids}, "default")
+    assert len(ids) == 13 and all(f"===== block:{b} =====" in out["build"][1] for b in ids), (ids, out["build"][0])
 
 
 def test_block_repo_file(tmp):
@@ -1358,6 +1375,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_param_outside_span_in_script_check(tmp)
     test_add_path_errors(tmp)
     test_block_fail_closed(tmp)
+    test_kit_blocks_load(tmp)
     test_block_repo_file(tmp)
     test_block_cap(tmp)
     test_block_checks(tmp)
