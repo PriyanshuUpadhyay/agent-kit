@@ -6,11 +6,12 @@ Source: skills/flow/SKILL.md (step table, 07-close row); references/plan-layout.
 ## Rules
 - `07-close.md` lists every done-when of `01-frame.md`, each with its evidence.
 - Use a table or a numbered list: requirement, check, evidence. Every requirement and every accepted constraint has a row.
+- Each row's check is the one that `05-build.md` names for it, in a todo's evidence or its `## Result`. Review judges that each done-when has one there, before this table exists.
 - Evidence reads "not run" until you get it. A row with no proof reads "unverified" and says why.
 - Keep a partial check apart from a completed proof.
 
 ## Example
-Initial state: `01-frame.md` has three done-when lines.
+Initial state: `01-frame.md` has three done-when lines, and `05-build.md` names a check for each.
 Action: write in `07-close.md`:
 | Done-when | Check | Evidence |
 |---|---|---|
@@ -23,7 +24,7 @@ Result: two rows proved, one partial row named as partial.
 - none: the close table lives only in the step file, which holds this block's own Rules; `take 07-close` already refuses a run without APPROVE on HEAD.
 
 ## Check (judge)
-- Does every done-when line of `01-frame.md` and every accepted constraint have its evidence in the `## Result` of `05-build.md`? Quote each done-when and its evidence.
-- Does any done-when there still read "not run" or have no evidence? Quote it, or write "none".
-- Is each piece of that evidence a command with its output, a path that exists, or "unverified" with a reason? Quote each piece.
-- Is any partial check in that Result written as a completed proof? Quote the line.
+- Does each done-when line of `01-frame.md` and each accepted constraint have a check, planned or run, named in `05-build.md` (a todo's evidence or its `## Result`)? Quote each done-when and its check.
+- Does any done-when have no check named there? Quote it, or write "none".
+- Is each named check a command, a test, or a screenshot path that a close table can cite? Quote each check.
+- Is any planned or partial check in `05-build.md` written as a completed proof? Quote the line, or write "none".
