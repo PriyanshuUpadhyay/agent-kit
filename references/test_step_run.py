@@ -370,6 +370,24 @@ def test_todo_decoy_in_list(folder):
             path.unlink(missing_ok=True)
 
 
+def test_todo_list_cut_names_line(folder):
+    """When a `## ` line inside the todo list ends it, done names that line and the fix in one line; a file
+    with no todo head keeps the plain reason."""
+    file = folder / "09-cut.md"
+    try:
+        file.write_text(f"Status: open\n\n{step_run.TODO_HEAD}\n- [x] Scope: files touched\n## main...origin/main\n"
+                        f"- [x] b: ok\n{step_run.RESULT_HEAD}\n", encoding="utf-8")
+        out = run("done", folder, "09-cut")
+        assert out.returncode == 1 and out.stderr == ("09-cut is not done: no todo list: the line '## main...origin/main' "
+                                                      "inside the list ends it; indent it or remove the leading '## '\n"), out
+        file.write_text("Status: open\n\n## Notes\n", encoding="utf-8")
+        out = run("done", folder, "09-cut")
+        assert out.returncode == 1 and "no todo list (" in out.stderr, out
+    finally:
+        for path in (file, folder / "09-cut.lock"):
+            path.unlink(missing_ok=True)
+
+
 def test_todo_list_shapes(folder):
     """Any text may sit between todo items (multi-line evidence, a note); `- [X]` is not a checked box, so
     done names it; evidence that holds `## Result` does not end the list early; and a checked line with no
@@ -440,6 +458,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_result_todo_heading(folder)
     test_todo_head_pinned()
     test_todo_decoy_in_list(folder)
+    test_todo_list_cut_names_line(folder)
     test_todo_list_shapes(folder)
     test_utf8_and_lock_context(folder)
     test_cli_output(folder)
