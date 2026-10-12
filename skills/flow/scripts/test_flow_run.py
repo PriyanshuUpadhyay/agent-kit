@@ -797,6 +797,8 @@ def test_block_fail_closed(tmp):
     # A top-level key goes before [params], or TOML puts it in that table.
     cases += [(f"type-{name}", RED_BUILD, toml, (), reason) for name, toml, reason in (
         ("syntax", "[params\nx = 1\n", ".blocks.toml is not valid TOML"),
+        ("deep", "x = " + "[" * 500 + "]" * 500 + "\n" + PARAMS, ".blocks.toml is not valid TOML"),  # RecursionError
+        ("bigint", PARAMS + "big = " + "9" * 5000 + "\n", ".blocks.toml is not valid TOML"),  # ValueError, int digit limit
         ("params", "params = 3\n", ".blocks.toml: params must be a table"),
         ("off", "off = 3\n" + PARAMS, ".blocks.toml: off must be a table"),
         ("add", "add = 3\n" + PARAMS, ".blocks.toml: add must be a table"),

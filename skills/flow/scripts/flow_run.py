@@ -324,7 +324,7 @@ def read_toml(path):
         raise SystemExit(f"{path}: reading TOML needs Python 3.11 or later (tomllib)") from None
     try:
         return tomllib.loads(read_utf8(path))
-    except tomllib.TOMLDecodeError as error:
+    except (tomllib.TOMLDecodeError, RecursionError, ValueError) as error:  # a deep array, a huge integer
         raise SystemExit(f"{path} is not valid TOML: {error}") from None
 
 
