@@ -656,6 +656,20 @@ def test_skill_fenced_headings(tmp):
                      "~~~", "### After"], lines
 
 
+def test_start_without_tomllib(tmp):
+    """On a Python before 3.11, which has no tomllib, start stops with one line and status still runs."""
+    out, _, repo, _ = blocks_start(tmp, "no-tomllib", RED_BUILD)
+    assert out.returncode == 0, out.stderr
+    code = "import runpy, sys; sys.modules['tomllib'] = None; sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
+    env = {**os.environ, **GIT_ENV, "HOME": str(Path(tmp, "no-tomllib", "home"))}
+    run = lambda *a: subprocess.run([sys.executable, "-I", "-c", code, str(SCRIPT), *a], cwd=repo, env=env,
+                                    capture_output=True, text=True)
+    out = run("start")
+    assert out.returncode == 1 and out.stderr == f"{flow_run.BLOCKS / 'blocks.toml'}: reading TOML needs Python 3.11 or later (tomllib)\n", out
+    out = run("status")
+    assert out.returncode == 0 and "01-frame" in out.stdout, out
+
+
 def test_block_fail_closed(tmp):
     """start stops with a one-line reason and makes no folder."""
     cases = [
@@ -1161,6 +1175,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_controls(tmp)
     test_block_headings(tmp)
     test_skill_fenced_headings(tmp)
+    test_start_without_tomllib(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
     test_block_checks(tmp)

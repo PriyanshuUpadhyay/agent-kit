@@ -30,7 +30,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "references"))
@@ -298,6 +297,10 @@ def one_line(text):
 
 
 def read_toml(path):
+    try:  # only start reads TOML, so the other commands still run on a Python before 3.11
+        import tomllib
+    except ImportError:
+        raise SystemExit(f"{path}: reading TOML needs Python 3.11 or later (tomllib)") from None
     try:
         return tomllib.loads(read_utf8(path))
     except tomllib.TOMLDecodeError as error:
