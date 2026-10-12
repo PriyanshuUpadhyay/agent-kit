@@ -921,6 +921,21 @@ def test_block_repo_file(tmp):
     assert "block html-diagram" not in design and "block html-diagram" not in step_text(folder, "06-review")
 
 
+def test_block_cap(tmp):
+    """A block is cut at CAP characters, as a catalog skill is, and the step file says where the rest is."""
+    Path(tmp, "big", "app", "docs").mkdir(parents=True)
+    filler = "".join(f"- filler rule {i}\n" for i in range(flow_run.CAP // 10))
+    Path(tmp, "big", "app", "docs", "big.md").write_text(
+        "# big\n## Check (script)\n- `true` runs: BIG CHECK\n## Check (judge)\n- Is it big?\n## Rules\n" + filler + "- LAST RULE\n",
+        encoding="utf-8")
+    out, folder, repo, _ = blocks_start(tmp, "big", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/big.md"]\n')
+    assert out.returncode == 0, out.stderr
+    build = step_text(folder, "05-build")
+    assert f"{repo / 'docs' / 'big.md'} (first {flow_run.CAP} characters; read the file for the rest)" in build, build[-500:]
+    assert "- filler rule 0\n" in build and "LAST RULE" not in build and "BIG CHECK" in build, build[-500:]
+    assert len(build) < 2 * flow_run.CAP, len(build)
+
+
 # An ASCII locale: the child opens files as US-ASCII unless the code passes encoding="utf-8". The child
 # runs without -I, which would ignore PYTHONUTF8=0 and turn on UTF-8 mode under the C locale.
 ASCII_ENV = {"LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
@@ -1344,6 +1359,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_add_path_errors(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
+    test_block_cap(tmp)
     test_block_checks(tmp)
     test_html_diagram_check(tmp)
     test_look_grammar_colors(tmp)

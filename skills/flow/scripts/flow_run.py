@@ -268,10 +268,12 @@ def resolve_blocks(root, wanted, profile_name):
     def load(block):
         """The block's content hash and its filled sections, read once."""
         if block not in loaded:
-            raw = read_utf8(files[block])
+            data = read_bytes(files[block])
             # Repo text goes to agents and to take's output: a param is one line, and no text keeps control bytes.
-            # The param check reads the filtered text, the same text the fill reads.
-            text = plain(raw, keep_newlines=True)
+            # The param check reads the filtered text, the same text the fill reads. As skills_text does, the
+            # text is cut at CAP characters, so a large repo file cannot fill every step file.
+            text = plain(read_utf8(files[block], data), keep_newlines=True)
+            cut, text = len(text) > CAP, text[:CAP]
             if missing := [p for p in PARAM.findall(text) if p not in params]:
                 raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
             def fill(part, quote=False):
@@ -295,8 +297,10 @@ def resolve_blocks(root, wanted, profile_name):
                             if l.strip() and not l.startswith("- ")), None):
                 raise SystemExit(f"block {block} has the line {bad[1]!r} under ## {bad[0]}; "
                                  f"each check is one line that starts with '- '")
-            # The hash is of the file's bytes; read_text turns CRLF into LF, so the text cannot give it.
-            loaded[block] = (hashlib.sha256(files[block].read_bytes()).hexdigest()[:8], parts)
+            if cut:  # a header line, so render writes it under the block's marker
+                parts[0][1].append(f"{plain(str(files[block]))} (first {CAP} characters; read the file for the rest)")
+            # The hash is of the file's bytes; the text has LF for CRLF, so it cannot give it.
+            loaded[block] = (hashlib.sha256(data).hexdigest()[:8], parts)
         return loaded[block]
 
     out, judge = {}, {}
@@ -336,13 +340,19 @@ def read_toml(path):
         raise SystemExit(f"{path} is not valid TOML: {error}") from None
 
 
-def read_utf8(path):
+def read_bytes(path):
     try:
-        return path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as error:
-        raise SystemExit(f"{path} is not UTF-8: {error}") from None
+        return path.read_bytes()
     except OSError as error:
         raise SystemExit(f"{path} cannot be read: {error.strerror}") from None
+
+
+def read_utf8(path, data=None):
+    """The file's text with each line end as LF, as read_text gives it; `data` is its bytes if already read."""
+    try:
+        return (read_bytes(path) if data is None else data).decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    except UnicodeDecodeError as error:
+        raise SystemExit(f"{path} is not UTF-8: {error}") from None
 
 
 def sections(text):
