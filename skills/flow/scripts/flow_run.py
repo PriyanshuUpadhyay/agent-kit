@@ -441,7 +441,15 @@ def approved(folder):
     verdict = lines[2] if len(lines) > 2 else f"no verdict in {run}/03-verdict.md"
     if not verdict.startswith("Verdict: APPROVE"):
         raise SystemExit(f"07-close needs an APPROVE verdict on HEAD. {runs[-1]} says: {verdict}")
-    head = json.loads((run / "target.json").read_text(encoding="utf-8")).get("head", "") if (run / "target.json").exists() else ""
+    target = {}
+    if (run / "target.json").exists():
+        try:
+            target = json.loads(read_utf8(run / "target.json"))
+        except (ValueError, RecursionError) as error:  # bad JSON, a number past the int digit limit, a deep array
+            raise SystemExit(f"{run}/target.json is not valid JSON: {error}") from None
+        if not isinstance(target, dict):
+            raise SystemExit(f"{run}/target.json is not a JSON object")
+    head = target.get("head", "") if isinstance(target.get("head"), str) else ""
     if not head.startswith(rev(folder, "05-build")):
         raise SystemExit(f"{runs[-1]} covers {head[:12] or 'no head'}, but the build is now {rev(folder, '05-build')}; "
                          "run review-check on the new range")

@@ -1030,6 +1030,15 @@ def test_review_read_encoding(tmp):
     out = run("take", folder, "07-close", "a")
     assert out.returncode == 1 and "03-verdict.md is not UTF-8" in out.stderr and len(out.stderr.splitlines()) == 1, out.stderr
     (review / "03-verdict.md").write_bytes(good)
+    # So does a target.json with bad bytes, bad JSON, a value that is not an object, or a head that is not a string.
+    target = (review / "target.json").read_bytes()
+    for data, reason in ((b'{"head": "abc\xff"}', "target.json is not UTF-8"), (b'{"head": ', "target.json is not valid JSON"),
+                         (b"[" * 10**6 + b"]" * 10**6, "target.json is not valid JSON"),  # RecursionError
+                         (b"[1]", "target.json is not a JSON object"), (b'{"head": 3}', "covers no head")):
+        (review / "target.json").write_bytes(data)
+        out = run("take", folder, "07-close", "a")
+        assert out.returncode == 1 and reason in out.stderr and len(out.stderr.splitlines()) == 1, (data, out.stderr)
+    (review / "target.json").write_bytes(target)
     out = run("take", folder, "07-close", "a")
     assert out.returncode == 0, out.stderr
 
