@@ -1,14 +1,13 @@
 # done-when-evidence
 Concept: Close maps each done-when of the frame to its evidence, or marks it unverified.
 Serves: close
-Source: skills/flow/SKILL.md (step table, 07-close row, and the APPROVE gate below it); references/plan-layout.md:31-33 (Verification); skills/prove-it-works/SKILL.md:46 (below step 4 is unproven)
+Source: skills/flow/SKILL.md (step table, 07-close row); references/plan-layout.md:31-33 (Verification); skills/prove-it-works/SKILL.md:46 (below step 4 is unproven)
 
 ## Rules
 - `07-close.md` lists every done-when of `01-frame.md`, each with its evidence.
 - Use a table or a numbered list: requirement, check, evidence. Every requirement and every accepted constraint has a row.
 - Evidence reads "not run" until you get it. A row with no proof reads "unverified" and says why.
 - Keep a partial check apart from a completed proof.
-- Close needs the review verdict APPROVE on the current head. An `INCOMPLETE` verdict is no review.
 
 ## Example
 Initial state: `01-frame.md` has three done-when lines.
