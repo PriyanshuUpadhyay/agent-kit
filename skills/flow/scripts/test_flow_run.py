@@ -998,7 +998,7 @@ def test_block_checks(tmp):
     # The judge section sits after the rules and before the todo head, so done still finds the todo list.
     rules_at, judge_at, todo_at = (review.index(h) for h in (flow_run.RULES_HEAD, flow_run.JUDGE_HEAD, flow_run.TODO_HEAD))
     assert rules_at < judge_at < todo_at and judge in review[judge_at:todo_at], review
-    assert flow_run.step_run.todo_span(review)[0] == todo_at, review
+    assert flow_run.step_run.todo_scan(review)[0] == todo_at, review
     assert "block first-principles judge: Does every fact in the result trace to a line in docs/spec.md?" in review, review
     assert review.count("block first-principles judge:") == 2, "base judge lines appear once per run"
     f = folder / "05-build.md"

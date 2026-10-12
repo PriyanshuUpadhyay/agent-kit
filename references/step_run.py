@@ -42,12 +42,6 @@ def todo_scan(text, ends=(RESULT_HEAD,)):
     return -1, -1, None
 
 
-def todo_span(text, ends=(RESULT_HEAD,)):
-    """(start, end) of the step's own todo list, or (-1, -1); todo_scan owns the rule."""
-    head, end, _ = todo_scan(text, ends)
-    return (head, end) if end >= 0 else (-1, -1)
-
-
 def plain(text, *, keep_newlines=False):
     text = text.replace("\u2028", "\n").replace("\u2029", "\n")
     return "".join(c for c in text if c == "\t" or (keep_newlines and c == "\n")

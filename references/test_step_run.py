@@ -361,7 +361,7 @@ def test_todo_decoy_in_list(folder):
     try:
         for text in texts:
             text = f"Status: open\n\n{text}"
-            assert step_run.todo_span(text) == (-1, -1), (text, step_run.todo_span(text))
+            assert step_run.todo_scan(text)[1] == -1, (text, step_run.todo_scan(text))
             file.write_text(text, encoding="utf-8")
             out = run("done", folder, "09-decoy")
             assert out.returncode == 1 and "no todo list" in out.stderr, (text, out)
