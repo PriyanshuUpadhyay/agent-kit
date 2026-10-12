@@ -189,7 +189,7 @@ def done(folder, step, rev=None, ends=(RESULT_HEAD,)):
         todo = text[start:end]
         # Only `- [x]` counts as checked; `- [X]` is named as open, so it is never passed unread.
         open_items = [l for l in todo.splitlines() if l.startswith(("- [ ]", "- [X]"))]
-        empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not l.rsplit(":", 1)[-1].strip()]
+        empty = [l for l in todo.splitlines() if l.startswith("- [x]") and not (":" in l[5:] and l.rsplit(":", 1)[-1].strip())]
         if open_items or empty:
             raise SystemExit(f"{step} is not done:\n" + "\n".join(open_items + [f"no evidence: {l}" for l in empty]))
         rev = rev or revision(folder, step)

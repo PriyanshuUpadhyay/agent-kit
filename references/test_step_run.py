@@ -366,12 +366,14 @@ def test_todo_decoy_in_list(folder):
 
 def test_todo_list_shapes(folder):
     """Any text may sit between todo items (multi-line evidence, a note); `- [X]` is not a checked box, so
-    done names it; and evidence that holds `## Result` does not end the list early."""
+    done names it; evidence that holds `## Result` does not end the list early; and a checked line with no
+    colon has no evidence."""
     file, head, result = folder / "09-shape.md", step_run.TODO_HEAD, step_run.RESULT_HEAD
     cases = [(f"- [x] one: first line\n  second line of evidence\n- [x] two: ok\n", 0, "done"),
              (f"- [x] one: a\nnote: wrapped\n<!-- comment -->\n- [x] two: b\n", 0, "done"),
              (f"- [X] one: a\n", 1, "- [X] one: a"),
-             (f"- [x] a: moved {result} up\n- [ ] b: \n", 1, "- [ ] b:")]
+             (f"- [x] a: moved {result} up\n- [ ] b: \n", 1, "- [ ] b:"),
+             (f"- [x] the question\n", 1, "no evidence: - [x] the question")]
     events = (folder / "events.log").read_text(encoding="utf-8")
     try:
         for items, code, said in cases:
