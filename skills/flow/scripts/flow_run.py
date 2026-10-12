@@ -217,6 +217,9 @@ def resolve_blocks(root, wanted, profile_name):
     if bad := next((k for k, v in params.items() if one_line(str(v)).lstrip()[:1] in ("-", "#")), None):
         raise SystemExit(f"[params] {bad} starts with {one_line(str(params[bad])).lstrip()[0]!r} in {repo_file}; "
                          "a value is a path or a name, never an option or a heading")
+    # A backtick would end a script check's code span early, so the todo would not hold the command as written.
+    if bad := next((k for k, v in params.items() if "`" in str(v)), None):
+        raise SystemExit(f"[params] {bad} holds a backtick in {repo_file}; a value is a path or a name")
     for key, paths in repo.get("add", {}).items():
         if key not in wanted:
             raise SystemExit(f"[add] {key} in {repo_file} is not a step; steps are {', '.join(wanted)}")

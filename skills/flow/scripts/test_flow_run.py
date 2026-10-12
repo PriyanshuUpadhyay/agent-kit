@@ -825,6 +825,7 @@ def test_block_fail_closed(tmp):
         ("table", RED_BUILD, PARAMS + "[extra]\nx = 1\n", (), "unknown table [extra]"),
         ("param-dash", RED_BUILD, PARAMS.replace('site = "site"', 'site = "--version"'), (), "[params] site starts with '-'"),
         ("param-dash-space", RED_BUILD, PARAMS.replace('site = "site"', 'site = "\\n -x"'), (), "[params] site starts with '-'"),
+        ("param-backtick", RED_BUILD, PARAMS.replace('site = "site"', 'site = "x`; echo PWNED; `y"'), (), "[params] site holds a backtick"),
     ]
     # Bytes that are not UTF-8 in the repo file or in an [add] block name the file, with no traceback.
     Path(tmp, "utf8-toml", "app").mkdir(parents=True)
