@@ -793,6 +793,8 @@ def test_block_fail_closed(tmp):
         ("off-table", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = {}\n', (), "[off] html-diagram needs a reason"),
         ("off-number", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = 3\n', (), "[off] html-diagram needs a reason"),
         ("off-false", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = false\n', (), "[off] html-diagram needs a reason"),
+        # The Off line prints the reason through one_line, so control characters alone are an empty reason.
+        ("off-controls", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = "\\u001b\\u0007"\n', (), "[off] html-diagram needs a reason"),
         ("off-unknown", "- design: block:tech-diagram\n", PARAMS + '[off]\nnope = "x"\n', (), "unknown block id nope"),
         ("duplicate", RED_BUILD, PARAMS + '[add]\nbuild = ["red-first-check.md"]\n', (), "duplicate block id red-first-check"),
         ("profile", RED_BUILD, PARAMS, ("--profile", "nope"), "unknown profile nope"),
