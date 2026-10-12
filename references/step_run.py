@@ -29,18 +29,15 @@ RESULT_HEAD = "## Result"
 
 
 def todo_span(text, ends=(RESULT_HEAD,)):
-    """(start, end) of the step's own todo list, or (-1, -1). Rules text above it and agent text below it
-    may both hold a TODO_MARK line, so the head is the first TODO_MARK line whose next `## ` line is exactly
-    one of `ends`: rules text never reaches one before the real head, and agent text comes after it. The
-    list runs from the head to that end line. Any text (evidence, notes) may sit inside it except a line
-    that starts with `## `: such a line ends the list, and if it is not in `ends` the head does not count,
-    but a TODO_HEAD line ended by a TODO_MARK line is a decoy in the evidence, so no head counts.
-    A file with no such head has no todo list to trust, so callers refuse it."""
-    for head in re.finditer(rf"^(?=({re.escape(TODO_MARK)}.*)\n(?:(?!## ).*\n)*(## .*)$)", text, re.M):
-        if head[1] == TODO_HEAD and head[2].startswith(TODO_MARK):
+    """(start, end) of the step's own todo list, or (-1, -1). Walk the TODO_MARK lines in order, each up to
+    its next `## ` line. The first one ended by a line in `ends` is the list. One with no `- [` item is rules
+    text and is skipped. One with an item but another end gives (-1, -1), since a `## ` line pasted into the
+    evidence would hand the list to a later head. done refuses (-1, -1)."""
+    for head in re.finditer(rf"^(?={re.escape(TODO_MARK)}.*\n(?:(?!## ).*\n)*(## .*)$)", text, re.M):
+        if head[1] in ends:
+            return head.start(), head.start(1)
+        if re.search(r"^- \[", text[head.start():head.start(1)], re.M):
             break
-        if head[2] in ends:
-            return head.start(), head.start(2)
     return -1, -1
 
 

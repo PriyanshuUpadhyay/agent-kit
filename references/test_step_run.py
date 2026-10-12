@@ -343,14 +343,22 @@ def test_result_todo_heading(folder):
 
 
 def test_todo_decoy_in_list(folder):
-    """A `## Todo (` evidence line inside the real list does not become the head, so done refuses the file."""
-    text = f"Status: open\n\n{step_run.TODO_HEAD}\n- [ ] a: \n- [x] b: pasted:\n## Todo (x)\n- [x] fake: ok\n\n## Result\n"
-    assert step_run.todo_span(text) == (-1, -1), step_run.todo_span(text)
+    """A `## ` line inside the real list (a pasted `## Todo (` or `## Other`, the tail of another step file,
+    under the current or an older head wording) does not hand the list to a later head, so done refuses."""
+    head, old = step_run.TODO_HEAD, "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
+    items = "- [ ] real open item: \n- [x] b: pasted\n"
+    texts = [f"{head}\n- [ ] a: \n- [x] b: pasted:\n## Todo (x)\n- [x] fake: ok\n\n## Result\n",
+             f"{head}\n{items}## Other\n## Todo (x)\n- [x] fake: ok\n## Result\n",
+             f"{old}\n{items}## Todo (x)\n- [x] fake: ok\n## Result\n",
+             f"{head}\n{items}## Rules for this step (pasted)\n- a rule\n{head}\n- [x] fake: ok\n## Result\n"]
     file = folder / "09-decoy.md"
     try:
-        file.write_text(text, encoding="utf-8")
-        out = run("done", folder, "09-decoy")
-        assert out.returncode == 1 and "no todo list" in out.stderr, out
+        for text in texts:
+            text = f"Status: open\n\n{text}"
+            assert step_run.todo_span(text) == (-1, -1), (text, step_run.todo_span(text))
+            file.write_text(text, encoding="utf-8")
+            out = run("done", folder, "09-decoy")
+            assert out.returncode == 1 and "no todo list" in out.stderr, (text, out)
     finally:
         for path in (file, folder / "09-decoy.lock"):
             path.unlink(missing_ok=True)
