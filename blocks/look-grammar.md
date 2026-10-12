@@ -22,7 +22,7 @@ Source: skills/ink/SKILL.md:23-27, :30; skills/ink/references/references.md:79, 
 
 ## Example
 Initial state: the user links the `htmx.org` home page as the reference.
-Action: write the design read ("dev-tool landing for backend engineers, plain technical language, native CSS"). Measure: body 18 px, max width 65ch, one accent `#3b5bdb`. Write `{{site}}/DESIGN.md` with those tokens and lint it.
+Action: write the design read: "Reading this as: dev-tool landing page for backend engineers, with a plain technical language, leaning toward minimal document style." Measure: body 18 px, max width 65ch, one accent `#3b5bdb`. Write `{{site}}/DESIGN.md` with those tokens and lint it.
 Result: lint shows one `contrast-ratio` warning on the muted text, so the grammar marks it `miss` and darkens the token before style frames.
 
 ## Check (script)
