@@ -6,7 +6,7 @@ Source: html-plan pack: skills/html-plan/SKILL.md:20-30 (tree levels), :75-78 (r
 ## Rules
 - Each level answers one question. Level 1: what can someone now do or see (a behavior). Level 2: how does that work (one entrypoint, rule, or record). Level 3: where (`file:line`).
 - Split the top level by behavior. Never by file, layer, or order of work. Behavior is the one split the reader can judge without code.
-- Every level-1 and level-2 claim is a sentence that can be true or false. About 12 words at most. "A reader sees how the cache answers a request." Not "Cache section".
+- Every level-1 and level-2 claim is a sentence that can be true or false. 12 words at most. "A reader sees how the cache answers a request." Not "Cache section".
 - The level-1 claims are the summary. Read them aloud. They must tell the whole change. Write no TL;DR, no sections list, no steps list.
 - At most 5 children and 3 levels.
 - If the change has no visible behavior, level 1 states the guarantees: "Nothing a caller sees changes."
