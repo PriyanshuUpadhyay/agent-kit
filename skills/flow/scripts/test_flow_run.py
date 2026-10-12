@@ -357,6 +357,25 @@ def test_callers_name_cap(folder):
         contracts.write_text(original_contracts, encoding="utf-8")
 
 
+def test_callers_end_only_in_impact(tmp):
+    """Only 04-impact has a Callers section, so only there does its head end the todo list; in any other
+    step a pasted Callers line inside the list must not hide the open items after it."""
+    folder = Path(tmp, "callers-end")
+    folder.mkdir()
+    body = f"Status: open\n\n{flow_run.TODO_HEAD}\n- [x] a: ok\n{flow_run.CALLERS_HEAD}\n%s\n{flow_run.RESULT_HEAD}\n"
+    (folder / "03-contracts.md").write_text(body % "- [ ] b: ", encoding="utf-8")
+    (folder / "04-impact.md").write_text(body % "- `name` 2 hits", encoding="utf-8")
+    try:
+        with redirect_stdout(StringIO()):
+            flow_run.done(folder, "03-contracts")
+        raise AssertionError("03-contracts with an open item after a Callers line must not be done")
+    except SystemExit as error:
+        assert "no todo list" in str(error.code), error.code
+    with redirect_stdout(StringIO()):
+        flow_run.done(folder, "04-impact")
+    assert (folder / "04-impact.md").read_text(encoding="utf-8").startswith("Status: done "), "04-impact ends at Callers"
+
+
 def test_callers_below_rules(folder):
     """Rules text may hold a `## Todo (` heading; callers come only from below the step's own todo head."""
     file, contracts = folder / "04-impact.md", folder / "03-contracts.md"
@@ -1095,6 +1114,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_callers_deadline(folder)
     test_callers_name_cap(folder)
     test_callers_below_rules(folder)
+    test_callers_end_only_in_impact(tmp)
     test_callers_controls(repo, run, folder)
     out = run("take", folder, "04-impact", "a")
     assert out.returncode == 0, out.stderr

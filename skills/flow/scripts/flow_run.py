@@ -365,7 +365,9 @@ def take(folder, step, who, force=False):
 
 
 def done(folder, step):
-    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None, ends=(RESULT_HEAD, CALLERS_HEAD))
+    # Only 04-impact gets a Callers section; elsewhere that line is pasted text and must not end the list.
+    ends = (RESULT_HEAD, CALLERS_HEAD) if step == "04-impact" else (RESULT_HEAD,)
+    step_run.done(folder, step, rev(folder, step) if step == "05-build" else None, ends=ends)
 
 
 def skip(folder, step, *why):
