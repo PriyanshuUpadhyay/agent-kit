@@ -214,6 +214,9 @@ def resolve_blocks(root, wanted, profile_name):
     params, off, added = repo.get("params", {}), repo.get("off", {}), {}
     if bad := next((k for k, v in params.items() if not isinstance(v, str)), None):
         raise SystemExit(f"[params] {bad} must be a string in {repo_file}, such as {bad} = \"docs/x.md\"")
+    # An empty value would reach a script check as '', which a command reads as a missing path.
+    if bad := next((k for k, v in params.items() if not one_line(v).strip()), None):
+        raise SystemExit(f"[params] {bad} is empty in {repo_file}; a value is a path or a name, such as {bad} = \".\"")
     # A value read as an option would change a block command, and one that starts a line with `## ` would put a
     # step heading (`## Todo (`, `## Result`) into the rules text, where done would take it for the todo list.
     if bad := next((k for k, v in params.items() if one_line(str(v)).lstrip()[:1] in ("-", "#")), None):
