@@ -527,7 +527,8 @@ def demote(text):
         if mark := re.match(r" {0,3}(`{3,}|~{3,})", line):
             if fence is None:
                 fence = mark[1]
-            elif mark[1][0] == fence[0] and len(mark[1]) >= len(fence):
+            # As in CommonMark, only a bare fence line closes: a line such as ```js inside the fence is content.
+            elif mark[1][0] == fence[0] and len(mark[1]) >= len(fence) and not line[mark.end():].strip(" \t"):
                 fence = None
         elif line.startswith("## ") and (fence is None or line.startswith(step_run.TODO_MARK)):
             lines[i] = "#" + line

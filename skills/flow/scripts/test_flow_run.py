@@ -694,6 +694,8 @@ def test_skill_fenced_headings(tmp):
     lines = flow_run.skills_text([str(skill)]).splitlines()[1:]
     assert lines == ["# s", "### Report", "```text", "## src/Button.tsx", "### Todo (x)", "```", "~~~", "## also kept",
                      "~~~", "### After"], lines
+    # As in CommonMark, only a bare fence line closes a fence; a line such as ```js inside one is content.
+    assert flow_run.demote("```text\n## kept\n```js\nx\n```\n## after") == "```text\n## kept\n```js\nx\n```\n### after"
 
 
 def test_start_without_tomllib(tmp):
