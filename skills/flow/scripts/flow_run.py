@@ -108,8 +108,9 @@ def start(profile="default"):
                 f.write("/tmp/\n")
     except (OSError, UnicodeDecodeError) as error:  # an exclude file that is not UTF-8 gets this note too
         print(f"note: could not add /tmp/ to {exclude}: {error}", file=sys.stderr)
-    try:  # a second start packs nothing, but an unknown name is still an error
-        kit_profile(read_toml(BLOCKS / "blocks.toml"), BLOCKS / "blocks.toml", profile)
+    try:  # a second start packs nothing, but an unknown name is still an error; default needs no TOML read
+        if profile != "default":
+            kit_profile(read_toml(BLOCKS / "blocks.toml"), BLOCKS / "blocks.toml", profile)
     except SystemExit as error:
         raise SystemExit(one_line(str(error.code))) from None
     if folder.exists() and profile != "default":
@@ -186,6 +187,9 @@ def resolve_blocks(root, wanted, profile_name):
     the repo's .blocks.toml, packed by the profile: (Skills read items, rules text, script todos). Also
     the judge lines of every block that ran, once each. blocks/blocks.toml owns the format."""
     kit_file, repo_file = BLOCKS / "blocks.toml", root / ".blocks.toml"
+    # A run with no block reads no TOML, so it starts as before on a Python before 3.11 or with no blocks/.
+    if profile_name == "default" and not repo_file.exists() and not any(wanted.values()):
+        return {key: ([], "", []) for key in wanted}, ""
     kit = read_toml(kit_file)
     files = {block: BLOCKS / name for block, name in kit.get("blocks", {}).items()}
     aliases = kit.get("aliases", {})

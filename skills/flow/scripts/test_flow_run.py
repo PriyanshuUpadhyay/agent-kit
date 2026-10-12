@@ -676,17 +676,41 @@ def test_skill_fenced_headings(tmp):
 
 
 def test_start_without_tomllib(tmp):
-    """On a Python before 3.11, which has no tomllib, start stops with one line and status still runs."""
-    out, _, repo, _ = blocks_start(tmp, "no-tomllib", RED_BUILD)
+    """On a Python before 3.11, which has no tomllib, status still runs, and start of a run that names a block
+    stops with one line."""
+    out, folder, repo, _ = blocks_start(tmp, "no-tomllib", RED_BUILD)
     assert out.returncode == 0, out.stderr
     code = "import runpy, sys; sys.modules['tomllib'] = None; sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
     env = {**os.environ, **GIT_ENV, "HOME": str(Path(tmp, "no-tomllib", "home"))}
     run = lambda *a: subprocess.run([sys.executable, "-I", "-c", code, str(SCRIPT), *a], cwd=repo, env=env,
                                     capture_output=True, text=True)
-    out = run("start")
-    assert out.returncode == 1 and out.stderr == f"{flow_run.BLOCKS / 'blocks.toml'}: reading TOML needs Python 3.11 or later (tomllib)\n", out
     out = run("status")
     assert out.returncode == 0 and "01-frame" in out.stdout, out
+    shutil.rmtree(folder)  # so start must read the block catalog again
+    out = run("start")
+    assert out.returncode == 1 and out.stderr == f"{flow_run.BLOCKS / 'blocks.toml'}: reading TOML needs Python 3.11 or later (tomllib)\n", out
+
+
+def test_start_no_block_reads_no_toml(tmp):
+    """A catalog with no block item, no .blocks.toml, and the default profile read no TOML, so start writes
+    the same files on a Python with no tomllib and from a kit copy with no blocks/ folder."""
+    kit = Path(tmp, "kit-no-blocks")
+    for part in ("skills/flow/scripts/flow_run.py", "skills/flow/SKILL.md", "references/step_run.py"):
+        (kit / part).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(SCRIPT.parents[3] / part, kit / part)
+    _, before, _, _ = blocks_start(tmp, "no-block-a", "", None)
+    _, made, repo, _ = blocks_start(tmp, "no-block-b", "", None)
+    shutil.rmtree(made)
+    code = "import runpy, sys; sys.modules['tomllib'] = None; sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
+    out = subprocess.run([sys.executable, "-I", "-c", code, str(kit / "skills/flow/scripts/flow_run.py"), "start"], cwd=repo,
+                         env={**os.environ, **GIT_ENV, "HOME": str(Path(tmp, "no-block-b", "home"))}, capture_output=True, text=True)
+    assert out.returncode == 0 and out.stderr == "", out
+    mask = lambda text, *paths: [text := text.replace(str(p), "<p>") for p in paths][-1]
+    for file in sorted(before.iterdir()):
+        a = mask(file.read_text(encoding="utf-8"), before.parents[2], SCRIPT.parents[3])
+        b = mask((made / file.name).read_text(encoding="utf-8"), kit.resolve(), made.parents[2], kit)
+        assert a == b, (file.name, a, b)
+        assert "profile " not in next(l for l in b.splitlines() if l.startswith("Skills read:")), b
 
 
 def test_add_path_errors(tmp):
@@ -1238,6 +1262,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_headings(tmp)
     test_skill_fenced_headings(tmp)
     test_start_without_tomllib(tmp)
+    test_start_no_block_reads_no_toml(tmp)
     test_add_path_errors(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)
