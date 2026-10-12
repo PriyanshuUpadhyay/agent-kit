@@ -480,7 +480,7 @@ def step_text(folder, step):
 
 
 def test_block_in_step(tmp):
-    """D1: a catalog step line naming block:<id> writes that block into the step file, and the
+    """A catalog step line naming block:<id> writes that block into the step file, and the
     Skills read line names the profile and the block with its content hash."""
     out, folder, repo, run = blocks_start(tmp, "d1", RED_BUILD)
     assert out.returncode == 0, out.stderr
@@ -498,7 +498,7 @@ def test_block_in_step(tmp):
 
 
 def test_block_alias_and_base(tmp):
-    """D2: an alias expands to its members, duplicates drop, and base joins every step once."""
+    """An alias expands to its members, duplicates drop, and base joins every step once."""
     out, folder, _, _ = blocks_start(tmp, "d2", "- design: block:tech-diagram, block:html-diagram\n" + RED_BUILD)
     assert out.returncode == 0, out.stderr
     design = step_text(folder, "02-design")
@@ -537,7 +537,7 @@ def rule_lines(text):
 
 
 def test_block_profile(tmp):
-    """D3: the merged profile writes each alias as one block and folds base in, with the same rule and
+    """The merged profile writes each alias as one block and folds base in, with the same rule and
     check lines as the split form, and drops the Example sections."""
     catalog = "- design: block:tech-diagram, block:style-frames, block:look-grammar\n"
     split, split_folder, _, _ = blocks_start(tmp, "d3-split", catalog)
@@ -584,7 +584,7 @@ def test_block_example_params(tmp):
 
 
 def test_block_params(tmp):
-    """D4: {{name}} takes its value from the repo's .blocks.toml; a missing one stops start and names it."""
+    """A {{name}} takes its value from the repo's .blocks.toml; a missing one stops start and names it."""
     out, folder, _, _ = blocks_start(tmp, "d4", "- review: block:diagram-correctness\n")
     assert out.returncode == 0, out.stderr
     review = step_text(folder, "06-review")
@@ -652,7 +652,7 @@ def test_skill_fenced_headings(tmp):
 
 
 def test_block_fail_closed(tmp):
-    """D5: start stops with a one-line reason and makes no folder."""
+    """start stops with a one-line reason and makes no folder."""
     cases = [
         ("unknown", "- build: block:nope\n", PARAMS, (), "unknown block id nope"),
         ("off-empty", "- design: block:tech-diagram\n", PARAMS + '[off]\nhtml-diagram = " "\n', (), "[off] html-diagram needs a reason"),
@@ -841,7 +841,7 @@ def test_review_read_encoding(tmp):
 
 
 def test_block_checks(tmp):
-    """D6: Check (script) lines become step todos; Check (judge) lines go to 06-review only, and done
+    """Check (script) lines become step todos; Check (judge) lines go to 06-review only, and done
     refuses a checked block todo with no evidence even when its command holds a colon."""
     out, folder, _, run = blocks_start(tmp, "d6", "- build: block:html-diagram\n")
     assert out.returncode == 0, out.stderr

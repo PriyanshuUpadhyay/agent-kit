@@ -267,7 +267,7 @@ def resolve_blocks(root, wanted, profile_name):
                             if l.strip() and not l.startswith("- ")), None):
                 raise SystemExit(f"block {block} has the line {bad[1]!r} under ## {bad[0]}; "
                                  f"each check is one line that starts with '- '")
-            # The hash is of the file's bytes (C4); read_text turns CRLF into LF, so the text cannot give it.
+            # The hash is of the file's bytes; read_text turns CRLF into LF, so the text cannot give it.
             loaded[block] = (hashlib.sha256(files[block].read_bytes()).hexdigest()[:8], parts)
         return loaded[block]
 
