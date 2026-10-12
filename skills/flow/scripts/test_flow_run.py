@@ -490,9 +490,15 @@ def test_closed_stdout(repo, env, folder):
         file.write_text(original)
 
 
-# Every git call and flow run in this file: no global or system git config (signing, hooks, aliases), a fixed author.
+# Every git call and flow run in this file: no global or system git config (signing, hooks, aliases), a fixed author,
+# and no GIT_* variable of the caller, such as the GIT_DIR a git hook sets. Build each env with git_env().
 GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+
+def git_env():
+    return {**{k: v for k, v in os.environ.items() if not k.startswith("GIT_")}, **GIT_ENV}
+
 PARAMS = '[params]\nsource_of_truth = "docs/spec.md"\nsite = "site"\nshots = "tmp/shots"\n'
 RED_BUILD = "- build: block:red-first-check\n"  # the catalog line most block tests start from
 
@@ -504,11 +510,11 @@ def blocks_start(tmp, name, catalog, repo_toml=PARAMS, *args, env=None, python=s
     (home / ".flow" / "domains.md").write_text("## any\n" + catalog, encoding="utf-8")
     (home / ".flow" / "app" / "profile.md").write_text("Domains: any\nRepo rules: none\n", encoding="utf-8")
     repo.mkdir(exist_ok=True)
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, env={**os.environ, **GIT_ENV}, check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, env=git_env(), check=True)
     if repo_toml is not None:
         (repo / ".blocks.toml").write_text(repo_toml, encoding="utf-8")
     run = lambda *a: subprocess.run([python, SCRIPT, *map(str, a)], cwd=repo,
-                                    env={**os.environ, **GIT_ENV, "HOME": str(home), **(env or {})}, capture_output=True, text=True)
+                                    env={**git_env(), "HOME": str(home), **(env or {})}, capture_output=True, text=True)
     out = run("start", *args)
     folder = Path(out.stdout.splitlines()[0]) if out.returncode == 0 else None
     return out, folder, repo, run
@@ -521,6 +527,20 @@ def step_text(folder, step):
 def has_control(text, keep="\t\n"):
     """True if text holds a C0 or C1 control character or DEL, other than those in keep."""
     return any(ord(c) < 32 and c not in keep or 127 <= ord(c) <= 159 for c in text)
+
+
+def test_git_env_ignores_caller_git_dir(tmp):
+    """A run from a git hook inherits GIT_DIR, GIT_WORK_TREE, and GIT_INDEX_FILE; the tests' git calls and flow
+    runs still use their own repo, so the caller's repo gets no commit and no tmp/flow folder."""
+    decoy = Path(tmp, "decoy")
+    subprocess.run(["git", "init", "-q", "-b", "main", str(decoy)], env=git_env(), check=True)
+    hook = {"GIT_DIR": str(decoy / ".git"), "GIT_WORK_TREE": str(decoy), "GIT_INDEX_FILE": str(decoy / ".git" / "index")}
+    with patch.dict(os.environ, hook):
+        out, folder, repo, _ = blocks_start(tmp, "hooked", RED_BUILD)
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "one"], cwd=repo, env=git_env(), check=True)
+    assert out.returncode == 0 and folder.resolve().is_relative_to(repo.resolve()), out
+    log = subprocess.run(["git", "log", "--oneline"], cwd=decoy, env=git_env(), capture_output=True, text=True)
+    assert log.stdout == "" and not (decoy / "tmp").exists(), log
 
 
 def test_block_in_step(tmp):
@@ -704,7 +724,7 @@ def test_start_without_tomllib(tmp):
     out, folder, repo, _ = blocks_start(tmp, "no-tomllib", RED_BUILD)
     assert out.returncode == 0, out.stderr
     code = "import runpy, sys; sys.modules['tomllib'] = None; sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
-    env = {**os.environ, **GIT_ENV, "HOME": str(Path(tmp, "no-tomllib", "home"))}
+    env = {**git_env(), "HOME": str(Path(tmp, "no-tomllib", "home"))}
     run = lambda *a: subprocess.run([sys.executable, "-I", "-c", code, str(SCRIPT), *a], cwd=repo, env=env,
                                     capture_output=True, text=True)
     out = run("status")
@@ -726,7 +746,7 @@ def test_start_no_block_reads_no_toml(tmp):
     shutil.rmtree(made)
     code = "import runpy, sys; sys.modules['tomllib'] = None; sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
     out = subprocess.run([sys.executable, "-I", "-c", code, str(kit / "skills/flow/scripts/flow_run.py"), "start"], cwd=repo,
-                         env={**os.environ, **GIT_ENV, "HOME": str(Path(tmp, "no-block-b", "home"))}, capture_output=True, text=True)
+                         env={**git_env(), "HOME": str(Path(tmp, "no-block-b", "home"))}, capture_output=True, text=True)
     assert out.returncode == 0 and out.stderr == "", out
     mask = lambda text, *paths: [text := text.replace(str(p), "<p>") for p in paths][-1]
     for file in sorted(before.iterdir()):
@@ -1006,7 +1026,7 @@ def test_review_read_encoding(tmp):
     assert_ascii_locale()
     out, folder, repo, run = blocks_start(tmp, "review-ascii", "- review: block:web-ui-basics\n", env=ASCII_ENV)
     assert out.returncode == 0 and "…" in step_text(folder, "06-review"), out.stderr
-    subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "one"], env={**os.environ, **GIT_ENV},
+    subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "one"], env=git_env(),
                    cwd=repo, check=True)
 
     def mark(step, extra=""):
@@ -1017,7 +1037,7 @@ def test_review_read_encoding(tmp):
         mark(step)
     out = run("take", folder, "06-review", "a")
     assert out.returncode == 0, out.stderr
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env={**os.environ, **GIT_ENV},
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, env=git_env(),
                           capture_output=True, text=True, check=True).stdout.strip()
     review = repo / "tmp" / "review-check" / "range-1"
     review.mkdir(parents=True)
@@ -1243,7 +1263,7 @@ with tempfile.TemporaryDirectory() as tmp:
     (home / ".flow" / "domains.md").write_text(f"## any\n- build: {rule}\n## web\n- build: {rule}, /nope.md\n")
     (home / ".flow" / "app" / "profile.md").write_text("Domains: any\nRepo rules: none\n")
     repo.mkdir()
-    env = {**os.environ, **GIT_ENV, "HOME": str(home)}
+    env = {**git_env(), "HOME": str(home)}
     run = lambda *a: subprocess.run([sys.executable, SCRIPT, *map(str, a)], cwd=repo, env=env, capture_output=True, text=True)
     git = lambda *a: subprocess.run(["git", *a], cwd=repo, env=env, capture_output=True, text=True, check=True).stdout.strip()
     git("init", "-q", "-b", "main")
@@ -1384,6 +1404,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     events = (folder / "events.log").read_text()
     assert "02-design\tskip no UI" in events and "07-close\ttake a" in events
+    test_git_env_ignores_caller_git_dir(tmp)
     test_block_in_step(tmp)
     test_block_hash_bytes(tmp)
     test_block_alias_and_base(tmp)
