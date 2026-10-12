@@ -734,6 +734,20 @@ def test_param_quoted_in_script_checks(tmp):
     assert ran.returncode == 0 and ran.stdout.startswith("my site --files/a.css:1:"), ran
 
 
+def test_param_outside_span_in_script_check(tmp):
+    """In a Check (script) line, a {{name}} outside a backtick span is filled as plain text, as in Rules; only
+    inside a span is it quoted."""
+    Path(tmp, "param-prose", "app", "docs").mkdir(parents=True)
+    Path(tmp, "param-prose", "app", "docs", "x.md").write_text(
+        "# x\n\n## Rules\n- r\n\n## Check (script)\n- Look at {{site}} outside backticks and run `ls {{site}}`: prose.\n",
+        encoding="utf-8")
+    toml = PARAMS.replace('site = "site"', 'site = "my site"') + '[add]\nbuild = ["docs/x.md"]\n'
+    out, folder, _, _ = blocks_start(tmp, "param-prose", RED_BUILD, toml)
+    assert out.returncode == 0, out.stderr
+    todo = next(l for l in step_text(folder, "05-build").splitlines() if l.startswith("- [ ] block x script:"))
+    assert todo == "- [ ] block x script: Look at my site outside backticks and run `ls 'my site'`: prose.: ", todo
+
+
 def test_add_path_errors(tmp):
     """An [add] path that is a symlink loop or a too-long name gives the one-line "is not a file" reason, also
     on Python 3.11 and 3.12, where resolve and is_file raise for them; those run when uv can find them."""
@@ -1285,6 +1299,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_start_without_tomllib(tmp)
     test_start_no_block_reads_no_toml(tmp)
     test_param_quoted_in_script_checks(tmp)
+    test_param_outside_span_in_script_check(tmp)
     test_add_path_errors(tmp)
     test_block_fail_closed(tmp)
     test_block_repo_file(tmp)

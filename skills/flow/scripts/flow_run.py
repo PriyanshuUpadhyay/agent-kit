@@ -272,8 +272,9 @@ def resolve_blocks(root, wanted, profile_name):
             def fill(part, quote=False):
                 return PARAM.sub(lambda m: (shlex.quote if quote else str)(one_line(str(params[m[1]]))), part)
 
-            # A script check runs in a shell, so a value in its command is one quoted word; other text stays plain.
-            parts = [(head, [re.sub(r"`[^`]*`", lambda span: fill(span[0], True), line) if head == CHECKS[0] else fill(line)
+            # A script check runs its backtick spans in a shell, so a value there is one quoted word; the rest of
+            # the line, and other sections, get the value as written. Odd split parts are the spans.
+            parts = [(head, ["".join(fill(p, head == CHECKS[0] and i % 2) for i, p in enumerate(re.split(r"(`[^`]*`)", line)))
                              for line in lines]) for head, lines in sections(text)]
             # A misspelled check heading would drop its checks without a word.
             if bad := [h for h, _ in parts[1:] if h.lower().startswith("check") and h not in CHECKS]:
