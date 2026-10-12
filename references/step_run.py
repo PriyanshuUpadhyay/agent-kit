@@ -22,7 +22,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
-TODO_HEAD = "## Todo (check a box only with its evidence after the last colon; `done` refuses an empty one)"
+TODO_HEAD = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
 # Parse by this prefix, so a step file written under an older head wording still has its todos checked.
 TODO_MARK = "## Todo ("
 RESULT_HEAD = "## Result"

@@ -299,9 +299,15 @@ def test_atomic_step_writes(folder):
     (folder / "events.log").write_text(original_events, encoding="utf-8")
 
 
+def test_todo_head_pinned():
+    # swarm ui StepRuns.swift:133 matches this exact text; change it there in the same release.
+    assert step_run.TODO_HEAD == "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)", step_run.TODO_HEAD
+
+
 def test_old_todo_head(folder):
     file = folder / "09-old.md"
-    head = "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
+    # Step files written from 2026-10-09 to 2026-10-12 hold this other wording.
+    head = "## Todo (check a box only with its evidence after the last colon; `done` refuses an empty one)"
     file.write_text(f"Status: open\n\n{head}\n- [ ] old item: \n\n{step_run.RESULT_HEAD}\n", encoding="utf-8")
     try:
         out = run("done", folder, "09-old")
@@ -345,7 +351,7 @@ def test_result_todo_heading(folder):
 def test_todo_decoy_in_list(folder):
     """A `## ` line inside the real list (a pasted `## Todo (` or `## Other`, the tail of another step file,
     under the current or an older head wording) does not hand the list to a later head, so done refuses."""
-    head, old = step_run.TODO_HEAD, "## Todo (check a box only with its evidence after the colon; `done` refuses an empty one)"
+    head, old = step_run.TODO_HEAD, "## Todo (check a box only with its evidence after the last colon; `done` refuses an empty one)"
     items = "- [ ] real open item: \n- [x] b: pasted\n"
     texts = [f"{head}\n- [ ] a: \n- [x] b: pasted:\n## Todo (x)\n- [x] fake: ok\n\n## Result\n",
              f"{head}\n{items}## Other\n## Todo (x)\n- [x] fake: ok\n## Result\n",
@@ -432,6 +438,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_old_todo_head(folder)
     test_rules_todo_heading(folder)
     test_result_todo_heading(folder)
+    test_todo_head_pinned()
     test_todo_decoy_in_list(folder)
     test_todo_list_shapes(folder)
     test_utf8_and_lock_context(folder)
