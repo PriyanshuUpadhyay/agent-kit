@@ -25,6 +25,6 @@ Result: the user answers "kept as proposed". The builder draws one static diagra
 
 ## Check (judge)
 - Are there 2 to 5 decisions, and does each have exactly one `(x)` option? Quote each question with its options.
-- Does each decision name the claim number it changes and sit under that claim? Quote the decision and the claim.
+- Does each decision sit on the claim it changes, after that claim's exhibit and before its child claims? Quote the decision and the claim.
 - Is each question 15 words or fewer? Quote each question with its word count.
 - Does each "not opened" answer on an important decision have a follow-up question in chat, or a line that says why none was needed? Quote both.
