@@ -827,6 +827,9 @@ def test_block_fail_closed(tmp):
         ("param-dash", RED_BUILD, PARAMS.replace('site = "site"', 'site = "--version"'), (), "[params] site starts with '-'"),
         ("param-dash-space", RED_BUILD, PARAMS.replace('site = "site"', 'site = "\\n -x"'), (), "[params] site starts with '-'"),
         ("param-backtick", RED_BUILD, PARAMS.replace('site = "site"', 'site = "x`; echo PWNED; `y"'), (), "[params] site holds a backtick"),
+        # A value that is not a string would reach a block sentence as a Python repr, such as ['a', 'b'] or True.
+        *[(f"param-{kind}", RED_BUILD, PARAMS.replace('site = "site"', f"site = {value}"), (), "[params] site must be a string")
+          for kind, value in (("list", '["a", "b"]'), ("bool", "true"), ("number", "3"), ("table", "{ a = 1 }"))],
     ]
     # Bytes that are not UTF-8 in the repo file or in an [add] block name the file, with no traceback.
     Path(tmp, "utf8-toml", "app").mkdir(parents=True)

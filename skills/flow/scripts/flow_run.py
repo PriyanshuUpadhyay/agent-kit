@@ -212,6 +212,8 @@ def resolve_blocks(root, wanted, profile_name):
     if wrong := [t for t in ("params", "add", "off") if not isinstance(repo.get(t, {}), dict)]:
         raise SystemExit(f"{repo_file}: {wrong[0]} must be a table, written as [{wrong[0]}]")
     params, off, added = repo.get("params", {}), repo.get("off", {}), {}
+    if bad := next((k for k, v in params.items() if not isinstance(v, str)), None):
+        raise SystemExit(f"[params] {bad} must be a string in {repo_file}, such as {bad} = \"docs/x.md\"")
     # A value read as an option would change a block command, and one that starts a line with `## ` would put a
     # step heading (`## Todo (`, `## Result`) into the rules text, where done would take it for the todo list.
     if bad := next((k for k, v in params.items() if one_line(str(v)).lstrip()[:1] in ("-", "#")), None):
