@@ -10,7 +10,7 @@ Source: html-plan pack: skills/html-plan/SKILL.md:20-30 (tree levels), :75-78 (r
 - The level-1 claims are the summary. Read them aloud. They must tell the whole change. Write no TL;DR, no sections list, no steps list.
 - At most 5 children and 3 levels.
 - If the change has no visible behavior, level 1 states the guarantees: "Nothing a caller sees changes."
-- `01-frame.md` holds `Worktree:`, `Branch:`, goal, user, out of scope, done-when, and the shared assumptions for design and contracts.
+- `01-frame.md` holds what the `01-frame.md` row of the step table in `skills/flow/SKILL.md` lists.
 - Each done-when names the evidence that will prove it: a command, a screenshot, or a `file:line`.
 - Pre-mortem: imagine the page ships in 14 days and fails. Ask what went wrong, what you missed, and what you were overconfident about.
 - Sort each failure as a Tiger (a real risk, with evidence), a Paper Tiger (a concern that is overblown), or an Elephant (a risk that nobody is discussing or checking). When you are not sure which kind a failure is, call it a Tiger.
