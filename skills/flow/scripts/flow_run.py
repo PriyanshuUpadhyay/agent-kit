@@ -46,7 +46,7 @@ NAME_CAP = 25
 LINE_CHUNK = 4096
 MAX_HITS = 10
 HIT_CHARS = 160
-CAP = 15000  # characters per skill; engineering-standards is about 10k
+CAP = 15000  # characters per skill, cut to it, and per block, refused over it; engineering-standards is about 10k
 RULES_HEAD = "## Rules for this step (written by flow_run.py start; apply them, keep this section)"
 JUDGE_HEAD = "## Judge checks of blocks that ran"
 PARAM = re.compile(r"\{\{(\w+)\}\}")
@@ -272,10 +272,11 @@ def resolve_blocks(root, wanted, profile_name):
         if block not in loaded:
             data = read_bytes(files[block])
             # Repo text goes to agents and to take's output: a param is one line, and no text keeps control bytes.
-            # The param check reads the filtered text, the same text the fill reads. As skills_text does, the
-            # text is cut at CAP characters, so a large repo file cannot fill every step file.
+            # The param check reads the filtered text, the same text the fill reads.
             text = plain(read_utf8(files[block], data), keep_newlines=True)
-            cut, text = len(text) > CAP, text[:CAP]
+            # A large repo file would fill every step file, and a cut could end inside a check, so it stops start.
+            if len(text) > CAP:
+                raise SystemExit(f"block {block} is {len(text)} characters; a block holds at most {CAP}")
             if missing := [p for p in PARAM.findall(text) if p not in params]:
                 raise SystemExit(f"block {block} needs {{{{{missing[0]}}}}}; set it under [params] in {repo_file}")
             def fill(part, quote=False):
@@ -301,10 +302,8 @@ def resolve_blocks(root, wanted, profile_name):
                                  f"each check is one line that starts with '- '")
             # So would a missing check section; blocks/blocks.toml says every block has both.
             if missing := next((h for h in CHECKS if h not in [head for head, _ in parts[1:]]), None):
-                raise SystemExit(f"block {block} has no ## {missing} section" + (f" in its first {CAP} characters" if cut else "")
-                                 + "; every block has one, with `- none: <why>` when it has no check")
-            if cut:  # a header line, so render writes it under the block's marker
-                parts[0][1].append(f"{plain(str(files[block]))} (first {CAP} characters; read the file for the rest)")
+                raise SystemExit(f"block {block} has no ## {missing} section; every block has one, "
+                                 "with `- none: <why>` when it has no check")
             # The hash is of the file's bytes; the text has LF for CRLF, so it cannot give it.
             loaded[block] = (hashlib.sha256(data).hexdigest()[:8], parts)
         return loaded[block]

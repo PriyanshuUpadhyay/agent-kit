@@ -944,18 +944,19 @@ def test_block_repo_file(tmp):
 
 
 def test_block_cap(tmp):
-    """A block is cut at CAP characters, as a catalog skill is, and the step file says where the rest is."""
-    Path(tmp, "big", "app", "docs").mkdir(parents=True)
-    filler = "".join(f"- filler rule {i}\n" for i in range(flow_run.CAP // 10))
-    Path(tmp, "big", "app", "docs", "big.md").write_text(
-        "# big\n## Check (script)\n- `true` runs: BIG CHECK\n## Check (judge)\n- Is it big?\n## Rules\n" + filler + "- LAST RULE\n",
-        encoding="utf-8")
-    out, folder, repo, _ = blocks_start(tmp, "big", RED_BUILD, PARAMS + '[add]\nbuild = ["docs/big.md"]\n')
-    assert out.returncode == 0, out.stderr
-    build = step_text(folder, "05-build")
-    assert f"{repo / 'docs' / 'big.md'} (first {flow_run.CAP} characters; read the file for the rest)" in build, build[-500:]
-    assert "- filler rule 0\n" in build and "LAST RULE" not in build and "BIG CHECK" in build, build[-500:]
-    assert len(build) < 2 * flow_run.CAP, len(build)
+    """A block of CAP characters loads; a longer one stops start with one line, since a cut could end inside a
+    check and drop the checks after it."""
+    head, tail = "# big\n## Rules\n", "## Check (script)\n- `true` runs: BIG CHECK\n## Check (judge)\n- Is it big?\n"
+    for name, size in (("big-ok", flow_run.CAP), ("big", flow_run.CAP + 1)):
+        Path(tmp, name, "app", "docs").mkdir(parents=True)
+        pad = "- " + "x" * (size - len(head) - len(tail) - 3) + "\n"
+        Path(tmp, name, "app", "docs", "big.md").write_text(head + pad + tail, encoding="utf-8")
+        out, folder, repo, _ = blocks_start(tmp, name, RED_BUILD, PARAMS + '[add]\nbuild = ["docs/big.md"]\n')
+        if name == "big-ok":
+            assert out.returncode == 0 and "BIG CHECK" in step_text(folder, "05-build"), out.stderr
+        else:
+            assert out.returncode == 1 and out.stderr == f"block big is {size} characters; a block holds at most {flow_run.CAP}\n", out.stderr
+            assert not (repo / "tmp" / "flow").exists()
 
 
 # An ASCII locale: the child opens files as US-ASCII unless the code passes encoding="utf-8". The child
