@@ -21,7 +21,7 @@ if sys.version_info < (3, 11):
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # python3 -I does not add the script's folder
 import flow_run  # noqa: E402
 
-SCRIPT = Path(__file__).with_name("flow_run.py")
+SCRIPT = Path(__file__).resolve().with_name("flow_run.py")  # the kit path, also when run through a linked skill folder
 CALLERS_MEMORY_LIMIT = 1_000_000
 
 
