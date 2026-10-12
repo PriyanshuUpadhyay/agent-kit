@@ -438,7 +438,7 @@ def approved(folder):
     if not runs:
         raise SystemExit("07-close needs a `Run: tmp/review-check/<run>` line in 06-review.md")
     run = Path(git("rev-parse", "--show-toplevel")) / runs[-1]
-    lines = (run / "03-verdict.md").read_text(encoding="utf-8").splitlines() if (run / "03-verdict.md").exists() else []
+    lines = read_utf8(run / "03-verdict.md").splitlines() if (run / "03-verdict.md").exists() else []
     verdict = lines[2] if len(lines) > 2 else f"no verdict in {run}/03-verdict.md"
     if not verdict.startswith("Verdict: APPROVE"):
         raise SystemExit(f"07-close needs an APPROVE verdict on HEAD. {runs[-1]} says: {verdict}")

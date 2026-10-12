@@ -1021,6 +1021,12 @@ def test_review_read_encoding(tmp):
     (review / "03-verdict.md").write_text("Status: done x\nUses:\nVerdict: APPROVE (1 of 1 units; 0 fix)\n- note: …\n", encoding="utf-8")
     (review / "target.json").write_text(json.dumps({"head": head, "note": "…"}, ensure_ascii=False), encoding="utf-8")
     mark("06-review", "Run: tmp/review-check/range-1\n")
+    # A verdict file that is not UTF-8 stops take with one line, as the other flow files do.
+    good = (review / "03-verdict.md").read_bytes()
+    (review / "03-verdict.md").write_bytes(b"Status: x\n\nVerdict: APPROVE \xff\xfe\n")
+    out = run("take", folder, "07-close", "a")
+    assert out.returncode == 1 and "03-verdict.md is not UTF-8" in out.stderr and len(out.stderr.splitlines()) == 1, out.stderr
+    (review / "03-verdict.md").write_bytes(good)
     out = run("take", folder, "07-close", "a")
     assert out.returncode == 0, out.stderr
 
