@@ -694,9 +694,10 @@ def test_add_path_errors(tmp):
     on Python 3.11 and 3.12, where resolve and is_file raise for them; those run when uv can find them."""
     found = [subprocess.run(["uv", "python", "find", v], capture_output=True, text=True).stdout.strip()
              for v in ("3.11", "3.12")] if shutil.which("uv") else []
-    for python in [sys.executable] + [p for p in found if p]:
+    pythons = [sys.executable] + [p for p in found if p and Path(p).resolve() != Path(sys.executable).resolve()]
+    for i, python in enumerate(pythons):
         for case, path in (("loop", "loop.md"), ("long", "a" * 300 + ".md")):
-            name = f"add-{case}-{Path(python).name}"
+            name = f"add-{case}-{i}"
             Path(tmp, name, "app").mkdir(parents=True)
             if case == "loop":
                 Path(tmp, name, "app", path).symlink_to(path)
