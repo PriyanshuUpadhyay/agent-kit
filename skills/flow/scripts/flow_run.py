@@ -212,9 +212,11 @@ def resolve_blocks(root, wanted, profile_name):
     if wrong := [t for t in ("params", "add", "off") if not isinstance(repo.get(t, {}), dict)]:
         raise SystemExit(f"{repo_file}: {wrong[0]} must be a table, written as [{wrong[0]}]")
     params, off, added = repo.get("params", {}), repo.get("off", {}), {}
-    # Block commands put a value after other arguments, so a value read as an option would change the command.
-    if dash := next((k for k, v in params.items() if one_line(str(v)).lstrip().startswith("-")), None):
-        raise SystemExit(f"[params] {dash} starts with '-' in {repo_file}; a value is a path or a name, never an option")
+    # A value read as an option would change a block command, and one that starts a line with `## ` would put a
+    # step heading (`## Todo (`, `## Result`) into the rules text, where done would take it for the todo list.
+    if bad := next((k for k, v in params.items() if one_line(str(v)).lstrip()[:1] in ("-", "#")), None):
+        raise SystemExit(f"[params] {bad} starts with {one_line(str(params[bad])).lstrip()[0]!r} in {repo_file}; "
+                         "a value is a path or a name, never an option or a heading")
     for key, paths in repo.get("add", {}).items():
         if key not in wanted:
             raise SystemExit(f"[add] {key} in {repo_file} is not a step; steps are {', '.join(wanted)}")
