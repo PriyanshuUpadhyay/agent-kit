@@ -552,6 +552,22 @@ def test_block_profile(tmp):
     assert rule_lines(step_text(split_folder, "06-review")) == rule_lines(step_text(merged_folder, "06-review"))
 
 
+def test_profile_on_second_start(tmp):
+    """A second start checks the profile name too, and says a known non-default profile was not applied."""
+    out, folder, _, run = blocks_start(tmp, "d3-again", RED_BUILD)
+    assert out.returncode == 0, out.stderr
+    before = {p.name: p.read_bytes() for p in folder.iterdir()}
+    again = run("start", "--profile", "nosuch")
+    assert again.returncode == 1 and again.stderr.startswith("unknown profile nosuch;"), again
+    again = run("start", "--profile", "merged")
+    assert again.returncode == 0 and again.stdout.splitlines()[0] == str(folder), again
+    assert f"note: {folder} exists, so --profile merged was not applied" in again.stderr, again.stderr
+    for args in (("--profile", "default"), ()):
+        again = run("start", *args)
+        assert again.returncode == 0 and "was not applied" not in again.stderr, (args, again.stderr)
+    assert {p.name: p.read_bytes() for p in folder.iterdir()} == before, "a second start must write nothing"
+
+
 def test_block_example_params(tmp):
     """A {{param}} only in a block's Example would make every run set it for nothing, so no kit block has
     one; a repo with only source_of_truth starts a close step that names done-when-evidence."""
@@ -1117,6 +1133,7 @@ with tempfile.TemporaryDirectory() as tmp:
     test_block_hash_bytes(tmp)
     test_block_alias_and_base(tmp)
     test_block_profile(tmp)
+    test_profile_on_second_start(tmp)
     test_block_example_params(tmp)
     test_block_params(tmp)
     test_block_controls(tmp)

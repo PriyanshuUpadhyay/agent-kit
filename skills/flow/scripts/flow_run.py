@@ -109,6 +109,12 @@ def start(profile="default"):
                 f.write("/tmp/\n")
     except (OSError, UnicodeDecodeError) as error:  # an exclude file that is not UTF-8 gets this note too
         print(f"note: could not add /tmp/ to {exclude}: {error}", file=sys.stderr)
+    try:  # a second start packs nothing, but an unknown name is still an error
+        kit_profile(read_toml(BLOCKS / "blocks.toml"), BLOCKS / "blocks.toml", profile)
+    except SystemExit as error:
+        raise SystemExit(one_line(str(error.code))) from None
+    if folder.exists() and profile != "default":
+        print(f"note: {folder} exists, so --profile {profile} was not applied", file=sys.stderr)
     if not folder.exists():
         steps = graph()
         # Read every step's text before the folder exists, so a config or read error leaves no half-made run.
@@ -170,6 +176,12 @@ def skill_paths(step):
     return paths + [str(root / r) for r in repo_rules], [p.removeprefix("block:") for p in items if p.startswith("block:")]
 
 
+def kit_profile(kit, kit_file, name):
+    if (profile := kit.get("profiles", {}).get(name)) is None:
+        raise SystemExit(f"unknown profile {name}; {kit_file} has {', '.join(kit.get('profiles', {}))}")
+    return profile
+
+
 def resolve_blocks(root, wanted, profile_name):
     """For each step key in `wanted` (key -> catalog block ids), the blocks it gets from the catalog and
     the repo's .blocks.toml, packed by the profile: (Skills read items, rules text, script todos). Also
@@ -185,9 +197,7 @@ def resolve_blocks(root, wanted, profile_name):
             raise SystemExit(f"unknown block id {unknown[0]} in alias {alias} of {kit_file}")
     if unknown := [b for b in kit.get("base", []) if b not in files]:
         raise SystemExit(f"unknown block id {unknown[0]} in base of {kit_file}")
-    profile = kit.get("profiles", {}).get(profile_name)
-    if profile is None:
-        raise SystemExit(f"unknown profile {profile_name}; {kit_file} has {', '.join(kit.get('profiles', {}))}")
+    profile = kit_profile(kit, kit_file, profile_name)
     merge = profile.get("merge", [])
     if unknown := [name for name in merge if name not in aliases]:
         raise SystemExit(f"profile {profile_name} merges {unknown[0]}, which is not an alias in {kit_file}")
