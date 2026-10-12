@@ -27,4 +27,3 @@ Result: two findings, `site/index.html:88 - node "cache" not in docs/architectur
 - Does any node, arrow, or label say something that {{source_of_truth}} does not say? Quote the diagram text and the source line, or write "no source line".
 - Does `06-review.md` hold one table per diagram, with one row per node and per arrow? Quote one table.
 - Is each `miss` row also a finding in the form `path:line - issue`? Quote each miss and its finding.
-- Were the tech-diagram-concept checks (node count, every branch ends, caption) run and recorded? Quote the record.
