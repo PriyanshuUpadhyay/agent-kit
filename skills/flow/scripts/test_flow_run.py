@@ -928,8 +928,9 @@ def test_look_grammar_dashes(tmp):
     entity, and passes a page with only hyphens and other entities."""
     site = Path(tmp, "dash-site")
     site.mkdir()
-    dashes = ("—", "–", "&mdash;", "&ndash;", "&#8212;", "&#8211;", "&#x2014;", "&#X2013;")
-    for text, found in [(d, True) for d in dashes] + [("a - b &amp; &#8210; &#821;", False), ("", False)]:
+    dashes = ("—", "–", "&mdash;", "&ndash;", "&#8212;", "&#8211;", "&#x2014;", "&#X2013;",
+              "&#08212;", "&#x002014;", "&#0008211;", "&#X02013;")
+    for text, found in [(d, True) for d in dashes] + [("a - b &amp; &#8210; &#821; &#08210; &#x02012;", False), ("", False)]:
         (site / "index.html").write_text(f"<p>tool {text} text</p>\n", encoding="utf-8")
         out = block_rg("look-grammar", site)[1]
         assert (out.stdout.strip() != "") == found, (text, out)

@@ -28,7 +28,7 @@ Result: lint shows one `contrast-ratio` warning on the muted text, so the gramma
 ## Check (script)
 - `npx @google/design.md lint {{site}}/DESIGN.md | jq -e '([.findings[] | select(.rule == "token-summary")] | length > 0) and ([.findings[] | select(.severity == "error" or .rule == "contrast-ratio")] | length == 0)'` prints `true`: `DESIGN.md` exists, its tokens parse, and lint has no error and no contrast finding. A missing file prints nothing and a file that does not parse prints `false`.
 - `rg -U -n --pcre2 --glob '*.css' '#[0-9a-fA-F]{3,8}\b(?=[^{};]*[;}])|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(' {{site}}` finds color literals only in the one `:root` token block: the CSS reads only tokens. A hex counts only when the first `;`, `{`, or `}` after it is `;` or `}`, so it sits in a declaration value (also before a nested rule), not in a selector such as `#face {`.
-- `rg -c -i '—|–|&[mn]dash;|&#(821[12]|x201[34]);' {{site}}/index.html` prints nothing: visible text has no dash separators, as a character or an entity.
+- `rg -c -i '—|–|&[mn]dash;|&#0*(821[12]|x0*201[34]);' {{site}}/index.html` prints nothing: visible text has no dash separators, as a character or an entity.
 
 ## Check (judge)
 - Does `02-design.md` have the design-read line and a reference list with an evidence label on each fact? Quote the line and the labels.
